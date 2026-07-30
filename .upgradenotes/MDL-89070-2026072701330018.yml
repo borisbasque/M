@@ -1,0 +1,45 @@
+issueNumber: MDL-89070
+notes:
+  block_myoverview:
+    - message: >-
+        The Course overview block frontend has been rewritten from AMD +
+        Mustache to an ESM + React implementation, mounted directly from PHP
+        via data-react-component/data-react-props (the same pattern as the
+        block_timeline React rewrite, MDL-88287).
+      type: improved
+    - message: >-
+        The block's fourteen Mustache templates (`main.mustache` and the
+        view/nav/placeholder/zero-state partials), its AMD modules (`main`,
+        `view`, `view_nav`, `repository`, `selectors`), and its `renderer.php`
+        have been removed. Themes overriding these templates or code requiring the AMD
+        modules must migrate to the React components, which can be themed via
+        the swizzle mechanism (see `js/esm/src/swizzle.json`).
+      type: removed
+    - message: >-
+        The `\block_myoverview\output\main` class (including
+        `export_for_template()`, `get_preferences_as_booleans()` and
+        `export_for_zero_state_template()`) has been removed. Mount props are
+        now built by `\block_myoverview\local\props_builder`.
+      type: removed
+    - message: >-
+        The `BLOCK_MYOVERVIEW_PAGING_*` constants and the
+        `block_myoverview_user_paging_preference` user preference have been
+        removed: the course list is paged server-side with a fixed page size
+        and a previous/next control. Existing stored paging preferences are
+        deleted on upgrade.
+      type: removed
+    - message: >-
+        All language strings orphaned by the rewrite have been deprecated:
+        `addtofavourites`, `removefromfavourites` (replaced by
+        `aria:addtofavouritesfor` / `aria:removefromfavouritesfor`, which carry
+        the course name placeholder), `aria:addtofavourites`,
+        `aria:removefromfavourites`, `cards`, the per-grouping `aria:*` strings
+        (`aria:allcourses`, `aria:allcoursesincludinghidden`, `aria:controls`,
+        `aria:courseprogress`, `aria:coursesummary`, `aria:customfield`,
+        `aria:favourites`, `aria:future`, `aria:hiddencourses`,
+        `aria:hidecourse`, `aria:inprogress`, `aria:past`, `aria:showcourse`),
+        the per-layout `aria:card` / `aria:list` / `aria:summary` strings, the
+        `sortbytitle` / `sortbylastaccessed` / `sortbyshortname` /
+        `sortbystartdate` strings, and
+        `privacy:metadata:overviewpagingpreference`.
+      type: deprecated
