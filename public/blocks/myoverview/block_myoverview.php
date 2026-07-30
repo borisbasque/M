@@ -22,8 +22,6 @@
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
 
-defined('MOODLE_INTERNAL') || die();
-
 /**
  * My overview block class.
  *
@@ -32,7 +30,6 @@ defined('MOODLE_INTERNAL') || die();
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
 class block_myoverview extends block_base {
-
     /**
      * Init.
      */
@@ -52,14 +49,26 @@ class block_myoverview extends block_base {
         $group = get_user_preferences('block_myoverview_user_grouping_preference');
         $sort = get_user_preferences('block_myoverview_user_sort_preference');
         $view = get_user_preferences('block_myoverview_user_view_preference');
-        $paging = get_user_preferences('block_myoverview_user_paging_preference');
         $customfieldvalue = get_user_preferences('block_myoverview_user_grouping_customfieldvalue_preference');
 
-        $renderable = new \block_myoverview\output\main($group, $sort, $view, $paging, $customfieldvalue);
-        $renderer = $this->page->get_renderer('block_myoverview');
+        $builder = new \block_myoverview\local\props_builder($group, $sort, $view, $customfieldvalue);
+        // JSON_HEX_TAG is the flag the attribute round trip relies on; JSON_UNESCAPED_UNICODE
+        // matches the block_timeline mount so the pattern stays copy-pasteable. THROW_ON_ERROR
+        // surfaces unencodable props (e.g. invalid UTF-8 in a custom-field value) instead of
+        // silently rendering an empty block.
+        $props = json_encode(
+            $builder->get_props(),
+            JSON_UNESCAPED_UNICODE | JSON_HEX_TAG | JSON_THROW_ON_ERROR,
+        );
 
+        // Mount the React component directly — no renderer, no template (the block_timeline
+        // reference pattern, MDL-88287). core/react_autoinit mounts any element carrying
+        // these two attributes; html_writer attribute-escapes the JSON for the round trip.
         $this->content = new stdClass();
-        $this->content->text = $renderer->render($renderable);
+        $this->content->text = html_writer::div('', 'block-myoverview-app', [
+            'data-react-component' => '@moodle/lms/block_myoverview/app',
+            'data-react-props' => $props,
+        ]);
         $this->content->footer = '';
 
         return $this->content;
@@ -71,7 +80,7 @@ class block_myoverview extends block_base {
      * @return array
      */
     public function applicable_formats() {
-        return array('my' => true);
+        return ['my' => true];
     }
 
     /**
@@ -98,11 +107,10 @@ class block_myoverview extends block_base {
             $group = get_user_preferences('block_myoverview_user_grouping_preference');
             $sort = get_user_preferences('block_myoverview_user_sort_preference');
             $view = get_user_preferences('block_myoverview_user_view_preference');
-            $paging = get_user_preferences('block_myoverview_user_paging_preference');
             $customfieldvalue = get_user_preferences('block_myoverview_user_grouping_customfieldvalue_preference');
 
-            $renderable = new \block_myoverview\output\main($group, $sort, $view, $paging, $customfieldvalue);
-            $customfieldsexport = $renderable->get_customfield_values_for_export();
+            $builder = new \block_myoverview\local\props_builder($group, $sort, $view, $customfieldvalue);
+            $customfieldsexport = $builder->get_customfield_values_for_export();
             if (!empty($customfieldsexport)) {
                 $configs->customfieldsexport = json_encode($customfieldsexport);
             }
