@@ -278,24 +278,6 @@ $blocks-plus-gutter: calc(#{$blocks-column-width} + (#{$grid-gutter-width} * 0.5
     .content {
         min-height: 19.35rem;
     }
-    .paged-content-page-container {
-        min-height: 13rem;
-    }
-    .summary-image {
-        height: 5rem;
-        width: 5rem;
-        background-position: center;
-        background-size: cover;
-    }
-    .list-image {
-        height: 5rem;
-        width: 20rem;
-        background-position: center;
-        background-size: cover;
-        @include media-breakpoint-down(xl) {
-            width: 100%;
-        }
-    }
 }
 
 //
