@@ -35,9 +35,9 @@ Feature: The my overview block allows admins to easily configure the students' c
     And I press "Save"
     And I log out
     Then I am on the "My courses" page logged in as "student1"
-    And I click on "All" "button" in the "Course overview" "block"
+    And I click on "Grouping drop-down menu" "button" in the "Course overview" "block"
     # We have to check for the data attribute instead of the list element text as we would get false positives from the "All" element otherwise
-    Then "All (including removed from view)" "list_item" should exist in the ".block_myoverview .dropdown-menu" "css_element"
+    Then "All (including removed from view)" "button" should exist in the ".courseoverview-menu__list" "css_element"
 
   Scenario: Disable 'All (including removed from view)' course filter option
     Given I log in as "admin"
@@ -46,8 +46,8 @@ Feature: The my overview block allows admins to easily configure the students' c
     And I press "Save"
     And I log out
     Then I am on the "My courses" page logged in as "student1"
-    And I click on "All" "button" in the "Course overview" "block"
-    Then "All (including removed from view)" "list_item" should not exist in the ".block_myoverview .dropdown-menu" "css_element"
+    And I click on "Grouping drop-down menu" "button" in the "Course overview" "block"
+    Then "All (including removed from view)" "button" should not exist in the ".courseoverview-menu__list" "css_element"
 
   Scenario: Enable 'All' course filter option
     Given I log in as "admin"
@@ -56,8 +56,8 @@ Feature: The my overview block allows admins to easily configure the students' c
     And I press "Save"
     And I log out
     Then I am on the "My courses" page logged in as "student1"
-    And I click on "All" "button" in the "Course overview" "block"
-    Then "[data-value='all']" "css_element" should exist in the ".block_myoverview .dropdown-menu" "css_element"
+    And I click on "Grouping drop-down menu" "button" in the "Course overview" "block"
+    Then "All courses" "button" should exist in the ".courseoverview-menu__list" "css_element"
 
   Scenario: Disable 'All' course filter option
     Given I log in as "admin"
@@ -66,9 +66,9 @@ Feature: The my overview block allows admins to easily configure the students' c
     And I press "Save"
     And I log out
     Then I am on the "My courses" page logged in as "student1"
-    # 'All' option has been disabled, so the button is falling back to the 'In progress' option which is the next enabled option.
-    And I click on "In progress" "button" in the "Course overview" "block"
-    Then "[data-value='all']" "css_element" should not exist in the ".block_myoverview .dropdown-menu" "css_element"
+    # 'All' option has been disabled, so the grouping trigger is falling back to the 'In progress' option which is the next enabled option.
+    And I click on "Grouping drop-down menu" "button" in the "Course overview" "block"
+    Then "All courses" "button" should not exist in the ".courseoverview-menu__list" "css_element"
 
   Scenario: Enable 'In progress' course filter option
     Given I log in as "admin"
@@ -77,9 +77,9 @@ Feature: The my overview block allows admins to easily configure the students' c
     And I press "Save"
     And I log out
     Then I am on the "My courses" page logged in as "student1"
-    And I click on "All" "button" in the "Course overview" "block"
+    And I click on "Grouping drop-down menu" "button" in the "Course overview" "block"
     # We have to check for the data attribute instead of the list element text as we would get false negatives "All (including removed from view)" element otherwise
-    Then "In progress" "list_item" should exist in the ".block_myoverview .dropdown-menu" "css_element"
+    Then "In progress" "button" should exist in the ".courseoverview-menu__list" "css_element"
 
   Scenario: Disable 'In progress' course filter option
     Given I log in as "admin"
@@ -88,8 +88,8 @@ Feature: The my overview block allows admins to easily configure the students' c
     And I press "Save"
     And I log out
     Then I am on the "My courses" page logged in as "student1"
-    And I click on "All" "button" in the "Course overview" "block"
-    Then "In progress" "list_item" should not exist in the ".block_myoverview .dropdown-menu" "css_element"
+    And I click on "Grouping drop-down menu" "button" in the "Course overview" "block"
+    Then "In progress" "button" should not exist in the ".courseoverview-menu__list" "css_element"
 
   Scenario: Enable 'Future' course filter option
     Given I log in as "admin"
@@ -98,8 +98,8 @@ Feature: The my overview block allows admins to easily configure the students' c
     And I press "Save"
     And I log out
     Then I am on the "My courses" page logged in as "student1"
-    And I click on "All" "button" in the "Course overview" "block"
-    Then "Future" "list_item" should exist in the ".block_myoverview .dropdown-menu" "css_element"
+    And I click on "Grouping drop-down menu" "button" in the "Course overview" "block"
+    Then "Future" "button" should exist in the ".courseoverview-menu__list" "css_element"
 
   Scenario: Disable 'Future' course filter option
     Given I log in as "admin"
@@ -108,8 +108,8 @@ Feature: The my overview block allows admins to easily configure the students' c
     And I press "Save"
     And I log out
     Then I am on the "My courses" page logged in as "student1"
-    And I click on "All" "button" in the "Course overview" "block"
-    Then "Future" "list_item" should not exist in the ".block_myoverview .dropdown-menu" "css_element"
+    And I click on "Grouping drop-down menu" "button" in the "Course overview" "block"
+    Then "Future" "button" should not exist in the ".courseoverview-menu__list" "css_element"
 
   Scenario: Enable 'Past' course filter option
     Given I log in as "admin"
@@ -118,8 +118,8 @@ Feature: The my overview block allows admins to easily configure the students' c
     And I press "Save"
     And I log out
     Then I am on the "My courses" page logged in as "student1"
-    And I click on "All" "button" in the "Course overview" "block"
-    Then "Past" "list_item" should exist in the ".block_myoverview .dropdown-menu" "css_element"
+    And I click on "Grouping drop-down menu" "button" in the "Course overview" "block"
+    Then "Past" "button" should exist in the ".courseoverview-menu__list" "css_element"
 
   Scenario: Disable 'Past' course filter option
     Given I log in as "admin"
@@ -128,8 +128,8 @@ Feature: The my overview block allows admins to easily configure the students' c
     And I press "Save"
     And I log out
     Then I am on the "My courses" page logged in as "student1"
-    And I click on "All" "button" in the "Course overview" "block"
-    Then "Past" "list_item" should not exist in the ".block_myoverview .dropdown-menu" "css_element"
+    And I click on "Grouping drop-down menu" "button" in the "Course overview" "block"
+    Then "Past" "button" should not exist in the ".courseoverview-menu__list" "css_element"
 
   Scenario: Enable 'Starred' course filter option
     Given I log in as "admin"
@@ -138,8 +138,8 @@ Feature: The my overview block allows admins to easily configure the students' c
     And I press "Save"
     And I log out
     Then I am on the "My courses" page logged in as "student1"
-    And I click on "All" "button" in the "Course overview" "block"
-    Then "Starred" "list_item" should exist in the ".block_myoverview .dropdown-menu" "css_element"
+    And I click on "Grouping drop-down menu" "button" in the "Course overview" "block"
+    Then "Starred" "button" should exist in the ".courseoverview-menu__list" "css_element"
 
   Scenario: Disable 'Starred' course filter option
     Given I log in as "admin"
@@ -148,8 +148,8 @@ Feature: The my overview block allows admins to easily configure the students' c
     And I press "Save"
     And I log out
     Then I am on the "My courses" page logged in as "student1"
-    And I click on "All" "button" in the "Course overview" "block"
-    Then "Starred" "list_item" should not exist in the ".block_myoverview .dropdown-menu" "css_element"
+    And I click on "Grouping drop-down menu" "button" in the "Course overview" "block"
+    Then "Starred" "button" should not exist in the ".courseoverview-menu__list" "css_element"
 
   Scenario: Enable 'Removed courses' course filter option
     Given I log in as "admin"
@@ -158,8 +158,8 @@ Feature: The my overview block allows admins to easily configure the students' c
     And I press "Save"
     And I log out
     Then I am on the "My courses" page logged in as "student1"
-    And I click on "All" "button" in the "Course overview" "block"
-    Then "Removed from view" "list_item" should exist in the ".block_myoverview .dropdown-menu" "css_element"
+    And I click on "Grouping drop-down menu" "button" in the "Course overview" "block"
+    Then "Removed from view" "button" should exist in the ".courseoverview-menu__list" "css_element"
 
   Scenario: Disable 'Removed courses' course filter option
     Given I log in as "admin"
@@ -168,8 +168,8 @@ Feature: The my overview block allows admins to easily configure the students' c
     And I press "Save"
     And I log out
     Then I am on the "My courses" page logged in as "student1"
-    And I click on "All" "button" in the "Course overview" "block"
-    Then "Removed from view" "list_item" should not exist in the ".block_myoverview .dropdown-menu" "css_element"
+    And I click on "Grouping drop-down menu" "button" in the "Course overview" "block"
+    Then "Removed from view" "button" should not exist in the ".courseoverview-menu__list" "css_element"
 
   Scenario: Disable all course filter options
     Given I log in as "admin"
@@ -184,7 +184,7 @@ Feature: The my overview block allows admins to easily configure the students' c
     And I press "Save"
     And I log out
     And I am on the "My courses" page logged in as "student1"
-    Then "button#groupingdropdown" "css_element" should not exist in the ".block_myoverview" "css_element"
+    Then "Grouping drop-down menu" "button" should not exist in the "Course overview" "block"
     And I should see "Course 1" in the "Course overview" "block"
     And I should see "Course 2" in the "Course overview" "block"
     And I should see "Course 3" in the "Course overview" "block"
@@ -204,7 +204,7 @@ Feature: The my overview block allows admins to easily configure the students' c
     And I press "Save"
     And I log out
     And I am on the "My courses" page logged in as "student1"
-    Then "button#groupingdropdown" "css_element" should not exist in the ".block_myoverview" "css_element"
+    Then "Grouping drop-down menu" "button" should not exist in the "Course overview" "block"
     And I should see "Course 2" in the "Course overview" "block"
     And I should see "Course 3" in the "Course overview" "block"
     And I should see "Course 4" in the "Course overview" "block"

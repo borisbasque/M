@@ -33,13 +33,13 @@ Feature: The my overview block allows users to easily sort their courses
   Scenario Outline: Check the function of available course sorting options
     Given I am on the "Course 5" course page logged in as "student1"
     When I am on the "My courses" page
-    And I click on "sortingdropdown" "button" in the "Course overview" "block"
-    And I click on "<dropdownstring>" "link" in the "Course overview" "block"
+    And I click on "Sort:" "button" in the "Course overview" "block"
+    And I click on "<dropdownstring>" "button" in the ".courseoverview-menu__list" "css_element"
     Then "<coursebefore>" "text" should appear before "<courseafter>" "text" in the "Course overview" "block"
 
     Examples:
-      | dropdownstring        | coursebefore | courseafter |
-      | Sort by course name   | Course 1     | Course 2    |
-      | Sort by short name    | Course 2     | Course 1    |
-      | Sort by last accessed | Course 5     | Course 1    |
-      | Sort by start date    | Course 3     | Course 1    |
+      | dropdownstring    | coursebefore | courseafter |
+      | Course name       | Course 1     | Course 2    |
+      | Short name        | Course 2     | Course 1    |
+      | Last accessed     | Course 5     | Course 1    |
+      | Course start date | Course 3     | Course 1    |

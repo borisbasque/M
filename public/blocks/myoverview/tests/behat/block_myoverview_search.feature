@@ -58,7 +58,40 @@ Feature: My overview block searching
     And I set the field "Search courses" in the "Course overview" "block" to "Course"
     And I should see "Course 01" in the "Course overview" "block"
     And I should not see "Course 13" in the "Course overview" "block"
-    And I click on "[data-control='next']" "css_element" in the "Course overview" "block"
-    And I wait until ".block_myoverview [data-control='next']" "css_element" exists
+    And I click on "Next page" "button" in the "Course overview" "block"
+    And I wait until "Course 13" "text" exists
     Then I should see "Course 13" in the "Course overview" "block"
     And I should not see "Course 01" in the "Course overview" "block"
+
+  Scenario: A search with no matches shows the no-results state, not the zero-state
+    Given I am on the "My courses" page logged in as "student1"
+    When I set the field "Search courses" in the "Course overview" "block" to "Nonexistent course zzz"
+    Then I should see "No courses match your search" in the "Course overview" "block"
+    And I should see "Try different keywords or clear your filters to see all courses." in the "Course overview" "block"
+    And I should not see "You're not enrolled in any courses." in the "Course overview" "block"
+    # The search field stays available so the user can recover from the empty result.
+    And "Search courses" "field" should exist in the "Course overview" "block"
+    And I log out
+
+  Scenario: Searching overrides the active filter, and clearing the search restores it
+    Given I am on the "My courses" page logged in as "student1"
+    # Star a course and reload so the favourite is loaded from the server.
+    And I click on "Star for Course 01" "button" in the "Course overview" "block"
+    And I reload the page
+    And I wait until "Course 01" "text" exists
+    # Apply the Starred filter.
+    And I click on "Grouping drop-down menu" "button" in the "Course overview" "block"
+    And I click on "Starred" "button" in the ".courseoverview-menu__list" "css_element"
+    And I should see "Course 01" in the "Course overview" "block"
+    And I should not see "Course 03" in the "Course overview" "block"
+    # A search overrides the grouping (as the pre-React block behaved): matches outside
+    # the Starred filter appear while the search is active.
+    When I set the field "Search courses" in the "Course overview" "block" to "Course 03"
+    Then I should see "Course 03" in the "Course overview" "block"
+    And I should not see "Course 01" in the "Course overview" "block"
+    # Clearing the search restores the user's stored grouping.
+    And I set the field "Search courses" in the "Course overview" "block" to ""
+    And I wait until "Course 01" "text" exists
+    And I should see "Course 01" in the "Course overview" "block"
+    And I should not see "Course 03" in the "Course overview" "block"
+    And I log out
