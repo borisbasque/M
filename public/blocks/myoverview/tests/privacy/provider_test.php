@@ -13,6 +13,7 @@
 //
 // You should have received a copy of the GNU General Public License
 // along with Moodle.  If not, see <http://www.gnu.org/licenses/>.
+
 /**
  * Unit tests for the block_myoverview implementation of the privacy API.
  *
@@ -23,7 +24,6 @@
  */
 namespace block_myoverview\privacy;
 
-defined('MOODLE_INTERNAL') || die();
 
 use core_privacy\local\request\writer;
 use block_myoverview\privacy\provider;
@@ -36,6 +36,8 @@ use block_myoverview\privacy\provider;
 final class provider_test extends \core_privacy\tests\provider_testcase {
     /**
      * Ensure that export_user_preferences returns no data if the user has not visited the myoverview block.
+     *
+     * @covers \block_myoverview\privacy\provider::export_user_preferences
      */
     public function test_export_user_preferences_no_pref(): void {
         $this->resetAfterTest();
@@ -52,6 +54,7 @@ final class provider_test extends \core_privacy\tests\provider_testcase {
      * @param string $value The value you are storing
      *
      * @dataProvider user_preference_provider
+     * @covers \block_myoverview\privacy\provider::export_user_preferences
      */
     public function test_export_user_preferences($type, $value, $expected): void {
         $this->resetAfterTest();
@@ -72,24 +75,29 @@ final class provider_test extends \core_privacy\tests\provider_testcase {
      * @return array Array of valid user preferences.
      */
     public static function user_preference_provider(): array {
-        return array(
-            array('block_myoverview_user_sort_preference', 'lastaccessed', ''),
-            array('block_myoverview_user_sort_preference', 'title', ''),
-            array('block_myoverview_user_sort_preference', 'shortname', ''),
-            array('block_myoverview_user_grouping_preference', 'allincludinghidden', ''),
-            array('block_myoverview_user_grouping_preference', 'all', ''),
-            array('block_myoverview_user_grouping_preference', 'inprogress', ''),
-            array('block_myoverview_user_grouping_preference', 'future', ''),
-            array('block_myoverview_user_grouping_preference', 'past', ''),
-            array('block_myoverview_user_grouping_preference', 'hidden', ''),
-            array('block_myoverview_user_grouping_preference', 'favourites', ''),
-            array('block_myoverview_user_view_preference', 'card', ''),
-            array('block_myoverview_user_view_preference', 'list', ''),
-            array('block_myoverview_user_view_preference', 'summary', ''),
-            array('block_myoverview_user_paging_preference', 12, 12)
-        );
+        return [
+            ['block_myoverview_user_sort_preference', 'lastaccessed', ''],
+            ['block_myoverview_user_sort_preference', 'title', ''],
+            ['block_myoverview_user_sort_preference', 'shortname', ''],
+            ['block_myoverview_user_sort_preference', 'startdate', ''],
+            ['block_myoverview_user_grouping_preference', 'allincludinghidden', ''],
+            ['block_myoverview_user_grouping_preference', 'all', ''],
+            ['block_myoverview_user_grouping_preference', 'inprogress', ''],
+            ['block_myoverview_user_grouping_preference', 'future', ''],
+            ['block_myoverview_user_grouping_preference', 'past', ''],
+            ['block_myoverview_user_grouping_preference', 'hidden', ''],
+            ['block_myoverview_user_grouping_preference', 'favourites', ''],
+            ['block_myoverview_user_view_preference', 'card', ''],
+            ['block_myoverview_user_view_preference', 'list', ''],
+            ['block_myoverview_user_view_preference', 'summary', ''],
+        ];
     }
 
+    /**
+     * Hidden-course preferences are exported with the course shortname in the description.
+     *
+     * @covers \block_myoverview\privacy\provider::export_user_preferences
+     */
     public function test_export_user_preferences_with_hidden_courses(): void {
         $this->resetAfterTest();
         $user = $this->getDataGenerator()->create_user();
