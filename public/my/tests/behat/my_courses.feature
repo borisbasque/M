@@ -1,4 +1,4 @@
-@core @core_my @block_myoverview
+@core @core_my @block_myoverview @javascript
 Feature: Run tests over my courses page
 
   Background:
@@ -20,12 +20,12 @@ Feature: Run tests over my courses page
 
   Scenario: Admin can add new courses or manage them from my courses
     Given I am on the "My courses" page logged in as "admin"
-    And "Create course" "button" should not exist in the "page-header" "region"
-    And "Manage courses" "button" should not exist in the "page-header" "region"
-    When I click on "Create course" "button" in the "page-content" "region"
+    And "Create course" "link" should not exist in the "page-header" "region"
+    And "Manage courses" "link" should not exist in the "page-header" "region"
+    When I click on "Create course" "link" in the "page-content" "region"
     Then I should see "Add a new course"
     And I am on the "My courses" page
-    And I click on "Manage course categories" "button" in the "page-content" "region"
+    And I click on "Manage course categories" "link" in the "page-content" "region"
     And I should see "Manage course categories and courses"
     # Check that the expected buttons are displayed in the block when the user is enrolled in a course.
     But the following "course" exists:
@@ -37,14 +37,14 @@ Feature: Run tests over my courses page
       | course | C1      |
       | role   | student |
     And I am on the "My courses" page
-    And "Create course" "button" should exist in the "Course overview" "block"
-    And "Manage courses" "button" should exist in the "Course overview" "block"
+    And "Create course" "link" should exist in the "Course overview" "block"
+    And "Manage courses" "link" should exist in the "Course overview" "block"
 
   Scenario: User without creating a course and managing category permissions cannot see any link
     When I am on the "My courses" page logged in as "user1"
-    Then "Create course" "button" should not exist
-    And "Manage courses" "button" should not exist
-    And "Manage course categories" "button" should not exist
+    Then "Create course" "link" should not exist
+    And "Manage courses" "link" should not exist
+    And "Manage course categories" "link" should not exist
     # Check that the same buttons are not displayed in the block when the user is enrolled in a course.
     But the following "course" exists:
       | fullname  | Course 1 |
@@ -55,18 +55,18 @@ Feature: Run tests over my courses page
       | course | C1      |
       | role   | student |
     And I am on the "My courses" page
-    And "Create course" "button" should not exist
-    And "Manage courses" "button" should not exist
-    And "Manage course categories" "button" should not exist
+    And "Create course" "link" should not exist
+    And "Manage courses" "link" should not exist
+    And "Manage course categories" "link" should not exist
 
   Scenario: User without capability to browse courses cannot see any link
     Given the following "permission overrides" exist:
       | capability                     | permission | role | contextlevel | reference |
       | moodle/category:viewcourselist | Prevent    | user | System       |           |
     When I am on the "My courses" page logged in as "user1"
-    Then "Create course" "button" should not exist
-    And "Manage courses" "button" should not exist
-    And "Manage course categories" "button" should not exist
+    Then "Create course" "link" should not exist
+    And "Manage courses" "link" should not exist
+    And "Manage course categories" "link" should not exist
     # Check that the same buttons are not displayed in the block when the user is enrolled in a course.
     But the following "course" exists:
       | fullname  | Course 1 |
@@ -77,19 +77,18 @@ Feature: Run tests over my courses page
       | course | C1      |
       | role   | student |
     And I am on the "My courses" page
-    And "Create course" "button" should not exist
-    And "Manage courses" "button" should not exist
-    And "Manage course categories" "button" should not exist
+    And "Create course" "link" should not exist
+    And "Manage courses" "link" should not exist
+    And "Manage course categories" "link" should not exist
 
-  @javascript
   Scenario: User with creating a course permission can see the Create course link only
     Given the following "permission overrides" exist:
       | capability           | permission | role  | contextlevel | reference |
       | moodle/course:create | Allow      | role1 | Category     | cata      |
     When I am on the "My courses" page logged in as "user1"
-    Then "Create course" "button" should exist in the "page-content" "region"
-    But "Manage course categories" "button" should not exist
-    And I click on "Create course" "button"
+    Then "Create course" "link" should exist in the "page-content" "region"
+    But "Manage course categories" "link" should not exist
+    And I click on "Create course" "link"
     And I should see "Add a new course"
     And "CatA" "autocomplete_selection" should exist
     # Check that the same buttons are displayed in the block when the user is enrolled in a course.
@@ -102,17 +101,17 @@ Feature: Run tests over my courses page
       | course | C1      |
       | role   | student |
     And I am on the "My courses" page
-    And "Create course" "button" should exist in the "Course overview" "block"
-    And "Manage courses" "button" should not exist
+    And "Create course" "link" should exist in the "Course overview" "block"
+    And "Manage courses" "link" should not exist
 
   Scenario: User with managing a category permission can see the Manage course link only
     Given the following "permission overrides" exist:
       | capability             | permission | role  | contextlevel | reference |
       | moodle/category:manage | Allow      | role1 | Category     | cata      |
     When I am on the "My courses" page logged in as "user1"
-    Then "Manage course categories" "button" should exist in the "page-content" "region"
-    And "Create course" "button" should not exist
-    And I click on "Manage course categories" "button" in the "page-content" "region"
+    Then "Manage course categories" "link" should exist in the "page-content" "region"
+    And "Create course" "link" should not exist
+    And I click on "Manage course categories" "link" in the "page-content" "region"
     And I should see "Manage course categories and courses"
     # Check that the same buttons are displayed in the block when the user is enrolled in a course.
     But the following "course" exists:
@@ -124,23 +123,22 @@ Feature: Run tests over my courses page
       | course | C1      |
       | role   | student |
     And I am on the "My courses" page
-    And "Manage courses" "button" should exist in the "Course overview" "block"
-    And "Create course" "button" should not exist
+    And "Manage courses" "link" should exist in the "Course overview" "block"
+    And "Create course" "link" should not exist
 
-  @javascript
   Scenario: User with both creating a course and managing a category permission can see both links
     Given the following "permission overrides" exist:
       | capability             | permission | role  | contextlevel | reference |
       | moodle/course:create   | Allow      | role1 | Category     | cata      |
       | moodle/category:manage | Allow      | role1 | Category     | cata      |
     When I am on the "My courses" page logged in as "user1"
-    Then "Create course" "button" should exist in the "page-content" "region"
-    And "Manage course categories" "button" should exist in the "page-content" "region"
-    And I click on "Create course" "button"
+    Then "Create course" "link" should exist in the "page-content" "region"
+    And "Manage course categories" "link" should exist in the "page-content" "region"
+    And I click on "Create course" "link"
     And I should see "Add a new course"
     And "CatA" "autocomplete_selection" should exist
     And I am on the "My courses" page
-    And I click on "Manage course categories" "button"
+    And I click on "Manage course categories" "link"
     And I should see "Manage course categories and courses"
     # Check that the same buttons are displayed in the block when the user is enrolled in a course.
     But the following "course" exists:
@@ -152,10 +150,9 @@ Feature: Run tests over my courses page
       | course | C1      |
       | role   | student |
     And I am on the "My courses" page
-    And "Create course" "button" should exist in the "Course overview" "block"
-    And "Manage courses" "button" should exist in the "Course overview" "block"
+    And "Create course" "link" should exist in the "Course overview" "block"
+    And "Manage courses" "link" should exist in the "Course overview" "block"
 
-  @javascript
   Scenario: Admin can see relevant blocks but not add or move them
     Given the following config values are set as admin:
       | defaulthomepage | 0 |
@@ -186,8 +183,8 @@ Feature: Run tests over my courses page
       | capability            | permission | role  | contextlevel | reference |
       | moodle/course:request | Allow      | user  | System       |           |
     When I am on the "My courses" page logged in as "admin"
-    Then "Create course" "button" should exist in the "page-content" "region"
-    And "Request a course" "button" should not exist
+    Then "Create course" "link" should exist in the "page-content" "region"
+    And "Request course" "link" should not exist
     # Check that the same buttons are displayed in the block when the user is enrolled in a course.
     But the following "course" exists:
       | fullname  | Course 1 |
@@ -198,21 +195,21 @@ Feature: Run tests over my courses page
       | course | C1      |
       | role   | student |
     And I am on the "My courses" page
-    And "Create course" "button" should exist in the "Course overview" "block"
-    And "Request a course" "button" should not exist
+    And "Create course" "link" should exist in the "Course overview" "block"
+    And "Request course" "link" should not exist
 
   Scenario: User without creating a course but with course request permission could see the Request course link
     Given the following "permission overrides" exist:
       | capability            | permission | role  | contextlevel | reference |
       | moodle/course:request | Allow      | user  | System       |           |
     When I am on the "My courses" page logged in as "user1"
-    Then "Request a course" "button" should exist in the "page-content" "region"
-    And "Create course" "button" should not exist in the "page-content" "region"
+    Then "Request course" "link" should exist in the "page-content" "region"
+    And "Create course" "link" should not exist in the "page-content" "region"
     # Check the request a course button is not displayed when this feature is disabled.
     And the following config values are set as admin:
       | enablecourserequests | 0 |
     And I am on the "My courses" page logged in as "user1"
-    And "Request a course" "button" should not exist
+    And "Request course" "link" should not exist
     # Check that the same buttons are displayed in the block when the user is enrolled in a course.
     But the following "course" exists:
       | fullname  | Course 1 |
@@ -225,14 +222,14 @@ Feature: Run tests over my courses page
     And the following config values are set as admin:
       | enablecourserequests | 1 |
     And I am on the "My courses" page
-    And "Request a course" "button" should exist in the "Course overview" "block"
-    And "Create course" "button" should not exist
+    And "Request course" "link" should exist in the "Course overview" "block"
+    And "Create course" "link" should not exist
 
   Scenario: User without creating nor course request permission shouldn't see any Request course link
     Given I am on the "My courses" page logged in as "user1"
-    Then "Request a course" "button" should not exist in the "page-content" "region"
-    And "Create course" "button" should not exist in the "page-content" "region"
-    And "Manage courses" "button" should not exist in the "page-content" "region"
+    Then "Request course" "link" should not exist in the "page-content" "region"
+    And "Create course" "link" should not exist in the "page-content" "region"
+    And "Manage courses" "link" should not exist in the "page-content" "region"
     # Check that the same buttons are not displayed in the block when the user is enrolled in a course.
     But the following "course" exists:
       | fullname  | Course 1 |
@@ -243,6 +240,6 @@ Feature: Run tests over my courses page
       | course | C1      |
       | role   | student |
     And I am on the "My courses" page
-    And "Create course" "button" should not exist
-    And "Request a course" "button" should not exist
-    And "Manage courses" "button" should not exist
+    And "Create course" "link" should not exist
+    And "Request course" "link" should not exist
+    And "Manage courses" "link" should not exist
