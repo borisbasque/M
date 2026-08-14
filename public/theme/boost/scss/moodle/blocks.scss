@@ -271,16 +271,6 @@ $blocks-plus-gutter: calc(#{$blocks-column-width} + (#{$grid-gutter-width} * 0.5
 }
 
 //
-// Block block_myoverview
-//
-
-.block_myoverview {
-    .content {
-        min-height: 19.35rem;
-    }
-}
-
-//
 // Block block_timeline
 //
 

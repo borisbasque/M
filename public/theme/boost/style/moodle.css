@@ -34500,10 +34500,6 @@ aside[id^=block-region-side-] .block_recentlyaccesseditems .card:nth-of-type(n+4
   color: var(--bs-body-color);
 }
 
-.block_myoverview .content {
-  min-height: 19.35rem;
-}
-
 .block_timeline .paged-content-page-container {
   background-color: var(--bs-body-bg);
 }
