@@ -40,6 +40,8 @@ export interface DashboardBlock {
     region: string;
     weight: number;
     actions: BlockAction[];
+    // The smallest size this block may be resized to: its own Block API declaration, or the default.
+    minsize: GridSize;
 }
 
 export interface AvailableBlock {

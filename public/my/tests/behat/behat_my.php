@@ -741,4 +741,60 @@ class behat_my extends behat_base {
             );
         JS);
     }
+
+    /**
+     * Drag a block's resize handle upwards by a number of rows with the pointer, and release.
+     *
+     * @When I drag the :block dashboard block's resize handle up by :rows rows
+     * @param string $block Block name, e.g. calendar_month.
+     * @param int $rows Rows to drag by.
+     */
+    public function i_drag_the_dashboard_blocks_resize_handle_up(string $block, int $rows): void {
+        $started = $this->evaluate_script(<<<JS
+            return (() => {
+                const tile = document.querySelector('.core-my-dashboard-tile[data-block="{$block}"]');
+                const handle = tile?.querySelector('.core-my-dashboard-handle--resize');
+                const grid = document.querySelector('.core-my-dashboard-grid');
+                if (!tile || !handle || !grid) {
+                    return false;
+                }
+                const style = getComputedStyle(grid);
+                const stride = parseFloat(style.gridAutoRows) + parseFloat(style.rowGap);
+                const rect = handle.getBoundingClientRect();
+                const x = rect.left + rect.width / 2;
+                const y = rect.top + rect.height / 2;
+                const pointer = (type, clienty, buttons) => new PointerEvent(type, {
+                    bubbles: true, button: 0, buttons, clientX: x, clientY: clienty,
+                    isPrimary: true, pointerId: 7, pointerType: 'mouse',
+                });
+                handle.dispatchEvent(pointer('pointerdown', y, 1));
+                window.dispatchEvent(pointer('pointermove', y - {$rows} * stride, 1));
+                window.__dashboardDragRelease = () => window.dispatchEvent(pointer('pointerup', y - {$rows} * stride, 0));
+                return true;
+            })();
+        JS);
+        if (!$started) {
+            throw new \Exception("The {$block} dashboard block's resize handle was not found.");
+        }
+        $this->wait_for_pending_js();
+        $this->execute_script('window.__dashboardDragRelease();');
+        $this->wait_for_pending_js();
+    }
+
+    /**
+     * Assert a dashboard block's rendered row span.
+     *
+     * @Then the :block dashboard block should be :rows rows tall
+     * @param string $block Block name, e.g. calendar_month.
+     * @param int $rows Expected row span.
+     */
+    public function the_dashboard_block_should_be_rows_tall(string $block, int $rows): void {
+        $script = <<<JS
+            return getComputedStyle(document.querySelector('.core-my-dashboard-tile[data-block="{$block}"]')).gridRowEnd;
+        JS;
+        $actual = $this->spin_until_script($script, static fn($value): bool => $value === "span {$rows}");
+        if ($actual !== "span {$rows}") {
+            throw new \Exception("The {$block} dashboard block spans '{$actual}', expected 'span {$rows}'.");
+        }
+    }
 }

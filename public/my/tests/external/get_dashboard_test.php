@@ -71,6 +71,63 @@ final class get_dashboard_test extends \advanced_testcase {
     }
 
     /**
+     * Each block carries its resolved minimum, and a stored layout smaller than a block's declared
+     * minimum is grown on read, pushing the block below it down rather than overlapping it.
+     */
+    public function test_execute_reports_minimums_and_grows_undersized_blocks(): void {
+        global $CFG, $DB, $PAGE, $USER;
+        require_once($CFG->dirroot . '/my/lib.php');
+
+        $this->resetAfterTest();
+        $this->setUser($this->getDataGenerator()->create_user());
+        // Editing copies the site default to the user's own page.
+        $USER->editing = 1;
+        $result = external_api::clean_returnvalue(get_dashboard::execute_returns(), get_dashboard::execute(false));
+        $byname = array_column($result['blocks'], null, 'name');
+        $this->assertSame(['columns' => 1, 'rows' => 4], $byname['calendar_month']['minsize']);
+        $this->assertSame(\core_my\local\dashboard::get_minimum_size(), $byname['timeline']['minsize']);
+
+        // Store the drawer stack with the calendar squeezed to 2 rows and the next block directly below it.
+        $mypage = my_get_page($USER->id, MY_PAGE_PRIVATE);
+        $context = \context_user::instance($USER->id);
+        $stored = [
+            'myoverview' => [1, 0, 3, 5],
+            'timeline' => [1, 5, 3, 3],
+            'calendar_month' => [4, 0, 1, 2],
+            'recentlyaccesseditems' => [4, 2, 1, 3],
+        ];
+        foreach ($stored as $name => [$column, $row, $columns, $rows]) {
+            $DB->delete_records('block_positions', ['blockinstanceid' => $byname[$name]['id']]);
+            $DB->insert_record('block_positions', (object) [
+                'blockinstanceid' => $byname[$name]['id'],
+                'contextid' => $context->id,
+                'pagetype' => 'my-index',
+                'subpage' => (string) $mypage->id,
+                'visible' => 1,
+                'region' => $name === 'calendar_month' || $name === 'recentlyaccesseditems' ? 'side-post' : 'content',
+                'weight' => 0,
+                'gridcolumn' => $column,
+                'gridrow' => $row,
+                'gridcolumns' => $columns,
+                'gridrows' => $rows,
+            ]);
+        }
+
+        // The positions were written behind the dashboard's back, so drop its cached response.
+        \cache::make('core', 'my_dashboard')->purge();
+        $PAGE = new \moodle_page();
+        $result = external_api::clean_returnvalue(get_dashboard::execute_returns(), get_dashboard::execute(false));
+        $layout = array_column($result['layout'], null, 'id');
+        $calendar = $layout[$byname['calendar_month']['id']];
+        $recent = $layout[$byname['recentlyaccesseditems']['id']];
+        $this->assertSame([4, 0, 1, 4], [$calendar['column'], $calendar['row'], $calendar['columns'], $calendar['rows']]);
+        $this->assertSame([4, 4, 1, 3], [$recent['column'], $recent['row'], $recent['columns'], $recent['rows']]);
+        // Blocks not in the way stay where they were.
+        $this->assertSame(0, $layout[$byname['myoverview']['id']]['row']);
+        $this->assertSame(5, $layout[$byname['timeline']['id']]['row']);
+    }
+
+    /**
      * A brand-new user's dashboard (with no customisation of their own, so it is copied
      * straight from the site's unmigrated default page) uses the default grid shape: an
      * empty column on each side, content blocks taking the next three columns, side-region

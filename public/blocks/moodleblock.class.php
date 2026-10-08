@@ -757,6 +757,38 @@ EOD;
     public function can_block_be_added(moodle_page $page): bool {
         return true;
     }
+
+    /**
+     * This method can be overridden to declare the smallest size this block is still usable at on a
+     * block grid, such as the flexible dashboard.
+     *
+     * The grid will not let anyone resize the block below it, by any route. When the grid is
+     * narrower than the declared width (for example on a phone), the block takes the full width.
+     * Declaring nothing is fully supported: the block then gets the grid's default minimum.
+     *
+     * Only declare a size; this does not change how the block renders.
+     *
+     * @return \core_block\grid_size|null The minimum size, or null to use the grid's default.
+     * @since Moodle 6.0
+     */
+    public function get_grid_minimum_size(): ?\core_block\grid_size {
+        return null;
+    }
+
+    /**
+     * This method can be overridden to declare the size this block should be given when it is first
+     * placed on a block grid, such as the flexible dashboard.
+     *
+     * A preferred height of null means "as tall as the block's content", where the grid supports
+     * that. A preferred size smaller than the block's minimum is raised to the minimum.
+     * Declaring nothing is fully supported: the block then gets the grid's default placement.
+     *
+     * @return \core_block\grid_size|null The preferred size, or null to use the grid's default.
+     * @since Moodle 6.0
+     */
+    public function get_grid_preferred_size(): ?\core_block\grid_size {
+        return null;
+    }
 }
 
 /**

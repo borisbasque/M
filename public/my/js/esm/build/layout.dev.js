@@ -11,6 +11,10 @@ const MAX_COLUMNS = 6;
 const SIX_COLUMN_THRESHOLD = 1921;
 const FOUR_COLUMN_THRESHOLD = 920;
 const TWO_COLUMN_THRESHOLD = 690;
+const fitMinimum = /* @__PURE__ */ __name((minimum, columnCount) => ({
+  columns: Math.max(1, Math.min(minimum.columns, columnCount)),
+  rows: minimum.rows
+}), "fitMinimum");
 const FALLBACK_GRID_METRICS = { rowHeight: 96, gap: 16 };
 const readGridMetrics = /* @__PURE__ */ __name((grid) => {
   if (!grid) {
@@ -235,6 +239,7 @@ export {
   TWO_COLUMN_THRESHOLD,
   columnsForWidth,
   disturbedCount,
+  fitMinimum,
   maxRow,
   packInOrder,
   packLayout,

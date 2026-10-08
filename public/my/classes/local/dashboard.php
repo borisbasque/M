@@ -17,6 +17,7 @@
 namespace core_my\local;
 
 use block_manager;
+use core_block\grid_size;
 use context_system;
 use context_user;
 use moodle_url;
@@ -29,8 +30,11 @@ use moodle_url;
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
 final class dashboard {
-    /** Canonical number of columns used for persisted layouts. */
-    public const MAX_COLUMNS = 6;
+    /** Canonical number of columns used for persisted layouts: the Block API's grid width. */
+    public const MAX_COLUMNS = grid_size::MAX_COLUMNS;
+
+    /** Minimum size of a block that declares none, or declares an unusable one. */
+    private const DEFAULT_MINIMUM = ['columns' => 1, 'rows' => 2];
 
     /** Default grid row span for legacy and newly-added blocks. */
     public const DEFAULT_ROWS = 3;
@@ -199,6 +203,7 @@ final class dashboard {
                     'region' => $region,
                     'weight' => (int) $instance->instance->weight,
                     'actions' => self::get_menu_actions($content->controls, $instance->instance->blockname),
+                    'minsize' => self::get_minimum_size($instance),
                 ];
             }
         }
@@ -523,7 +528,73 @@ final class dashboard {
 
         usort($layout, static fn(array $left, array $right): int =>
             [$left['row'], $left['column'], $left['id']] <=> [$right['row'], $right['column'], $right['id']]);
+        return self::enforce_minimum_sizes($layout, $instances);
+    }
+
+    /**
+     * Grow any block stored smaller than its minimum, pushing whatever it now overlaps downwards.
+     *
+     * A block can gain (or raise) a declared minimum after a layout was saved, for example when the
+     * block plugin is upgraded. Growing it in place would overlap its neighbours, so every block is
+     * re-placed in reading order at its stored position or, if that is now taken, the nearest free
+     * rows below it. Only blocks in the way move, and only down.
+     *
+     * @param array $layout Layout items in reading order.
+     * @param array $instances Block instances keyed by id.
+     * @return array The layout, unchanged when every block already meets its minimum.
+     */
+    private static function enforce_minimum_sizes(array $layout, array $instances): array {
+        $changed = false;
+        foreach ($layout as &$item) {
+            if (!isset($instances[$item['id']])) {
+                continue;
+            }
+            $minimum = self::get_minimum_size($instances[$item['id']]);
+            if ($item['columns'] < $minimum['columns'] || $item['rows'] < $minimum['rows']) {
+                $item['columns'] = max($item['columns'], $minimum['columns']);
+                $item['rows'] = max($item['rows'], $minimum['rows']);
+                $item['column'] = min($item['column'], self::MAX_COLUMNS - $item['columns']);
+                $changed = true;
+            }
+        }
+        unset($item);
+        if (!$changed) {
+            return $layout;
+        }
+
+        $occupied = [];
+        foreach ($layout as &$item) {
+            while (!self::rectangle_is_free($occupied, $item)) {
+                $item['row']++;
+            }
+            for ($row = $item['row']; $row < $item['row'] + $item['rows']; $row++) {
+                for ($column = $item['column']; $column < $item['column'] + $item['columns']; $column++) {
+                    $occupied[$column . ':' . $row] = true;
+                }
+            }
+        }
+        unset($item);
+        usort($layout, static fn(array $left, array $right): int =>
+            [$left['row'], $left['column'], $left['id']] <=> [$right['row'], $right['column'], $right['id']]);
         return $layout;
+    }
+
+    /**
+     * Whether none of a layout item's cells is already occupied.
+     *
+     * @param array $occupied Occupied cells, keyed "column:row".
+     * @param array $item Layout item (column, row, columns, rows).
+     * @return bool
+     */
+    private static function rectangle_is_free(array $occupied, array $item): bool {
+        for ($row = $item['row']; $row < $item['row'] + $item['rows']; $row++) {
+            for ($column = $item['column']; $column < $item['column'] + $item['columns']; $column++) {
+                if (isset($occupied[$column . ':' . $row])) {
+                    return false;
+                }
+            }
+        }
+        return true;
     }
 
     /**
@@ -622,6 +693,8 @@ final class dashboard {
         if (!$block) {
             throw new \moodle_exception('blockcannotadd');
         }
+        $preferred = self::get_preferred_size($block);
+        $columns = $preferred['columns'];
         $DB->insert_record('block_positions', (object) [
             'blockinstanceid' => $block->instance->id,
             'contextid' => $context->id,
@@ -630,11 +703,12 @@ final class dashboard {
             'visible' => $block->instance->visible ?? 1,
             'region' => $block->instance->region ?? $block->instance->defaultregion,
             'weight' => $block->instance->weight ?? $block->instance->defaultweight,
-            // Same shape as a migrated centre-column block, below everything already placed.
-            'gridcolumn' => self::CONTENT_COLUMN,
+            // At the block's preferred size, aligned with the centre column where it fits, below
+            // everything already placed.
+            'gridcolumn' => min(self::CONTENT_COLUMN, self::MAX_COLUMNS - $columns),
             'gridrow' => $bottom,
-            'gridcolumns' => self::CONTENT_COLUMNS,
-            'gridrows' => self::DEFAULT_ROWS,
+            'gridcolumns' => $columns,
+            'gridrows' => $preferred['rows'] ?? self::DEFAULT_ROWS,
         ]);
 
         if (!$sitedefault) {
@@ -695,15 +769,109 @@ final class dashboard {
     }
 
     /**
-     * Resolve the default minimum size through one replaceable extension point.
+     * Resolve a block's minimum size: its own declaration, or the default.
      *
-     * Sent to the client in the dashboard payload ('grid' => 'minsize'), so the editor and
-     * {@see self::validate_layout()} always enforce the same value.
+     * The single point every minimum-size check goes through: the editor (via the payload),
+     * {@see self::validate_layout()} and {@see self::enforce_minimum_sizes()}.
      *
+     * @param \block_base|null $block The block, or null for the default that applies to any block.
      * @return array{columns: int, rows: int}
      */
-    public static function get_minimum_size(): array {
-        return ['columns' => 1, 'rows' => 2];
+    public static function get_minimum_size(?\block_base $block = null): array {
+        $default = self::DEFAULT_MINIMUM;
+        if (!$block) {
+            return $default;
+        }
+        $declared = self::read_size_declaration($block, 'get_grid_minimum_size');
+        if (!$declared) {
+            return $default;
+        }
+        $rows = $declared->rows ?? $default['rows'];
+        if (!self::is_valid_span($declared->columns, self::MAX_COLUMNS) || !self::is_valid_span($rows, grid_size::MAX_ROWS)) {
+            self::warn_size_declaration($block, 'get_grid_minimum_size', 'declares an unusable size ' .
+                "({$declared->columns} × " . ($declared->rows ?? 'null') . '), so the default is used');
+            return $default;
+        }
+        return ['columns' => $declared->columns, 'rows' => $rows];
+    }
+
+    /**
+     * Resolve the size a block is given when it is first placed on the grid.
+     *
+     * @param \block_base $block The block.
+     * @return array{columns: int, rows: int|null} Rows of null mean "as tall as its content".
+     */
+    public static function get_preferred_size(\block_base $block): array {
+        $minimum = self::get_minimum_size($block);
+        $default = [
+            'columns' => max(self::CONTENT_COLUMNS, $minimum['columns']),
+            'rows' => max(self::DEFAULT_ROWS, $minimum['rows']),
+        ];
+        $declared = self::read_size_declaration($block, 'get_grid_preferred_size');
+        if (!$declared) {
+            return $default;
+        }
+        if (
+            !self::is_valid_span($declared->columns, self::MAX_COLUMNS)
+                || ($declared->rows !== null && !self::is_valid_span($declared->rows, grid_size::MAX_ROWS))
+        ) {
+            self::warn_size_declaration($block, 'get_grid_preferred_size', 'declares an unusable size ' .
+                "({$declared->columns} × " . ($declared->rows ?? 'null') . '), so the default is used');
+            return $default;
+        }
+        if ($declared->columns < $minimum['columns'] || ($declared->rows !== null && $declared->rows < $minimum['rows'])) {
+            self::warn_size_declaration($block, 'get_grid_preferred_size', 'declares a size smaller than its minimum, so the minimum is used');
+        }
+        return [
+            'columns' => max($declared->columns, $minimum['columns']),
+            'rows' => $declared->rows === null ? null : max($declared->rows, $minimum['rows']),
+        ];
+    }
+
+    /**
+     * Call one of a block's optional size declarations, tolerating one that fails.
+     *
+     * @param \block_base $block The block.
+     * @param string $method get_grid_minimum_size or get_grid_preferred_size.
+     * @return grid_size|null The declaration, or null when there is none or it could not be read.
+     */
+    private static function read_size_declaration(\block_base $block, string $method): ?grid_size {
+        try {
+            return $block->$method();
+        } catch (\Throwable $exception) {
+            // For example a TypeError from a non-integer span: a coding error in the block, which
+            // must not stop the dashboard from rendering.
+            self::warn_size_declaration($block, $method, 'failed (' . $exception->getMessage() . '), so the default is used');
+            return null;
+        }
+    }
+
+    /**
+     * Whether a declared span is a usable whole number of columns or rows.
+     *
+     * @param int $span The declared span.
+     * @param int $maximum The largest span allowed.
+     * @return bool
+     */
+    private static function is_valid_span(int $span, int $maximum): bool {
+        return $span >= 1 && $span <= $maximum;
+    }
+
+    /**
+     * Tell the block's developer, once per request and problem, that a size declaration was not used as given.
+     *
+     * @param \block_base $block The block.
+     * @param string $method The declaring method.
+     * @param string $problem What was wrong.
+     */
+    private static function warn_size_declaration(\block_base $block, string $method, string $problem): void {
+        static $warned = [];
+        $message = "The block {$block->name()} {$method}() {$problem}.";
+        if (isset($warned[$message])) {
+            return;
+        }
+        $warned[$message] = true;
+        debugging($message, DEBUG_DEVELOPER);
     }
 
     /**
@@ -723,7 +891,6 @@ final class dashboard {
      * @param array $instances Available block instances.
      */
     private static function validate_layout(array $layout, array $instances): void {
-        $minimum = self::get_minimum_size();
         $seen = [];
         $occupied = [];
         foreach ($layout as $item) {
@@ -731,6 +898,7 @@ final class dashboard {
                 throw new \invalid_parameter_exception('The layout contains an invalid or duplicate block.');
             }
             $seen[$item['id']] = true;
+            $minimum = self::get_minimum_size($instances[$item['id']]);
             if (
                 $item['column'] < 0 || $item['row'] < 0
                     || $item['columns'] < $minimum['columns'] || $item['rows'] < $minimum['rows']

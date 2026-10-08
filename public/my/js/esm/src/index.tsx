@@ -26,6 +26,7 @@ import DashboardLoading from './components/DashboardLoading';
 import {
     columnsForWidth,
     disturbedCount,
+    fitMinimum,
     maxRow,
     packLayout,
     packWithPinned,
@@ -276,11 +277,14 @@ const Dashboard = ({loadingLabel = '', initialLayout = []}: DashboardProps) => {
     const dataRef = useRef<DashboardData | null>(null);
     const siteDefault = isSiteDefault();
 
-    // The server resolves the minimum block size and sends it with the payload, so the editor and
-    // the server's own validation can never disagree. Read through the ref so callbacks registered
-    // in an earlier render (e.g. a pointerup listener) still see the current payload's value.
-    const minimumSize = useCallback((): GridSize =>
-        dataRef.current?.grid.minsize ?? {columns: 1, rows: 1}, []);
+    // The server resolves each block's minimum size (its own Block API declaration, or the default)
+    // and sends it with the payload, so the editor and the server's own validation can never
+    // disagree. Read through the ref so callbacks registered in an earlier render (e.g. a pointerup
+    // listener) still see the current payload's values.
+    const minimumSize = useCallback((id: number): GridSize => {
+        const current = dataRef.current;
+        return current?.blocks.find(block => block.id === id)?.minsize ?? current?.grid.minsize ?? {columns: 1, rows: 1};
+    }, []);
 
     /**
      * Fetch a full dashboard payload and reset the canonical layout to match it.
@@ -313,7 +317,8 @@ const Dashboard = ({loadingLabel = '', initialLayout = []}: DashboardProps) => {
     const displayLayout = useMemo(() => packLayout(canonical, columnCount), [canonical, columnCount]);
     displayLayoutRef.current = displayLayout;
     const previewLayout = useMemo(() => interaction
-        ? packWithPinned(displayLayout, columnCount, interaction.draft, minimumSize())
+        ? packWithPinned(displayLayout, columnCount, interaction.draft,
+            fitMinimum(minimumSize(interaction.id), columnCount))
         : displayLayout, [columnCount, displayLayout, interaction, minimumSize]);
     const bumpedBlockIds = useMemo(() => {
         if (interaction?.origin !== 'pointer') {
@@ -375,7 +380,7 @@ const Dashboard = ({loadingLabel = '', initialLayout = []}: DashboardProps) => {
             } else {
                 const nextColumns = draft.columns + horizontal;
                 const nextRows = draft.rows + vertical;
-                const minimum = minimumSize();
+                const minimum = fitMinimum(minimumSize(current.id), columnCount);
                 if (nextColumns < minimum.columns || nextRows < minimum.rows) {
                     void announce('dashboardminimumsize', `${minimum.columns} × ${minimum.rows}`);
                     return current;
@@ -411,8 +416,8 @@ const Dashboard = ({loadingLabel = '', initialLayout = []}: DashboardProps) => {
         if (!current || !currentData) {
             return;
         }
-        const minimum = minimumSize();
-        const derived = packWithPinned(currentDisplay, currentColumns, current.draft, minimum);
+        const minimum = minimumSize(current.id);
+        const derived = packWithPinned(currentDisplay, currentColumns, current.draft, fitMinimum(minimum, currentColumns));
         const disturbed = disturbedCount(current.before, derived, current.id);
         const next = writeBack(currentCanonical, derived, current.id, minimum);
         setSaving(true);
@@ -506,7 +511,7 @@ const Dashboard = ({loadingLabel = '', initialLayout = []}: DashboardProps) => {
         }
         const grid = gridRef.current;
         const {rowHeight, gap} = readGridMetrics(grid);
-        const minimum = minimumSize();
+        const minimum = fitMinimum(minimumSize(id), columnCount);
         const cellWidth = grid
             ? (grid.getBoundingClientRect().width - gap * (columnCount - 1)) / columnCount
             : 1;
@@ -638,16 +643,18 @@ const Dashboard = ({loadingLabel = '', initialLayout = []}: DashboardProps) => {
                         row: palette.row,
                         columns: Math.min(item.columns, columnCount),
                     };
+                    const minimum = response.blocks.find(block => block.id === item.id)?.minsize ?? response.grid.minsize;
                     const next = writeBack(response.layout,
                         packWithPinned(packLayout(response.layout, columnCount), columnCount, pinned,
-                            response.grid.minsize), item.id, response.grid.minsize);
+                            fitMinimum(minimum, columnCount)), item.id, minimum);
                     await updateDashboard('save', siteDefault, next);
                     setCanonical(next);
                     canonicalRef.current = next;
                 } else if (item && palette.position === 'start') {
+                    const minimum = response.blocks.find(block => block.id === item.id)?.minsize ?? response.grid.minsize;
                     const next = writeBack(response.layout,
                         packWithPinned(packLayout(response.layout, columnCount), columnCount,
-                            {...item, column: 0, row: 0}, response.grid.minsize), item.id, response.grid.minsize);
+                            {...item, column: 0, row: 0}, fitMinimum(minimum, columnCount)), item.id, minimum);
                     await updateDashboard('save', siteDefault, next);
                     setCanonical(next);
                     canonicalRef.current = next;

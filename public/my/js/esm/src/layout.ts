@@ -32,6 +32,21 @@ export interface GridSize {
     rows: number;
 }
 
+/**
+ * Fit a block's minimum size to the grid's current column count.
+ *
+ * A block may declare a minimum wider than a narrow grid has columns (for example two columns on a
+ * one-column phone layout). It then takes the full width rather than overflowing the grid.
+ *
+ * @param minimum The block's minimum size, as resolved by the server.
+ * @param columnCount The grid's current column count.
+ * @return The minimum, with its width capped at the column count.
+ */
+export const fitMinimum = (minimum: GridSize, columnCount: number): GridSize => ({
+    columns: Math.max(1, Math.min(minimum.columns, columnCount)),
+    rows: minimum.rows,
+});
+
 /** The grid's rendered row unit and gutter, in pixels. */
 export interface GridMetrics {
     rowHeight: number;
