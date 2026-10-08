@@ -96,10 +96,7 @@ final class dashboard {
             $context = context_user::instance($USER->id);
             $mypage = my_get_page($USER->id, MY_PAGE_PRIVATE);
             $PAGE->set_blocks_editing_capability('moodle/my:manageblocks');
-            if (
-                $mypage && !$mypage->userid && !empty($USER->editing)
-                    && has_capability('moodle/my:manageblocks', $context)
-            ) {
+            if ($mypage && !$mypage->userid && !empty($USER->editing) && self::can_edit(false, $context)) {
                 $mypage = my_copy_page($USER->id, MY_PAGE_PRIVATE);
             }
         }
@@ -169,12 +166,10 @@ final class dashboard {
         global $OUTPUT, $PAGE, $USER;
 
         $context = $sitedefault ? context_system::instance() : context_user::instance($USER->id);
-        $capability = $sitedefault ? 'moodle/my:configsyspages' : 'moodle/my:manageblocks';
-        $canedit = has_capability($capability, $context);
+        $canedit = self::can_edit($sitedefault, $context);
         $editing = $canedit && !empty($USER->editing);
-        $othercapability = $sitedefault ? 'moodle/my:manageblocks' : 'moodle/my:configsyspages';
         $othercontext = $sitedefault ? context_user::instance($USER->id) : context_system::instance();
-        $caneditotherscope = has_capability($othercapability, $othercontext);
+        $caneditotherscope = self::can_edit(!$sitedefault, $othercontext);
         [$mypage] = self::initialise_page($sitedefault, $editing);
 
         // Block renderers may register JavaScript which must be returned to the React client.
@@ -897,6 +892,28 @@ final class dashboard {
      */
     private static function require_edit_capability(bool $sitedefault, \context $context): void {
         require_capability($sitedefault ? 'moodle/my:configsyspages' : 'moodle/my:manageblocks', $context);
+        if (!self::can_edit($sitedefault, $context)) {
+            throw new \required_capability_exception($context, 'moodle/my:manageblocks', 'nopermissions', '');
+        }
+    }
+
+    /**
+     * Whether the current user may edit the given dashboard.
+     *
+     * Users' own dashboards cannot be edited while $CFG->forcedefaultmymoodle makes everyone use the
+     * site default, exactly as on the legacy dashboard; the site default itself still can be.
+     *
+     * @param bool $sitedefault Whether this is the site default.
+     * @param \context $context The dashboard's context.
+     * @return bool
+     */
+    private static function can_edit(bool $sitedefault, \context $context): bool {
+        global $CFG;
+
+        if ($sitedefault) {
+            return has_capability('moodle/my:configsyspages', $context);
+        }
+        return empty($CFG->forcedefaultmymoodle) && has_capability('moodle/my:manageblocks', $context);
     }
 
     /**

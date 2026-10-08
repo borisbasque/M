@@ -285,6 +285,32 @@ final class update_dashboard_test extends \advanced_testcase {
     }
 
     /**
+     * While forcedefaultmymoodle makes everyone use the site default, nobody can edit or copy their own
+     * dashboard, as on the legacy dashboard.
+     */
+    public function test_forced_default_dashboard_cannot_be_edited(): void {
+        global $DB, $PAGE, $USER;
+
+        $this->resetAfterTest();
+        $user = $this->getDataGenerator()->create_user();
+        $this->setUser($user);
+        set_config('forcedefaultmymoodle', 1);
+        // Edit mode is site-wide, so it may already be on from a course page.
+        $USER->editing = 1;
+        $_POST['sesskey'] = sesskey();
+
+        $payload = external_api::clean_returnvalue(get_dashboard::execute_returns(), get_dashboard::execute(false));
+        $this->assertFalse($payload['canedit']);
+        $this->assertFalse($payload['editing']);
+        $this->assertFalse($payload['ownlayout']);
+        $this->assertFalse($DB->record_exists('my_pages', ['userid' => $user->id, 'private' => 1]));
+
+        $PAGE = new \moodle_page();
+        $this->expectException(\required_capability_exception::class);
+        update_dashboard::execute('save', false, $payload['layout']);
+    }
+
+    /**
      * A block cannot be saved smaller than its own declared minimum, even when that is above the default.
      */
     public function test_execute_rejects_a_block_below_its_declared_minimum(): void {
