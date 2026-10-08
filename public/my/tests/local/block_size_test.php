@@ -103,8 +103,9 @@ final class block_size_test extends \advanced_testcase {
         $this->assertNull($block->get_grid_preferred_size());
         $this->assertSame(dashboard::get_minimum_size(), dashboard::get_minimum_size($block));
         $this->assertSame(['columns' => 1, 'rows' => 2], dashboard::get_minimum_size($block));
+        // A block declaring no preferred height follows its content.
         $this->assertSame(
-            ['columns' => dashboard::CONTENT_COLUMNS, 'rows' => dashboard::DEFAULT_ROWS],
+            ['columns' => dashboard::CONTENT_COLUMNS, 'rows' => null],
             dashboard::get_preferred_size($block),
         );
         $this->assertDebuggingNotCalled();
@@ -139,11 +140,11 @@ final class block_size_test extends \advanced_testcase {
      */
     public static function valid_declaration_provider(): array {
         return [
-            'minimum only: preferred is the default, raised to the minimum' => [
-                new grid_size(2, 4), null, ['columns' => 2, 'rows' => 4], ['columns' => 3, 'rows' => 4],
+            'minimum only: the default width, following the content' => [
+                new grid_size(2, 4), null, ['columns' => 2, 'rows' => 4], ['columns' => 3, 'rows' => null],
             ],
             'minimum without rows: the default minimum height applies' => [
-                new grid_size(2), null, ['columns' => 2, 'rows' => 2], ['columns' => 3, 'rows' => 3],
+                new grid_size(2), null, ['columns' => 2, 'rows' => 2], ['columns' => 3, 'rows' => null],
             ],
             'minimum and preferred' => [
                 new grid_size(1, 4), new grid_size(2, 6), ['columns' => 1, 'rows' => 4], ['columns' => 2, 'rows' => 6],
@@ -157,7 +158,7 @@ final class block_size_test extends \advanced_testcase {
             'the full grid width and the tallest declarable minimum' => [
                 new grid_size(grid_size::MAX_COLUMNS, grid_size::MAX_ROWS), null,
                 ['columns' => grid_size::MAX_COLUMNS, 'rows' => grid_size::MAX_ROWS],
-                ['columns' => grid_size::MAX_COLUMNS, 'rows' => grid_size::MAX_ROWS],
+                ['columns' => grid_size::MAX_COLUMNS, 'rows' => null],
             ],
         ];
     }
@@ -196,10 +197,7 @@ final class block_size_test extends \advanced_testcase {
     public function test_an_invalid_preferred_size_falls_back_with_a_developer_warning(): void {
         $block = $this->block(null, new grid_size(0, 5));
 
-        $this->assertSame(
-            ['columns' => dashboard::CONTENT_COLUMNS, 'rows' => dashboard::DEFAULT_ROWS],
-            dashboard::get_preferred_size($block),
-        );
+        $this->assertSame(['columns' => dashboard::CONTENT_COLUMNS, 'rows' => null], dashboard::get_preferred_size($block));
         $this->assertDebuggingCalled(null, DEBUG_DEVELOPER);
     }
 

@@ -91,6 +91,8 @@ export interface LayoutItem {
     row: number;
     columns: number;
     rows: number;
+    // Whether the row span follows the block's content; false once someone has resized it.
+    autorows?: boolean;
     sourceColumns?: number;
 }
 
@@ -402,6 +404,7 @@ export const writeBack = (
         row: item.row,
         columns: item.columns,
         rows: item.rows,
+        autorows: item.autorows ?? true,
     }));
 };
 
@@ -415,3 +418,92 @@ export const maxRow = (items: LayoutItem[]): number => items.reduce(
     (maximum, item) => Math.max(maximum, item.row + item.rows),
     0,
 );
+
+/** The tallest a block opens at when sized to its content, unless the server says otherwise. */
+export const AUTO_ROWS_CAP = 8;
+
+/**
+ * Convert a block's natural height to a whole number of grid rows.
+ *
+ * A tile spanning `n` rows is `n * rowHeight + (n - 1) * gap` tall, so the smallest span that
+ * fits `height` is ceil((height + gap) / (rowHeight + gap)). The result is kept between the
+ * block's minimum and the auto-height cap; when the minimum is above the cap (a block may declare
+ * up to 12 rows) the minimum wins.
+ *
+ * @param height The block's natural height in pixels: header, content and footer.
+ * @param metrics The grid's row unit and gap.
+ * @param minimumRows The block's minimum row span.
+ * @param cap The most rows an auto-height block opens at.
+ * @return The row span.
+ */
+export const rowsForHeight = (
+    height: number,
+    metrics: GridMetrics,
+    minimumRows: number,
+    cap: number = AUTO_ROWS_CAP,
+): number => {
+    const fitted = Math.ceil((Math.max(0, height) + metrics.gap) / (metrics.rowHeight + metrics.gap));
+    return Math.max(minimumRows, Math.min(cap, fitted));
+};
+
+/**
+ * Give some blocks new row spans, moving only what they now overlap, and only downwards.
+ *
+ * Blocks are re-placed in reading order: each keeps its column and row unless a block placed before
+ * it now covers one of its cells, in which case it moves down to the nearest free rows. A block
+ * that shrinks leaves the space it gave up empty rather than pulling others up, so content does not
+ * jump around under the reader.
+ *
+ * @param layout The canonical layout.
+ * @param rows New row spans, by block id.
+ * @return The new layout, or the same array when no span changed.
+ */
+export const applyRowSpans = (layout: LayoutItem[], rows: Map<number, number>): LayoutItem[] => {
+    if (!layout.some(item => rows.has(item.id) && rows.get(item.id) !== item.rows)) {
+        return layout;
+    }
+    const occupied = new Set<string>();
+    return [...layout]
+        .sort((left, right) => left.row - right.row || left.column - right.column || left.id - right.id)
+        .map(item => {
+            const placed = {...item, rows: rows.get(item.id) ?? item.rows};
+            while (!fits(occupied, placed.column, placed.row, placed.columns, placed.rows)) {
+                placed.row++;
+            }
+            occupy(occupied, placed);
+            return placed;
+        });
+};
+
+/**
+ * Measure how tall a tile would be if it showed all of its block's content.
+ *
+ * A tile's content area scrolls, so its own scrollHeight only reports overflow, never content that
+ * is shorter than the tile. Instead the extent of the content's children is measured directly - so
+ * the measurement does not depend on the tile's current height - and the tile's header, footers,
+ * padding and border are added.
+ *
+ * @param tile The rendered .core-my-dashboard-tile element.
+ * @return The natural height in pixels.
+ */
+export const measureNaturalHeight = (tile: HTMLElement): number => {
+    const content = tile.querySelector<HTMLElement>('.core-my-dashboard-tile__content');
+    if (!content) {
+        return 0;
+    }
+    const contentStyle = window.getComputedStyle(content);
+    const top = content.getBoundingClientRect().top + (parseFloat(contentStyle.paddingTop) || 0);
+    let bottom = top;
+    Array.from(content.children).forEach(child => {
+        const margin = parseFloat(window.getComputedStyle(child).marginBottom) || 0;
+        bottom = Math.max(bottom, child.getBoundingClientRect().bottom + margin);
+    });
+    const contentHeight = bottom - top
+        + (parseFloat(contentStyle.paddingTop) || 0) + (parseFloat(contentStyle.paddingBottom) || 0);
+    const tileStyle = window.getComputedStyle(tile);
+    const chrome = Array.from(tile.children)
+        .filter(child => child !== content && window.getComputedStyle(child).position !== 'absolute')
+        .reduce((total, child) => total + child.getBoundingClientRect().height, 0);
+    return Math.ceil(contentHeight + chrome
+        + (parseFloat(tileStyle.borderTopWidth) || 0) + (parseFloat(tileStyle.borderBottomWidth) || 0));
+};

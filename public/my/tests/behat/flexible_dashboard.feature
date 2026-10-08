@@ -152,3 +152,75 @@ Feature: Arrange dashboard blocks in a responsive grid
     And I should see "Switch to editing your dashboard"
     When I click on "Switch to editing your dashboard" "link"
     Then I should see "Editing your dashboard"
+
+  @javascript
+  Scenario: Blocks open at the height of their content
+    Given the following "courses" exist:
+      | fullname | shortname |
+      | Course 1 | C1        |
+      | Course 2 | C2        |
+    And the following "course enrolments" exist:
+      | user     | course | role    |
+      | student1 | C1     | student |
+      | student1 | C2     | student |
+    When I change viewport size to "2600x1200"
+    And I reload the page
+    # Two course cards fit in one row of cards: shorter than the old fixed 5 rows, well short of the cap.
+    Then the "myoverview" dashboard block should be between "3" and "4" rows tall
+    # "No recent items" fits the 2-row minimum, not the old fixed 3 rows.
+    And the "recentlyaccesseditems" dashboard block should be "2" rows tall
+    # Never below the calendar's declared 4-row minimum.
+    And the "calendar_month" dashboard block should be between "4" and "6" rows tall
+
+  @javascript
+  Scenario: A block with more content than fits opens at the cap and scrolls
+    Given the following "courses" exist:
+      | fullname  | shortname |
+      | Course 1  | C1        |
+      | Course 2  | C2        |
+      | Course 3  | C3        |
+      | Course 4  | C4        |
+      | Course 5  | C5        |
+      | Course 6  | C6        |
+      | Course 7  | C7        |
+      | Course 8  | C8        |
+      | Course 9  | C9        |
+      | Course 10 | C10       |
+      | Course 11 | C11       |
+      | Course 12 | C12       |
+    And the following "course enrolments" exist:
+      | user     | course | role    |
+      | student1 | C1     | student |
+      | student1 | C2     | student |
+      | student1 | C3     | student |
+      | student1 | C4     | student |
+      | student1 | C5     | student |
+      | student1 | C6     | student |
+      | student1 | C7     | student |
+      | student1 | C8     | student |
+      | student1 | C9     | student |
+      | student1 | C10    | student |
+      | student1 | C11    | student |
+      | student1 | C12    | student |
+    When I change viewport size to "2600x1200"
+    And I reload the page
+    Then the "myoverview" dashboard block should be "8" rows tall
+
+  @javascript
+  Scenario: A resized block keeps its size until the dashboard is reset
+    When I change viewport size to "2600x1200"
+    And I reload the page
+    And I turn editing mode on
+    And I click on "Resize block" "button" in the "Timeline" "block"
+    And I press the down key
+    And I press the down key
+    And I press the down key
+    And I press the enter key
+    And I should see "Item resized to"
+    And the "timeline" dashboard block should be between "5" and "7" rows tall
+    And I reload the page
+    Then the "timeline" dashboard block should be between "5" and "7" rows tall
+    When I click on "Reset page to default" "button" in the ".core-my-dashboard-toolbar" "css_element"
+    And I click on "Confirm" "button" in the "Reset dashboard" "dialogue"
+    Then the "timeline" dashboard block should be between "2" and "4" rows tall
+

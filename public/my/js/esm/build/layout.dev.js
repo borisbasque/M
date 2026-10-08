@@ -220,7 +220,8 @@ const writeBack = /* @__PURE__ */ __name((canonical, derived, pinnedId, minimum)
     column: item.column,
     row: item.row,
     columns: item.columns,
-    rows: item.rows
+    rows: item.rows,
+    autorows: item.autorows ?? true
   }));
 }, "writeBack");
 const disturbedCount = /* @__PURE__ */ __name((before, after, activeId) => {
@@ -231,20 +232,60 @@ const maxRow = /* @__PURE__ */ __name((items) => items.reduce(
   (maximum, item) => Math.max(maximum, item.row + item.rows),
   0
 ), "maxRow");
+const AUTO_ROWS_CAP = 8;
+const rowsForHeight = /* @__PURE__ */ __name((height, metrics, minimumRows, cap = AUTO_ROWS_CAP) => {
+  const fitted = Math.ceil((Math.max(0, height) + metrics.gap) / (metrics.rowHeight + metrics.gap));
+  return Math.max(minimumRows, Math.min(cap, fitted));
+}, "rowsForHeight");
+const applyRowSpans = /* @__PURE__ */ __name((layout, rows) => {
+  if (!layout.some((item) => rows.has(item.id) && rows.get(item.id) !== item.rows)) {
+    return layout;
+  }
+  const occupied = /* @__PURE__ */ new Set();
+  return [...layout].sort((left, right) => left.row - right.row || left.column - right.column || left.id - right.id).map((item) => {
+    const placed = { ...item, rows: rows.get(item.id) ?? item.rows };
+    while (!fits(occupied, placed.column, placed.row, placed.columns, placed.rows)) {
+      placed.row++;
+    }
+    occupy(occupied, placed);
+    return placed;
+  });
+}, "applyRowSpans");
+const measureNaturalHeight = /* @__PURE__ */ __name((tile) => {
+  const content = tile.querySelector(".core-my-dashboard-tile__content");
+  if (!content) {
+    return 0;
+  }
+  const contentStyle = window.getComputedStyle(content);
+  const top = content.getBoundingClientRect().top + (parseFloat(contentStyle.paddingTop) || 0);
+  let bottom = top;
+  Array.from(content.children).forEach((child) => {
+    const margin = parseFloat(window.getComputedStyle(child).marginBottom) || 0;
+    bottom = Math.max(bottom, child.getBoundingClientRect().bottom + margin);
+  });
+  const contentHeight = bottom - top + (parseFloat(contentStyle.paddingTop) || 0) + (parseFloat(contentStyle.paddingBottom) || 0);
+  const tileStyle = window.getComputedStyle(tile);
+  const chrome = Array.from(tile.children).filter((child) => child !== content && window.getComputedStyle(child).position !== "absolute").reduce((total, child) => total + child.getBoundingClientRect().height, 0);
+  return Math.ceil(contentHeight + chrome + (parseFloat(tileStyle.borderTopWidth) || 0) + (parseFloat(tileStyle.borderBottomWidth) || 0));
+}, "measureNaturalHeight");
 export {
+  AUTO_ROWS_CAP,
   FOUR_COLUMN_THRESHOLD,
   MAX_COLUMNS,
   NARROW_BLOCK_WIDTH,
   SIX_COLUMN_THRESHOLD,
   TWO_COLUMN_THRESHOLD,
+  applyRowSpans,
   columnsForWidth,
   disturbedCount,
   fitMinimum,
   maxRow,
+  measureNaturalHeight,
   packInOrder,
   packLayout,
   packWithPinned,
   readGridMetrics,
+  rowsForHeight,
   writeBack
 };
 //# sourceMappingURL=layout.dev.js.map

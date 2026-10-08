@@ -2398,5 +2398,20 @@ function xmldb_main_upgrade($oldversion) {
         upgrade_main_savepoint(true, 2026100500.01);
     }
 
+    if ($oldversion < 2026100500.05) {
+        // Define field gridautorows to be added to block_positions. Every existing block starts
+        // sized to its content: none has been resized by anyone yet.
+        $table = new xmldb_table('block_positions');
+        $field = new xmldb_field('gridautorows', XMLDB_TYPE_INTEGER, '1', null, XMLDB_NOTNULL, null, '1', 'gridrows');
+
+        // Conditionally launch add field gridautorows.
+        if (!$dbman->field_exists($table, $field)) {
+            $dbman->add_field($table, $field);
+        }
+
+        // Main savepoint reached.
+        upgrade_main_savepoint(true, 2026100500.05);
+    }
+
     return true;
 }

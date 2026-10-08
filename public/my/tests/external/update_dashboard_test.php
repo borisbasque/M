@@ -135,6 +135,36 @@ final class update_dashboard_test extends \advanced_testcase {
         $this->assertSame(dashboard::CONTENT_COLUMN, (int) $position->gridcolumn);
         $this->assertSame(dashboard::CONTENT_COLUMNS, (int) $position->gridcolumns);
         $this->assertSame(dashboard::DEFAULT_ROWS, (int) $position->gridrows);
+        // It declares no preferred height, so it follows its content.
+        $this->assertSame(1, (int) $position->gridautorows);
+    }
+
+    /**
+     * Saving records whether each block follows its content, so a resized block stays the size it was given.
+     */
+    public function test_execute_saves_whether_each_block_follows_its_content(): void {
+        global $DB, $PAGE, $USER;
+
+        $this->resetAfterTest();
+        $this->setAdminUser();
+        $USER->editing = 1;
+        $_POST['sesskey'] = sesskey();
+
+        $payload = get_dashboard::execute(false);
+        foreach ($payload['layout'] as $item) {
+            $this->assertTrue($item['autorows'], 'Every block starts by following its content.');
+        }
+        $layout = $payload['layout'];
+        $layout[0]['autorows'] = false;
+        $PAGE = new \moodle_page();
+        update_dashboard::execute('save', false, $layout);
+
+        $this->assertSame(0, (int) $DB->get_field('block_positions', 'gridautorows', ['blockinstanceid' => $layout[0]['id']]));
+        $this->assertSame(1, (int) $DB->get_field('block_positions', 'gridautorows', ['blockinstanceid' => $layout[1]['id']]));
+        $PAGE = new \moodle_page();
+        $reloaded = array_column(get_dashboard::execute(false)['layout'], 'autorows', 'id');
+        $this->assertFalse($reloaded[$layout[0]['id']]);
+        $this->assertTrue($reloaded[$layout[1]['id']]);
     }
 
     /**

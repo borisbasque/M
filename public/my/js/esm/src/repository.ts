@@ -45,6 +45,8 @@ export interface DashboardBlock {
     asynccontent: boolean;
     // The smallest size this block may be resized to: its own Block API declaration, or the default.
     minsize: GridSize;
+    // The row span the block declares it prefers, or null to follow its content.
+    preferredrows: number | null;
 }
 
 export interface AvailableBlock {
@@ -95,6 +97,8 @@ export interface DashboardUrls {
 /** Grid rules resolved by the server, which the editor enforces. */
 export interface DashboardGrid {
     minsize: GridSize;
+    // The most rows a block sized to its content opens at.
+    autorowscap: number;
 }
 
 export interface DashboardData {
@@ -102,6 +106,8 @@ export interface DashboardData {
     layout: LayoutItem[];
     availableblocks: AvailableBlock[];
     grid: DashboardGrid;
+    // Whether this is the viewer's own stored dashboard: only then are measured heights saved.
+    ownlayout: boolean;
     canedit: boolean;
     editing: boolean;
     sitedefault: boolean;

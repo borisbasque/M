@@ -61,6 +61,12 @@ final class get_dashboard_test extends \advanced_testcase {
         $this->assertArrayHasKey('layout', $result);
         $this->assertArrayHasKey('availableblocks', $result);
         $this->assertSame(\core_my\local\dashboard::get_minimum_size(), $result['grid']['minsize']);
+        $this->assertSame(\core_my\local\dashboard::AUTO_ROWS_CAP, $result['grid']['autorowscap']);
+        // An admin who has never customised their dashboard is looking at the site default.
+        $this->assertFalse($result['ownlayout']);
+        foreach ($result['blocks'] as $block) {
+            $this->assertNull($block['preferredrows'], "{$block['name']} declares no preferred height.");
+        }
         $this->assertArrayHasKey('javascript', $result);
         $this->assertStringContainsString('block_recentlyaccesseditems/main', $result['javascript']);
         $this->assertSame('Add a block', $result['labels']['addblock']);
@@ -101,6 +107,8 @@ final class get_dashboard_test extends \advanced_testcase {
         $USER->editing = 1;
         $result = external_api::clean_returnvalue(get_dashboard::execute_returns(), get_dashboard::execute(false));
         $byname = array_column($result['blocks'], null, 'name');
+        // The copy is now the user's own stored dashboard.
+        $this->assertTrue($result['ownlayout']);
         $this->assertSame(['columns' => 1, 'rows' => 4], $byname['calendar_month']['minsize']);
         $this->assertSame(\core_my\local\dashboard::get_minimum_size(), $byname['timeline']['minsize']);
 

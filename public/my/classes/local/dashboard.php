@@ -36,8 +36,11 @@ final class dashboard {
     /** Minimum size of a block that declares none, or declares an unusable one. */
     private const DEFAULT_MINIMUM = ['columns' => 1, 'rows' => 2];
 
-    /** Default grid row span for legacy and newly-added blocks. */
+    /** Default grid row span for legacy and newly-added blocks, until they are sized to their content. */
     public const DEFAULT_ROWS = 3;
+
+    /** The tallest, in rows, that a block sized to its content opens at; taller content scrolls in the tile. */
+    public const AUTO_ROWS_CAP = 8;
 
     /** Default grid row span for the first legacy block in each stack (two rows taller than the rest). */
     public const DEFAULT_ROWS_FIRST = 5;
@@ -205,6 +208,7 @@ final class dashboard {
                     'actions' => self::get_menu_actions($content->controls, $instance->instance->blockname),
                     'asynccontent' => $instance->has_async_content(),
                     'minsize' => self::get_minimum_size($instance),
+                    'preferredrows' => self::get_preferred_size($instance)['rows'],
                 ];
             }
         }
@@ -226,7 +230,11 @@ final class dashboard {
             'availableblocks' => $available,
             'grid' => [
                 'minsize' => self::get_minimum_size(),
+                'autorowscap' => self::AUTO_ROWS_CAP,
             ],
+            // Whether this is the viewer's own stored dashboard, as opposed to the site default
+            // shown to someone who has not customised theirs: only then may measured heights be saved.
+            'ownlayout' => !$sitedefault && (int) $mypage->userid === (int) $USER->id,
             'canedit' => $canedit,
             'editing' => $editing,
             'sitedefault' => $sitedefault,
@@ -510,12 +518,14 @@ final class dashboard {
                 $row = (int) $position->gridrow;
                 $columns = (int) $position->gridcolumns;
                 $rows = (int) $position->gridrows;
+                $autorows = (bool) ($position->gridautorows ?? true);
             } else {
                 // Leave an empty column on each side: legacy content blocks take the next
                 // three columns, legacy side-region ("drawer") blocks take the column after.
                 // The first block in each stack is two rows taller than the rest.
                 $column = $isdrawer ? self::DRAWER_COLUMN : self::CONTENT_COLUMN;
                 $rows = $row === 0 ? self::DEFAULT_ROWS_FIRST : self::DEFAULT_ROWS;
+                $autorows = true;
             }
             $nextrow[$stack] = max($nextrow[$stack], $row + $rows);
             $layout[] = [
@@ -524,6 +534,7 @@ final class dashboard {
                 'row' => $row,
                 'columns' => $columns,
                 'rows' => $rows,
+                'autorows' => $autorows,
             ];
         }
 
@@ -642,6 +653,7 @@ final class dashboard {
             $position->gridrow = $item['row'];
             $position->gridcolumns = $item['columns'];
             $position->gridrows = $item['rows'];
+            $position->gridautorows = (int) ($item['autorows'] ?? true);
             if (!empty($position->id)) {
                 $DB->update_record('block_positions', $position);
             } else {
@@ -710,6 +722,7 @@ final class dashboard {
             'gridrow' => $bottom,
             'gridcolumns' => $columns,
             'gridrows' => $preferred['rows'] ?? self::DEFAULT_ROWS,
+            'gridautorows' => $preferred['rows'] === null ? 1 : 0,
         ]);
 
         if (!$sitedefault) {
@@ -804,9 +817,10 @@ final class dashboard {
      */
     public static function get_preferred_size(\block_base $block): array {
         $minimum = self::get_minimum_size($block);
+        // A block that declares no preferred height follows its content.
         $default = [
             'columns' => max(self::CONTENT_COLUMNS, $minimum['columns']),
-            'rows' => max(self::DEFAULT_ROWS, $minimum['rows']),
+            'rows' => null,
         ];
         $declared = self::read_size_declaration($block, 'get_grid_preferred_size');
         if (!$declared) {

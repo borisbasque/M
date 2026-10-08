@@ -13,6 +13,7 @@
  */
 
 import {
+    applyRowSpans,
     columnsForWidth,
     disturbedCount,
     fitMinimum,
@@ -21,6 +22,7 @@ import {
     packLayout,
     packWithPinned,
     readGridMetrics,
+    rowsForHeight,
     writeBack,
     type LayoutItem,
 } from '../src/layout';
@@ -257,5 +259,68 @@ describe('fitMinimum', () => {
     it('caps a minimum wider than the grid at the full width, keeping its height', () => {
         expect(fitMinimum({columns: 3, rows: 4}, 2)).toEqual({columns: 2, rows: 4});
         expect(fitMinimum({columns: 3, rows: 4}, 1)).toEqual({columns: 1, rows: 4});
+    });
+});
+
+describe('rowsForHeight', () => {
+    const metrics = {rowHeight: 96, gap: 16};
+
+    it('rounds a natural height up to whole rows, counting the gaps between them', () => {
+        // Three rows are 3 x 96 + 2 x 16 = 320px tall.
+        expect(rowsForHeight(320, metrics, 1)).toBe(3);
+        expect(rowsForHeight(321, metrics, 1)).toBe(4);
+        expect(rowsForHeight(96, metrics, 1)).toBe(1);
+    });
+
+    it('never goes below the block\'s minimum or above the cap', () => {
+        expect(rowsForHeight(0, metrics, 2)).toBe(2);
+        expect(rowsForHeight(5000, metrics, 2)).toBe(8);
+        expect(rowsForHeight(5000, metrics, 2, 6)).toBe(6);
+    });
+
+    it('lets a declared minimum above the cap win', () => {
+        expect(rowsForHeight(100, metrics, 10)).toBe(10);
+    });
+});
+
+describe('applyRowSpans', () => {
+    const layout: LayoutItem[] = [
+        {id: 1, column: 0, row: 0, columns: 3, rows: 3},
+        {id: 2, column: 0, row: 3, columns: 3, rows: 3},
+        {id: 3, column: 3, row: 0, columns: 1, rows: 3},
+    ];
+
+    it('returns the same layout when no span changes', () => {
+        expect(applyRowSpans(layout, new Map([[1, 3]]))).toBe(layout);
+    });
+
+    it('pushes only the blocks a taller block now overlaps, and only down', () => {
+        const next = applyRowSpans(layout, new Map([[1, 5]]));
+
+        expect(next.find(item => item.id === 1)).toMatchObject({row: 0, rows: 5});
+        expect(next.find(item => item.id === 2)).toMatchObject({column: 0, row: 5});
+        // Not in the way: stays put.
+        expect(next.find(item => item.id === 3)).toMatchObject({column: 3, row: 0});
+    });
+
+    it('leaves the space a shorter block gives up empty, rather than pulling others up', () => {
+        const next = applyRowSpans(layout, new Map([[1, 2]]));
+
+        expect(next.find(item => item.id === 1)).toMatchObject({row: 0, rows: 2});
+        expect(next.find(item => item.id === 2)).toMatchObject({row: 3});
+    });
+});
+
+describe('writeBack and content-fit sizing', () => {
+    it('keeps each block\'s autorows flag, defaulting to following its content', () => {
+        const canonical: LayoutItem[] = [
+            {id: 1, column: 0, row: 0, columns: 2, rows: 2, autorows: false},
+            {id: 2, column: 2, row: 0, columns: 2, rows: 2},
+        ];
+
+        const next = writeBack(canonical, canonical);
+
+        expect(next.find(item => item.id === 1)?.autorows).toBe(false);
+        expect(next.find(item => item.id === 2)?.autorows).toBe(true);
     });
 });

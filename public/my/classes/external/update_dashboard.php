@@ -55,6 +55,12 @@ final class update_dashboard extends external_api {
                 'row' => new external_value(PARAM_INT, 'Zero-based row.'),
                 'columns' => new external_value(PARAM_INT, 'Column span.'),
                 'rows' => new external_value(PARAM_INT, 'Row span.'),
+                'autorows' => new external_value(
+                    PARAM_BOOL,
+                    'Whether the row span follows the block\'s content, rather than being set by resizing.',
+                    VALUE_DEFAULT,
+                    true,
+                ),
             ]), 'Layout items.', VALUE_DEFAULT, []),
             'blockname' => new external_value(PARAM_PLUGIN, 'Block plugin name.', VALUE_DEFAULT, ''),
             'blockid' => new external_value(PARAM_INT, 'Block instance id.', VALUE_DEFAULT, 0),

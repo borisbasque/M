@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="UTF-8" ?>
-<XMLDB PATH="lib/db" VERSION="20260921" COMMENT="XMLDB file for core Moodle tables"
+<XMLDB PATH="lib/db" VERSION="20261008" COMMENT="XMLDB file for core Moodle tables"
     xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
     xsi:noNamespaceSchemaLocation="../../lib/xmldb/xmldb.xsd"
 >
@@ -2836,6 +2836,7 @@
         <FIELD NAME="gridrow" TYPE="int" LENGTH="10" NOTNULL="false" SEQUENCE="false" COMMENT="Zero-based grid row for layouts which use two-dimensional block positioning."/>
         <FIELD NAME="gridcolumns" TYPE="int" LENGTH="4" NOTNULL="false" SEQUENCE="false" COMMENT="Number of grid columns occupied by the block."/>
         <FIELD NAME="gridrows" TYPE="int" LENGTH="10" NOTNULL="false" SEQUENCE="false" COMMENT="Number of grid rows occupied by the block."/>
+        <FIELD NAME="gridautorows" TYPE="int" LENGTH="1" NOTNULL="true" DEFAULT="1" SEQUENCE="false" COMMENT="Whether the block's row span follows its content (1) or was set by resizing it (0)."/>
       </FIELDS>
       <KEYS>
         <KEY NAME="primary" TYPE="primary" FIELDS="id"/>

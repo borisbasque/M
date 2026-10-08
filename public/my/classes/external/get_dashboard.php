@@ -103,6 +103,13 @@ final class get_dashboard extends external_api {
                     'columns' => new external_value(PARAM_INT, 'Minimum column span.'),
                     'rows' => new external_value(PARAM_INT, 'Minimum row span.'),
                 ], 'The smallest size this block may be resized to: its own declaration, or the default.'),
+                'preferredrows' => new external_value(
+                    PARAM_INT,
+                    'The row span the block declares it prefers, or null to follow its content.',
+                    VALUE_REQUIRED,
+                    null,
+                    NULL_ALLOWED,
+                ),
             ])),
             'layout' => new external_multiple_structure(new external_single_structure([
                 'id' => new external_value(PARAM_INT, 'Block instance id.'),
@@ -110,6 +117,7 @@ final class get_dashboard extends external_api {
                 'row' => new external_value(PARAM_INT, 'Zero-based row.'),
                 'columns' => new external_value(PARAM_INT, 'Column span.'),
                 'rows' => new external_value(PARAM_INT, 'Row span.'),
+                'autorows' => new external_value(PARAM_BOOL, 'Whether the row span follows the block\'s content.'),
             ])),
             'availableblocks' => new external_multiple_structure(new external_single_structure([
                 'name' => new external_value(PARAM_PLUGIN, 'Block plugin name.'),
@@ -120,7 +128,9 @@ final class get_dashboard extends external_api {
                     'columns' => new external_value(PARAM_INT, 'Minimum column span of a block.'),
                     'rows' => new external_value(PARAM_INT, 'Minimum row span of a block.'),
                 ], 'Smallest size a block that declares no minimum of its own may be resized to.'),
+                'autorowscap' => new external_value(PARAM_INT, 'The most rows a block sized to its content opens at.'),
             ], 'Grid rules the editor must enforce, as resolved by the server.'),
+            'ownlayout' => new external_value(PARAM_BOOL, 'Whether this is the viewer\'s own stored dashboard.'),
             'canedit' => new external_value(PARAM_BOOL, 'Whether the user may edit.'),
             'editing' => new external_value(PARAM_BOOL, 'Whether Edit mode is active.'),
             'sitedefault' => new external_value(PARAM_BOOL, 'Whether this is the site default.'),

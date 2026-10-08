@@ -89,7 +89,8 @@ final class dashboard_test extends \advanced_testcase {
         $PAGE = new \moodle_page();
         $skeleton = dashboard::get_skeleton_layout(false);
 
-        $expected = $result['layout'];
+        // The skeleton only draws rectangles, so it carries no auto-height flag.
+        $expected = array_map(static fn(array $item): array => array_diff_key($item, ['autorows' => true]), $result['layout']);
         usort($expected, static fn(array $left, array $right): int =>
             [$left['row'], $left['column'], $left['id']] <=> [$right['row'], $right['column'], $right['id']]);
         $this->assertSame($expected, $skeleton);

@@ -25,12 +25,15 @@ import GridCell from './components/GridCell';
 import DashboardLoading from './components/DashboardLoading';
 import {
     columnsForWidth,
+    applyRowSpans,
     disturbedCount,
     fitMinimum,
     maxRow,
+    measureNaturalHeight,
     packLayout,
     packWithPinned,
     readGridMetrics,
+    rowsForHeight,
     writeBack,
     type GridSize,
     type LayoutItem,
@@ -147,13 +150,21 @@ const layoutChanged = (original: LayoutItem, draft: LayoutItem): boolean =>
  *
  * @param data The current dashboard payload, or null before the first load resolves.
  * @param gridRef The grid element to watch for mutations under.
+ * @param onSettled Called once this payload's blocks have settled, unless a newer load superseded it.
  */
 const useCollectedBlockJavascript = (
     data: DashboardData | null,
     gridRef: React.RefObject<HTMLDivElement>,
+    onSettled: () => void,
 ): void => {
+    // Read through a ref so a new callback never re-runs the effect (and so the blocks' JavaScript).
+    const onSettledRef = useRef(onSettled);
+    onSettledRef.current = onSettled;
     useEffect(() => {
         if (!data?.javascript) {
+            if (data) {
+                onSettledRef.current();
+            }
             return undefined;
         }
         // Each dashboard reload re-renders blocks with fresh DOM ids and JS initialisers.
@@ -188,6 +199,9 @@ const useCollectedBlockJavascript = (
             observer?.disconnect();
             grid?.removeEventListener(BLOCK_CONTENT_LOADED, onContentLoaded);
             pending.resolve();
+            if (!superseded) {
+                onSettledRef.current();
+            }
         };
         const settleIfDone = () => {
             if (awaiting.size === 0 && quiet) {
@@ -336,7 +350,43 @@ const Dashboard = ({loadingLabel = '', initialLayout = []}: DashboardProps) => {
         void load();
     }, [load]);
 
-    useCollectedBlockJavascript(data, gridRef);
+    // Size every block that follows its content (MDL-89635 auto height) once per load, after its
+    // content is in place: at its current width, rounded up to whole rows, between its minimum and
+    // the cap. A declared preferred height wins over measuring. Only blocks in the way move, and only
+    // down. The result is saved only to the viewer's own stored dashboard, and only when it changed.
+    const fittedFor = useRef<DashboardData | null>(null);
+    const fitAutoHeights = useCallback(() => {
+        const current = dataRef.current;
+        const grid = gridRef.current;
+        if (!current || !grid || fittedFor.current === current || interactionRef.current) {
+            return;
+        }
+        fittedFor.current = current;
+        const metrics = readGridMetrics(grid);
+        const blocks = new Map(current.blocks.map(block => [block.id, block]));
+        const rows = new Map<number, number>();
+        canonicalRef.current.forEach(item => {
+            const block = blocks.get(item.id);
+            const tile = grid.querySelector<HTMLElement>(`.core-my-dashboard-tile[data-instance-id="${item.id}"]`);
+            if (item.autorows === false || !block || !tile) {
+                return;
+            }
+            rows.set(item.id, block.preferredrows ?? rowsForHeight(
+                measureNaturalHeight(tile), metrics, block.minsize.rows, current.grid.autorowscap,
+            ));
+        });
+        const next = applyRowSpans(canonicalRef.current, rows);
+        if (next === canonicalRef.current) {
+            return;
+        }
+        setCanonical(next);
+        canonicalRef.current = next;
+        if (current.ownlayout && current.canedit && !siteDefault) {
+            // Only so the loading skeleton matches next time; a failure here costs nothing more.
+            void updateDashboard('save', false, next).catch(() => null);
+        }
+    }, [siteDefault]);
+    useCollectedBlockJavascript(data, gridRef, fitAutoHeights);
     const [columnCount, columnCountRef] = useResponsiveColumnCount(gridRef, data);
 
     const displayLayout = useMemo(() => packLayout(canonical, columnCount), [canonical, columnCount]);
@@ -444,7 +494,9 @@ const Dashboard = ({loadingLabel = '', initialLayout = []}: DashboardProps) => {
         const minimum = minimumSize(current.id);
         const derived = packWithPinned(currentDisplay, currentColumns, current.draft, fitMinimum(minimum, currentColumns));
         const disturbed = disturbedCount(current.before, derived, current.id);
-        const next = writeBack(currentCanonical, derived, current.id, minimum);
+        // Resizing a block fixes its height: it no longer follows its content.
+        const next = writeBack(currentCanonical, derived, current.id, minimum).map(item =>
+            current.mode === 'resize' && item.id === current.id ? {...item, autorows: false} : item);
         setSaving(true);
         try {
             await updateDashboard('save', siteDefault, next);

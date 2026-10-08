@@ -797,4 +797,26 @@ class behat_my extends behat_base {
             throw new \Exception("The {$block} dashboard block spans '{$actual}', expected 'span {$rows}'.");
         }
     }
+
+    /**
+     * Assert a dashboard block's rendered row span is within a range.
+     *
+     * @Then the :block dashboard block should be between :min and :max rows tall
+     * @param string $block Block name, e.g. myoverview.
+     * @param int $min Fewest rows expected.
+     * @param int $max Most rows expected.
+     */
+    public function the_dashboard_block_should_be_between_rows_tall(string $block, int $min, int $max): void {
+        $script = <<<JS
+            return getComputedStyle(document.querySelector('.core-my-dashboard-tile[data-block="{$block}"]')).gridRowEnd;
+        JS;
+        $inrange = static function ($value) use ($min, $max): bool {
+            $rows = (int) str_replace('span ', '', (string) $value);
+            return $rows >= $min && $rows <= $max;
+        };
+        $actual = $this->spin_until_script($script, $inrange);
+        if (!$inrange($actual)) {
+            throw new \Exception("The {$block} dashboard block spans '{$actual}', expected {$min} to {$max} rows.");
+        }
+    }
 }

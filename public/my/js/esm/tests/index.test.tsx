@@ -135,15 +135,18 @@ const urls = {ownpage: 'https://example.com/my/index.php', sitedefault: 'https:/
  * Two side-by-side blocks with a free column between them, wide enough apart that moving the
  * first one right by a single column cannot collide with the second.
  */
+// Sized by hand (autorows: false), so these tests are not affected by content-fit sizing, which
+// jsdom (with no layout) would always measure as the minimum. Content-fit has its own tests below.
 const baseLayout: LayoutItem[] = [
-    {id: 101, column: 0, row: 0, columns: 2, rows: 2},
-    {id: 102, column: 3, row: 0, columns: 2, rows: 2},
+    {id: 101, column: 0, row: 0, columns: 2, rows: 2, autorows: false},
+    {id: 102, column: 3, row: 0, columns: 2, rows: 2, autorows: false},
 ];
 
 const secondBlockOnly = [
     {
         id: 102, name: 'online_users', title: 'Second block', content: '<p>Second</p>',
         footer: '', region: 'content', weight: 1, actions: [], minsize: {columns: 1, rows: 2}, asynccontent: false,
+            preferredrows: null,
     },
 ];
 
@@ -152,15 +155,18 @@ const buildData = (overrides: Partial<DashboardData> = {}): DashboardData => ({
         {
             id: 101, name: 'html', title: 'First block', content: '<p>First</p>',
             footer: '', region: 'content', weight: 0, actions: [], minsize: {columns: 1, rows: 2}, asynccontent: false,
+            preferredrows: null,
         },
         {
             id: 102, name: 'online_users', title: 'Second block', content: '<p>Second</p>',
             footer: '', region: 'content', weight: 1, actions: [], minsize: {columns: 1, rows: 2}, asynccontent: false,
+            preferredrows: null,
         },
     ],
     layout: baseLayout,
     availableblocks: [{name: 'calendar_month', title: 'Calendar'}],
-    grid: {minsize: {columns: 1, rows: 2}},
+    grid: {minsize: {columns: 1, rows: 2}, autorowscap: 8},
+    ownlayout: true,
     canedit: true,
     editing: true,
     sitedefault: false,
@@ -352,6 +358,7 @@ describe('core_my Dashboard application', () => {
         const newBlock = {
             id: 103, name: 'calendar_month', title: 'Calendar', content: '<p>Cal</p>',
             footer: '', region: 'content', weight: 2, actions: [], minsize: {columns: 1, rows: 2}, asynccontent: false,
+            preferredrows: null,
         };
         // The server appends the new block wherever it likes (here, far from where the user
         // clicked) - the client is expected to notice and immediately re-save it into the cell.
@@ -379,15 +386,95 @@ describe('core_my Dashboard application', () => {
         await waitFor(() => {
             const calls = fetchOneSpy.mock.calls.filter(([request]) =>
                 (request as {methodname: string}).methodname === 'core_my_update_dashboard');
-            expect(calls).toHaveLength(2);
+            // Add, re-save into the clicked cell, then the new block is sized to its content.
+            expect(calls).toHaveLength(3);
         });
         const calls = fetchOneSpy.mock.calls.filter(([request]) =>
             (request as {methodname: string}).methodname === 'core_my_update_dashboard');
-        const [, secondCall] = calls;
+        const [, secondCall, thirdCall] = calls;
         const args = (secondCall[0] as {args: {action: string; layout: LayoutItem[]}}).args;
         expect(args.action).toBe('save');
         const placed = args.layout.find(item => item.id === 103);
         expect(placed).toMatchObject({column: 2, row: 0});
+        // This file stubs every element as 800px tall, so the new block measures past the cap.
+        const fitted = (thirdCall[0] as {args: {layout: LayoutItem[]}}).args.layout.find(item => item.id === 103);
+        expect(fitted).toMatchObject({column: 2, row: 0, rows: 8, autorows: true});
+    });
+
+    describe('content-fit sizing', () => {
+        // Every element in this file measures 800px tall (see the getBoundingClientRect stub), so a
+        // block that follows its content measures past the 8-row cap.
+        const autoLayout: LayoutItem[] = [
+            {id: 101, column: 0, row: 0, columns: 2, rows: 2, autorows: true},
+            {id: 102, column: 3, row: 0, columns: 2, rows: 2, autorows: false},
+        ];
+        const saves = (spy: jest.SpyInstance) => spy.mock.calls
+            .filter(([request]) => (request as {methodname: string}).methodname === 'core_my_update_dashboard')
+            .map(([request]) => (request as {args: {action: string; layout: LayoutItem[]}}).args);
+
+        it('sizes blocks that follow their content, and saves it to the viewer\'s own dashboard', async() => {
+            const fetchOneSpy = mockDashboardApi({getResponses: [buildData({layout: autoLayout, editing: false})]});
+
+            const {container} = render(<Dashboard />);
+            await screen.findByText('First block');
+
+            await waitFor(() => expect(saves(fetchOneSpy)).toHaveLength(1));
+            const [save] = saves(fetchOneSpy);
+            expect(save.action).toBe('save');
+            expect(save.layout.find(item => item.id === 101)).toMatchObject({rows: 8, autorows: true});
+            // A block sized by hand is left alone.
+            expect(save.layout.find(item => item.id === 102)).toMatchObject({rows: 2, autorows: false});
+            expect(container.querySelector('[data-block-id="101"]')).toHaveStyle({gridRow: '1 / span 8'});
+        });
+
+        it('uses a block\'s declared preferred height instead of measuring it', async() => {
+            const data = buildData({layout: autoLayout, editing: false});
+            data.blocks[0] = {...data.blocks[0], preferredrows: 4};
+            const fetchOneSpy = mockDashboardApi({getResponses: [data]});
+
+            render(<Dashboard />);
+            await screen.findByText('First block');
+
+            await waitFor(() => expect(saves(fetchOneSpy)).toHaveLength(1));
+            expect(saves(fetchOneSpy)[0].layout.find(item => item.id === 101)).toMatchObject({rows: 4});
+        });
+
+        it('does not save measured heights over a layout the viewer does not own', async() => {
+            const fetchOneSpy = mockDashboardApi({
+                getResponses: [buildData({layout: autoLayout, editing: false, ownlayout: false})],
+            });
+
+            const {container} = render(<Dashboard />);
+            await screen.findByText('First block');
+
+            // Still sized on screen...
+            await waitFor(() => expect(container.querySelector('[data-block-id="101"]'))
+                .toHaveStyle({gridRow: '1 / span 8'}));
+            // ...but nothing is written.
+            expect(saves(fetchOneSpy)).toHaveLength(0);
+        });
+
+        it('stops a block following its content once someone resizes it', async() => {
+            const fetchOneSpy = mockDashboardApi({getResponses: [buildData({
+                layout: [{id: 101, column: 0, row: 0, columns: 2, rows: 8, autorows: true}, autoLayout[1]],
+            })]});
+
+            render(<Dashboard />);
+            await screen.findByText('First block');
+            const firstTile = screen.getByRole('region', {name: 'First block block'});
+            const resizeHandle = within(firstTile).getByRole('button', {name: 'Resize block'});
+            fireEvent.keyDown(resizeHandle, {key: ' '});
+            fireEvent.keyDown(resizeHandle, {key: 'ArrowUp'});
+            await act(async() => {
+                fireEvent.keyDown(resizeHandle, {key: ' '});
+            });
+
+            await waitFor(() => expect(saves(fetchOneSpy).some(save =>
+                save.layout.find(item => item.id === 101)?.autorows === false)).toBe(true));
+            const resized = saves(fetchOneSpy).find(save =>
+                save.layout.find(item => item.id === 101)?.autorows === false)!;
+            expect(resized.layout.find(item => item.id === 101)).toMatchObject({rows: 7, autorows: false});
+        });
     });
 
     it('removes a block after confirmation and reloads the dashboard', async() => {
@@ -419,6 +506,7 @@ describe('core_my Dashboard application', () => {
         const newBlock = {
             id: 103, name: 'calendar_month', title: 'Calendar', content: '<p>Cal</p>',
             footer: '', region: 'content', weight: 2, actions: [], minsize: {columns: 1, rows: 2}, asynccontent: false,
+            preferredrows: null,
         };
         const afterAdd = buildData({
             blocks: [...buildData().blocks, newBlock],
