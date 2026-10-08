@@ -188,6 +188,7 @@ const DashboardTile = ({
 }: DashboardTileProps) => {
     const tileRef = useRef<HTMLElement>(null);
     const contentRef = useRef<HTMLDivElement>(null);
+    const footerRef = useRef<HTMLDivElement>(null);
     const previousPosition = useRef<DOMRect | null>(null);
     const positionAnimation = useRef<Animation | null>(null);
     const [narrow, setNarrow] = useState(false);
@@ -195,6 +196,24 @@ const DashboardTile = ({
     const resizeInstructionsId = `core-my-dashboard-resize-instructions-${block.id}`;
 
     const displayItem = drag && dragOrigin ? dragOrigin : item;
+
+    // The block's own rendered HTML is written here, outside React's control, and only when it
+    // actually changes. Block JavaScript (run once per dashboard load) attaches itself to these
+    // nodes - e.g. Course overview fetches and renders its courses into them - so they must never
+    // be replaced behind its back. Letting React own them via dangerouslySetInnerHTML re-created
+    // them, unchanged but as new nodes, whenever the tile re-rendered (such as when the column
+    // count changed), leaving those blocks stuck on their loading placeholders. A layout effect,
+    // so the HTML is in place before the dashboard runs the collected block JavaScript.
+    useLayoutEffect(() => {
+        if (contentRef.current) {
+            contentRef.current.innerHTML = block.content;
+        }
+    }, [block.content]);
+    useLayoutEffect(() => {
+        if (footerRef.current) {
+            footerRef.current.innerHTML = block.footer;
+        }
+    }, [block.footer]);
 
     useEffect(() => {
         const content = contentRef.current;
@@ -296,15 +315,8 @@ const DashboardTile = ({
                 />
             </div>}
         </header>
-        <div
-            ref={contentRef}
-            className={`core-my-dashboard-tile__content block block_${block.name}`}
-            dangerouslySetInnerHTML={{__html: block.content}}
-        />
-        {block.footer && <div
-            className="core-my-dashboard-tile__block-footer"
-            dangerouslySetInnerHTML={{__html: block.footer}}
-        />}
+        <div ref={contentRef} className={`core-my-dashboard-tile__content block block_${block.name}`} />
+        {block.footer && <div ref={footerRef} className="core-my-dashboard-tile__block-footer" />}
         {editing && <footer className="core-my-dashboard-tile__dashboard-footer">
             <DashboardHandle
                 mode="resize"

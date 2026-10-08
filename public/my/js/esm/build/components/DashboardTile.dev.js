@@ -169,12 +169,23 @@ const DashboardTile = /* @__PURE__ */ __name(({
 }) => {
   const tileRef = useRef(null);
   const contentRef = useRef(null);
+  const footerRef = useRef(null);
   const previousPosition = useRef(null);
   const positionAnimation = useRef(null);
   const [narrow, setNarrow] = useState(false);
   const moveInstructionsId = `core-my-dashboard-move-instructions-${block.id}`;
   const resizeInstructionsId = `core-my-dashboard-resize-instructions-${block.id}`;
   const displayItem = drag && dragOrigin ? dragOrigin : item;
+  useLayoutEffect(() => {
+    if (contentRef.current) {
+      contentRef.current.innerHTML = block.content;
+    }
+  }, [block.content]);
+  useLayoutEffect(() => {
+    if (footerRef.current) {
+      footerRef.current.innerHTML = block.footer;
+    }
+  }, [block.footer]);
   useEffect(() => {
     const content = contentRef.current;
     if (!content || typeof ResizeObserver === "undefined") {
@@ -237,17 +248,17 @@ const DashboardTile = /* @__PURE__ */ __name(({
         editing && /* @__PURE__ */ jsxDEV(Fragment, { children: [
           /* @__PURE__ */ jsxDEV("span", { id: moveInstructionsId, className: "visually-hidden", children: labels.moveinstructions }, void 0, false, {
             fileName: "public/my/js/esm/src/components/DashboardTile.tsx",
-            lineNumber: 264,
+            lineNumber: 283,
             columnNumber: 13
           }),
           /* @__PURE__ */ jsxDEV("span", { id: resizeInstructionsId, className: "visually-hidden", children: labels.resizeinstructions }, void 0, false, {
             fileName: "public/my/js/esm/src/components/DashboardTile.tsx",
-            lineNumber: 265,
+            lineNumber: 284,
             columnNumber: 13
           })
         ] }, void 0, true, {
           fileName: "public/my/js/esm/src/components/DashboardTile.tsx",
-          lineNumber: 263,
+          lineNumber: 282,
           columnNumber: 21
         }),
         /* @__PURE__ */ jsxDEV("header", { className: "core-my-dashboard-tile__header", children: [
@@ -270,13 +281,13 @@ const DashboardTile = /* @__PURE__ */ __name(({
             false,
             {
               fileName: "public/my/js/esm/src/components/DashboardTile.tsx",
-              lineNumber: 268,
+              lineNumber: 287,
               columnNumber: 25
             }
           ),
           /* @__PURE__ */ jsxDEV("h2", { className: "core-my-dashboard-tile__title", children: block.title }, void 0, false, {
             fileName: "public/my/js/esm/src/components/DashboardTile.tsx",
-            lineNumber: 281,
+            lineNumber: 300,
             columnNumber: 13
           }),
           editing && /* @__PURE__ */ jsxDEV("div", { className: "core-my-dashboard-tile__actions", children: [
@@ -290,7 +301,7 @@ const DashboardTile = /* @__PURE__ */ __name(({
                 title: labels.remove.replace("{$a}", block.title),
                 startIcon: /* @__PURE__ */ jsxDEV("i", { className: "fa fa-trash-can", "aria-hidden": "true" }, void 0, false, {
                   fileName: "public/my/js/esm/src/components/DashboardTile.tsx",
-                  lineNumber: 289,
+                  lineNumber: 308,
                   columnNumber: 32
                 }),
                 onClick: () => onRemove(block.id)
@@ -299,7 +310,7 @@ const DashboardTile = /* @__PURE__ */ __name(({
               false,
               {
                 fileName: "public/my/js/esm/src/components/DashboardTile.tsx",
-                lineNumber: 283,
+                lineNumber: 302,
                 columnNumber: 17
               }
             ),
@@ -314,49 +325,30 @@ const DashboardTile = /* @__PURE__ */ __name(({
               false,
               {
                 fileName: "public/my/js/esm/src/components/DashboardTile.tsx",
-                lineNumber: 292,
+                lineNumber: 311,
                 columnNumber: 17
               }
             )
           ] }, void 0, true, {
             fileName: "public/my/js/esm/src/components/DashboardTile.tsx",
-            lineNumber: 282,
+            lineNumber: 301,
             columnNumber: 25
           })
         ] }, void 0, true, {
           fileName: "public/my/js/esm/src/components/DashboardTile.tsx",
-          lineNumber: 267,
+          lineNumber: 286,
           columnNumber: 9
         }),
-        /* @__PURE__ */ jsxDEV(
-          "div",
-          {
-            ref: contentRef,
-            className: `core-my-dashboard-tile__content block block_${block.name}`,
-            dangerouslySetInnerHTML: { __html: block.content }
-          },
-          void 0,
-          false,
-          {
-            fileName: "public/my/js/esm/src/components/DashboardTile.tsx",
-            lineNumber: 299,
-            columnNumber: 9
-          }
-        ),
-        block.footer && /* @__PURE__ */ jsxDEV(
-          "div",
-          {
-            className: "core-my-dashboard-tile__block-footer",
-            dangerouslySetInnerHTML: { __html: block.footer }
-          },
-          void 0,
-          false,
-          {
-            fileName: "public/my/js/esm/src/components/DashboardTile.tsx",
-            lineNumber: 304,
-            columnNumber: 26
-          }
-        ),
+        /* @__PURE__ */ jsxDEV("div", { ref: contentRef, className: `core-my-dashboard-tile__content block block_${block.name}` }, void 0, false, {
+          fileName: "public/my/js/esm/src/components/DashboardTile.tsx",
+          lineNumber: 318,
+          columnNumber: 9
+        }),
+        block.footer && /* @__PURE__ */ jsxDEV("div", { ref: footerRef, className: "core-my-dashboard-tile__block-footer" }, void 0, false, {
+          fileName: "public/my/js/esm/src/components/DashboardTile.tsx",
+          lineNumber: 319,
+          columnNumber: 26
+        }),
         editing && /* @__PURE__ */ jsxDEV("footer", { className: "core-my-dashboard-tile__dashboard-footer", children: /* @__PURE__ */ jsxDEV(
           DashboardHandle,
           {
@@ -376,12 +368,12 @@ const DashboardTile = /* @__PURE__ */ __name(({
           false,
           {
             fileName: "public/my/js/esm/src/components/DashboardTile.tsx",
-            lineNumber: 309,
+            lineNumber: 321,
             columnNumber: 13
           }
         ) }, void 0, false, {
           fileName: "public/my/js/esm/src/components/DashboardTile.tsx",
-          lineNumber: 308,
+          lineNumber: 320,
           columnNumber: 21
         })
       ]
@@ -390,7 +382,7 @@ const DashboardTile = /* @__PURE__ */ __name(({
     true,
     {
       fileName: "public/my/js/esm/src/components/DashboardTile.tsx",
-      lineNumber: 242,
+      lineNumber: 261,
       columnNumber: 12
     }
   );

@@ -23,6 +23,7 @@ import DashboardHandle from '../src/components/DashboardHandle';
 import DashboardLoading from '../src/components/DashboardLoading';
 import {DashboardScopeBanner} from '../src/index';
 import type {DashboardLabels} from '../src/repository';
+import type {LayoutItem} from '../src/layout';
 
 // Jsdom has no ResizeObserver; DashboardLoading's positioned-grid mode measures the mount
 // point's width the same way the real dashboard grid does.
@@ -303,6 +304,45 @@ describe('core_my grid components', () => {
 
         expect(screen.getByRole('region', {name: 'Useful links block'})).toBeInTheDocument();
         expect(screen.getByText('Tile content')).toBeInTheDocument();
+    });
+
+    it('keeps the block\'s own DOM nodes when the tile re-renders, so block JavaScript stays attached', () => {
+        const block = {
+            id: 9,
+            name: 'myoverview',
+            title: 'Course overview',
+            content: '<div id="block-myoverview-root"><p>Loading</p></div>',
+            footer: '<a href="#">Footer link</a>',
+            region: 'content',
+            weight: 0,
+            actions: [],
+        };
+        const tile = (item: LayoutItem) => <DashboardTile
+            block={{...block}}
+            item={item}
+            labels={{...labels, tile: '{$a} block'} as DashboardLabels}
+            editing={false}
+            showControls={false}
+            onStart={jest.fn()}
+            onKeyDown={jest.fn()}
+            onPointerDown={jest.fn()}
+            onDirection={jest.fn()}
+            onCommit={jest.fn()}
+            onRemove={jest.fn()}
+        />;
+        const {container, rerender} = render(tile({id: 9, column: 0, row: 0, columns: 3, rows: 5}));
+        const root = container.querySelector('#block-myoverview-root')!;
+        // What a block's init() does: mark its root and render into it.
+        root.setAttribute('data-init', 'true');
+        root.innerHTML = '<p>Course 1</p>';
+
+        // A re-render with the same content, e.g. after the column count changed.
+        rerender(tile({id: 9, column: 1, row: 2, columns: 2, rows: 5}));
+
+        expect(container.querySelector('#block-myoverview-root')).toBe(root);
+        expect(root).toHaveAttribute('data-init', 'true');
+        expect(screen.getByText('Course 1')).toBeInTheDocument();
+        expect(screen.getByText('Footer link')).toBeInTheDocument();
     });
 
     it('wraps block content with the standard block classes so shared block CSS keeps applying', () => {
