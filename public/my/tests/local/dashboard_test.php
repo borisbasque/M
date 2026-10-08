@@ -18,18 +18,19 @@ namespace core_my\local;
 
 use core_external\external_api;
 use core_my\external\get_dashboard;
+use PHPUnit\Framework\Attributes\CoversMethod;
 
 /**
  * Tests for the cheap, layout-only dashboard read used to shape the loading placeholder.
  *
  * @package    core_my
  * @category   test
- * @covers     \core_my\local\dashboard::get_skeleton_layout
- * @covers     \core_my\local\dashboard::get_loading_placeholder
- * @covers     \core_my\local\dashboard::get
  * @copyright  2026 Matt Porritt <matt.porritt@moodle.com>
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
+#[CoversMethod(dashboard::class, 'get_skeleton_layout')]
+#[CoversMethod(dashboard::class, 'get_loading_placeholder')]
+#[CoversMethod(dashboard::class, 'get')]
 final class dashboard_test extends \advanced_testcase {
     /**
      * A user's own dashboard response is cached after the first read, and a mutation (here,

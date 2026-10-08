@@ -18,16 +18,18 @@ namespace core_my\external;
 
 use core_external\external_api;
 use core_my\local\dashboard;
+use PHPUnit\Framework\Attributes\CoversClass;
+use PHPUnit\Framework\Attributes\DataProvider;
 
 /**
  * Tests for the responsive dashboard update external function.
  *
  * @package    core_my
  * @category   test
- * @covers     \core_my\external\update_dashboard
  * @copyright  2026 Matt Porritt <matt.porritt@moodle.com>
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
+#[CoversClass(update_dashboard::class)]
 final class update_dashboard_test extends \advanced_testcase {
     /**
      * A user may persist the complete canonical layout while editing.
@@ -130,6 +132,9 @@ final class update_dashboard_test extends \advanced_testcase {
         $this->assertGreaterThan(0, $result['blockid']);
         $position = $DB->get_record('block_positions', ['blockinstanceid' => $result['blockid']], '*', MUST_EXIST);
         $this->assertSame(0, (int) $position->gridrow);
+        $this->assertSame(dashboard::CONTENT_COLUMN, (int) $position->gridcolumn);
+        $this->assertSame(dashboard::CONTENT_COLUMNS, (int) $position->gridcolumns);
+        $this->assertSame(dashboard::DEFAULT_ROWS, (int) $position->gridrows);
     }
 
     /**
@@ -229,9 +234,9 @@ final class update_dashboard_test extends \advanced_testcase {
      * Each dimension of an invalid grid rectangle is rejected: negative column/row, a size
      * smaller than the minimum, and a rectangle overflowing the grid's right edge.
      *
-     * @dataProvider invalid_rectangle_provider
      * @param array $overrides Fields to override on the first layout item.
      */
+    #[DataProvider('invalid_rectangle_provider')]
     public function test_execute_rejects_invalid_rectangle(array $overrides): void {
         global $PAGE, $USER;
 
@@ -260,6 +265,8 @@ final class update_dashboard_test extends \advanced_testcase {
             'negative row' => [['row' => -1]],
             'too few columns' => [['columns' => 0]],
             'too few rows' => [['rows' => 0]],
+            // Above zero but under the server's own minimum, which only validate_layout() catches.
+            'below the minimum rows' => [['rows' => dashboard::get_minimum_size()['rows'] - 1]],
             'overflows the grid' => [['column' => dashboard::MAX_COLUMNS - 1, 'columns' => 2]],
         ];
     }

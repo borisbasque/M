@@ -17,16 +17,17 @@
 namespace core_my\external;
 
 use core_external\external_api;
+use PHPUnit\Framework\Attributes\CoversClass;
 
 /**
  * Tests for the responsive dashboard read external function.
  *
  * @package    core_my
  * @category   test
- * @covers     \core_my\external\get_dashboard
  * @copyright  2026 Matt Porritt <matt.porritt@moodle.com>
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
+#[CoversClass(get_dashboard::class)]
 final class get_dashboard_test extends \advanced_testcase {
     /**
      * The server-rendered mount content prevents an empty page before React starts.
@@ -59,6 +60,7 @@ final class get_dashboard_test extends \advanced_testcase {
         $this->assertArrayHasKey('blocks', $result);
         $this->assertArrayHasKey('layout', $result);
         $this->assertArrayHasKey('availableblocks', $result);
+        $this->assertSame(\core_my\local\dashboard::get_minimum_size(), $result['grid']['minsize']);
         $this->assertArrayHasKey('javascript', $result);
         $this->assertStringContainsString('block_recentlyaccesseditems/main', $result['javascript']);
         $this->assertSame('Add a block', $result['labels']['addblock']);
@@ -72,7 +74,7 @@ final class get_dashboard_test extends \advanced_testcase {
      * A brand-new user's dashboard (with no customisation of their own, so it is copied
      * straight from the site's unmigrated default page) uses the default grid shape: an
      * empty column on each side, content blocks taking the next three columns, side-region
-     * blocks the column after, and the first block in each stack a row taller than the rest.
+     * blocks the column after, and the first block in each stack two rows taller than the rest.
      */
     public function test_execute_returns_the_default_layout_shape(): void {
         $this->resetAfterTest();

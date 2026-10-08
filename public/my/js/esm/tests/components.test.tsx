@@ -590,6 +590,8 @@ describe('core_my grid components', () => {
 
     it('uses a native modal shell with MDS confirmation controls', () => {
         HTMLDialogElement.prototype.showModal = jest.fn(function(this: HTMLDialogElement) {
+            // A typed `this` parameter: jsdom's dialog element, standing in for the real showModal().
+            // eslint-disable-next-line no-invalid-this
             this.setAttribute('open', '');
         });
         const confirm = jest.fn();
@@ -609,6 +611,8 @@ describe('core_my grid components', () => {
 
     it('uses a native modal shell for the replaceable block palette', () => {
         HTMLDialogElement.prototype.showModal = jest.fn(function(this: HTMLDialogElement) {
+            // A typed `this` parameter: jsdom's dialog element, standing in for the real showModal().
+            // eslint-disable-next-line no-invalid-this
             this.setAttribute('open', '');
         });
         const select = jest.fn();

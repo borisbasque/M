@@ -28,6 +28,36 @@ require_once(__DIR__ . '/../../../lib/behat/behat_base.php');
  */
 class behat_my extends behat_base {
     /**
+     * Re-run a script until its result satisfies a condition, rather than sleeping a fixed time.
+     *
+     * The editor's pointer and keyboard steps dispatch synthetic events and then read the DOM that
+     * React re-renders in response; how long that takes varies with machine load. This polls (via
+     * spin()) until the condition holds, and on timeout returns the last result so the calling
+     * step's own assertion still reports what it actually saw.
+     *
+     * @param string $script JavaScript returning the value to check.
+     * @param callable $condition Receives the script's result; returns true once it is as expected.
+     * @return mixed The script's last result.
+     */
+    protected function spin_until_script(string $script, callable $condition): mixed {
+        try {
+            return $this->spin(
+                function () use ($script, $condition): array|false {
+                    $value = $this->evaluate_script($script);
+                    // Wrapped, because spin() needs a truthy return and the value itself may be falsy.
+                    return $condition($value) ? ['value' => $value] : false;
+                },
+                [],
+                behat_base::get_reduced_timeout(),
+                null,
+                true,
+            )['value'];
+        } catch (Exception $exception) {
+            return $this->evaluate_script($script);
+        }
+    }
+
+    /**
      * Assert that the page-level dashboard editing switch is off.
      *
      * @Then the dashboard edit mode switch should be off
@@ -94,8 +124,7 @@ class behat_my extends behat_base {
             throw new \Exception($drag['error'] ?? 'The dashboard move handle was not found.');
         }
 
-        usleep(100000);
-        $preview = $this->evaluate_script(<<<JS
+        $preview = $this->spin_until_script(<<<JS
             return (() => {
                 const tile = document.querySelector('.core-my-dashboard-tile[data-block="{$block}"]');
                 return {
@@ -103,7 +132,7 @@ class behat_my extends behat_base {
                     transform: tile?.style.transform,
                 };
             })();
-        JS);
+        JS, static fn($preview): bool => !empty($preview['dragging']) && !empty($preview['transform']));
         if (empty($preview['dragging']) || empty($preview['transform'])) {
             throw new \Exception('Dashboard move did not produce a fluid drag preview: ' . json_encode($preview));
         }
@@ -120,10 +149,11 @@ class behat_my extends behat_base {
             }));
             return true;
         JS);
-        usleep(500000);
-        $actual = (int)$this->evaluate_script(<<<JS
+        // The pointerup commits through a web service call; wait for the tile to land rather than
+        // for a fixed time.
+        $actual = (int) $this->spin_until_script(<<<JS
             return getComputedStyle(document.querySelector('.core-my-dashboard-tile[data-block="{$block}"]')).gridColumnStart;
-        JS);
+        JS, static fn($column): bool => (int) $column === $drag['expected']);
         if ($actual !== $drag['expected']) {
             throw new \Exception("Dashboard block '{$block}' starts in grid column '{$actual}', expected '{$drag['expected']}'.");
         }
@@ -152,10 +182,9 @@ class behat_my extends behat_base {
             throw new \Exception('The Calendar resize handle was not found.');
         }
 
-        usleep(100000);
-        $controls = $this->evaluate_script(<<<'JS'
+        $controls = $this->spin_until_script(<<<'JS'
             return document.querySelectorAll('.core-my-grid-controls__direction').length;
-        JS);
+        JS, static fn($controls): bool => $controls === 4);
         $this->evaluate_script(<<<'JS'
             document.querySelector(".core-my-dashboard-tile[data-block='calendar_month'] .core-my-dashboard-handle--resize")
                 ?.dispatchEvent(new KeyboardEvent('keydown', {bubbles: true, key: 'Escape'}));
@@ -208,8 +237,7 @@ class behat_my extends behat_base {
             throw new \Exception('The Calendar resize handle was not found.');
         }
 
-        usleep(100000);
-        $beforethreshold = $this->evaluate_script(<<<'JS'
+        $beforethreshold = $this->spin_until_script(<<<'JS'
             return (() => {
                 const tile = document.querySelector(".core-my-dashboard-tile[data-block='calendar_month']");
                 return {
@@ -219,7 +247,8 @@ class behat_my extends behat_base {
                     controls: document.querySelectorAll('.core-my-grid-controls__direction').length,
                 };
             })();
-        JS);
+        JS, static fn($value): bool => $value['dragging'] && $value['width'] > $start['width']
+                && $value['prospective'] === 0 && $value['controls'] === 0);
 
         if (
             !$beforethreshold['dragging'] || $beforethreshold['width'] <= $start['width'] ||
@@ -241,13 +270,12 @@ class behat_my extends behat_base {
             }));
             return true;
         JS);
-        usleep(100000);
-        $afterthreshold = $this->evaluate_script(<<<'JS'
+        $afterthreshold = $this->spin_until_script(<<<'JS'
             return {
                 prospective: document.querySelectorAll('.core-my-grid-cell--prospective').length,
                 controls: document.querySelectorAll('.core-my-grid-controls__direction').length,
             };
-        JS);
+        JS, static fn($value): bool => $value['prospective'] !== 0 && $value['controls'] === 0);
         $this->evaluate_script(<<<'JS'
             window.dispatchEvent(new PointerEvent('pointercancel', {
                 bubbles: true,
@@ -262,9 +290,11 @@ class behat_my extends behat_base {
                 json_encode($afterthreshold));
         }
 
+        // Shrink a multi-column block: the Calendar starts at the one-column minimum in the default
+        // layout, so it can never preview narrower and would fail this check for the right reason.
         $shrinkstart = $this->evaluate_script(<<<'JS'
             return (() => {
-                const tile = document.querySelector(".core-my-dashboard-tile[data-block='calendar_month']");
+                const tile = document.querySelector(".core-my-dashboard-tile[data-block='myoverview']");
                 const handle = tile?.querySelector('.core-my-dashboard-handle--resize');
                 const grid = document.querySelector('.core-my-dashboard-grid');
                 if (!tile || !handle || !grid) {
@@ -294,19 +324,18 @@ class behat_my extends behat_base {
         JS);
 
         if ($shrinkstart === null) {
-            throw new \Exception('The Calendar resize handle was not found for the shrink preview.');
+            throw new \Exception('The Course overview resize handle was not found for the shrink preview.');
         }
 
-        usleep(100000);
-        $shrinkpreview = $this->evaluate_script(<<<'JS'
+        $shrinkpreview = $this->spin_until_script(<<<'JS'
             return (() => {
-                const tile = document.querySelector(".core-my-dashboard-tile[data-block='calendar_month']");
+                const tile = document.querySelector(".core-my-dashboard-tile[data-block='myoverview']");
                 return {
                     width: parseFloat(tile?.style.width || '0'),
                     prospective: document.querySelectorAll('.core-my-grid-cell--prospective').length,
                 };
             })();
-        JS);
+        JS, static fn($value): bool => $value['width'] < $shrinkstart['width'] && $value['prospective'] !== 0);
         $this->evaluate_script(<<<'JS'
             window.dispatchEvent(new PointerEvent('pointercancel', {
                 bubbles: true,
@@ -369,8 +398,7 @@ class behat_my extends behat_base {
             throw new \Exception('The Course overview resize handle was not found.');
         }
 
-        usleep(100000);
-        $animation = $this->evaluate_script(<<<'JS'
+        $animation = $this->spin_until_script(<<<'JS'
             return (() => {
                 const tile = document.querySelector('.core-my-dashboard-tile[data-bumped="true"]');
                 if (!tile) {
@@ -383,7 +411,10 @@ class behat_my extends behat_base {
                     })),
                 };
             })();
-        JS);
+        JS, static fn($value): bool => $value !== null && array_filter(
+                $value['animations'],
+                fn(array $animation): bool => $animation['duration'] === 180 && $animation['state'] !== 'finished'
+            ));
         if (
             $animation === null ||
             !array_filter(
@@ -424,8 +455,7 @@ class behat_my extends behat_base {
         if ($returning === null) {
             throw new \Exception('The bumped dashboard tile did not remain available for the return animation.');
         }
-        usleep(100000);
-        $returnanimation = $this->evaluate_script(<<<JS
+        $returnanimation = $this->spin_until_script(<<<JS
             return (() => {
                 const tile = document.querySelector('.core-my-dashboard-tile[data-block="{$returning['block']}"]');
                 if (!tile) {
@@ -436,7 +466,10 @@ class behat_my extends behat_base {
                     state: animation.playState,
                 }));
             })();
-        JS);
+        JS, static fn($value): bool => $value !== null && array_filter(
+                $value,
+                fn(array $animation): bool => $animation['duration'] === 180 && $animation['state'] !== 'finished'
+            ));
         $this->evaluate_script(<<<JS
             window.dispatchEvent(new PointerEvent('pointercancel', {
                 bubbles: true,

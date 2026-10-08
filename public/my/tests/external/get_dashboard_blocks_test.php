@@ -18,16 +18,17 @@ namespace core_my\external;
 
 use core_external\external_api;
 use core_my\local\dashboard;
+use PHPUnit\Framework\Attributes\CoversClass;
 
 /**
  * Tests for the mobile-safe dashboard blocks read external function.
  *
  * @package    core_my
  * @category   test
- * @covers     \core_my\external\get_dashboard_blocks
  * @copyright  2026 Matt Porritt <matt.porritt@moodle.com>
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
+#[CoversClass(get_dashboard_blocks::class)]
 final class get_dashboard_blocks_test extends \advanced_testcase {
     /**
      * Blocks are returned in real row-major grid reading order, not registration order, and
