@@ -15,6 +15,7 @@
 import {act, fireEvent, render, screen, waitFor, within} from '@testing-library/react';
 import type React from 'react';
 import * as Ajax from '@moodle/lms/core/ajax';
+import * as StringUtils from '@moodle/lms/core/stringUtils';
 import {requireManyAsync} from '@moodle/lms/core/amd';
 import Dashboard from '../src/index';
 import type {DashboardData, DashboardLabels} from '../src/repository';
@@ -142,7 +143,7 @@ const baseLayout: LayoutItem[] = [
 const secondBlockOnly = [
     {
         id: 102, name: 'online_users', title: 'Second block', content: '<p>Second</p>',
-        footer: '', region: 'content', weight: 1, actions: [], asynccontent: false,
+        footer: '', region: 'content', weight: 1, actions: [], minsize: {columns: 1, rows: 2}, asynccontent: false,
     },
 ];
 
@@ -150,11 +151,11 @@ const buildData = (overrides: Partial<DashboardData> = {}): DashboardData => ({
     blocks: [
         {
             id: 101, name: 'html', title: 'First block', content: '<p>First</p>',
-            footer: '', region: 'content', weight: 0, actions: [], asynccontent: false,
+            footer: '', region: 'content', weight: 0, actions: [], minsize: {columns: 1, rows: 2}, asynccontent: false,
         },
         {
             id: 102, name: 'online_users', title: 'Second block', content: '<p>Second</p>',
-            footer: '', region: 'content', weight: 1, actions: [], asynccontent: false,
+            footer: '', region: 'content', weight: 1, actions: [], minsize: {columns: 1, rows: 2}, asynccontent: false,
         },
     ],
     layout: baseLayout,
@@ -282,8 +283,29 @@ describe('core_my Dashboard application', () => {
         expect(args.layout.find(item => item.id === 101)?.rows).toBe(2);
     });
 
-    it('enforces the minimum tile size sent by the server, not a client-side constant', async() => {
-        const fetchOneSpy = mockDashboardApi({getResponses: [buildData({grid: {minsize: {columns: 1, rows: 1}}})]});
+    it('announces the block\'s own declared minimum when a resize reaches it', async() => {
+        const data = buildData();
+        // The first block is 2 rows tall and declares a 2 × 2 minimum of its own.
+        data.blocks[0] = {...data.blocks[0], minsize: {columns: 2, rows: 2}};
+        mockDashboardApi({getResponses: [data]});
+        const getStringSpy = jest.spyOn(StringUtils, 'getString');
+
+        render(<Dashboard />);
+        await screen.findByText('First block');
+        const firstTile = screen.getByRole('region', {name: 'First block block'});
+        const resizeHandle = within(firstTile).getByRole('button', {name: 'Resize block'});
+        fireEvent.keyDown(resizeHandle, {key: ' '});
+        fireEvent.keyDown(resizeHandle, {key: 'ArrowUp'});
+
+        await waitFor(() => expect(getStringSpy).toHaveBeenCalledWith('dashboardminimumsize', 'my', '2 × 2'));
+        getStringSpy.mockRestore();
+    });
+
+    it('enforces each block\'s own minimum sent by the server, not a client-side constant', async() => {
+        const data = buildData();
+        // The block declares a 1-row minimum; the payload's default for other blocks is still 2.
+        data.blocks[0] = {...data.blocks[0], minsize: {columns: 1, rows: 1}};
+        const fetchOneSpy = mockDashboardApi({getResponses: [data]});
 
         render(<Dashboard />);
         await screen.findByText('First block');
@@ -291,7 +313,7 @@ describe('core_my Dashboard application', () => {
         const firstTile = screen.getByRole('region', {name: 'First block block'});
         const resizeHandle = within(firstTile).getByRole('button', {name: 'Resize block'});
         fireEvent.keyDown(resizeHandle, {key: ' '});
-        // The server allows a 1-row block here, so the same shrink that is rejected above succeeds.
+        // This block may be 1 row tall, so the same shrink that is rejected above succeeds.
         fireEvent.keyDown(resizeHandle, {key: 'ArrowUp'});
         await act(async() => {
             fireEvent.keyDown(resizeHandle, {key: ' '});
@@ -329,7 +351,7 @@ describe('core_my Dashboard application', () => {
     it('places a newly added block into the specific empty cell that was clicked', async() => {
         const newBlock = {
             id: 103, name: 'calendar_month', title: 'Calendar', content: '<p>Cal</p>',
-            footer: '', region: 'content', weight: 2, actions: [], asynccontent: false,
+            footer: '', region: 'content', weight: 2, actions: [], minsize: {columns: 1, rows: 2}, asynccontent: false,
         };
         // The server appends the new block wherever it likes (here, far from where the user
         // clicked) - the client is expected to notice and immediately re-save it into the cell.
@@ -396,7 +418,7 @@ describe('core_my Dashboard application', () => {
     it('adds a block from the palette and reloads the dashboard', async() => {
         const newBlock = {
             id: 103, name: 'calendar_month', title: 'Calendar', content: '<p>Cal</p>',
-            footer: '', region: 'content', weight: 2, actions: [], asynccontent: false,
+            footer: '', region: 'content', weight: 2, actions: [], minsize: {columns: 1, rows: 2}, asynccontent: false,
         };
         const afterAdd = buildData({
             blocks: [...buildData().blocks, newBlock],

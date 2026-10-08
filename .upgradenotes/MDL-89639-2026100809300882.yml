@@ -1,0 +1,16 @@
+issueNumber: MDL-89639
+notes:
+  core_block:
+    - message: >-
+        Blocks can now declare the size they need on a block grid, such as the
+        flexible dashboard, by overriding the optional
+        `block_base::get_grid_minimum_size()` and
+        `block_base::get_grid_preferred_size()` methods. Both return a
+        `\core_block\grid_size` (columns from 1 to 6, rows of one grid row unit
+        each) or null. The grid will not let a block be resized below its
+        minimum, and places a newly added block at its preferred size; a
+        preferred height of null means "as tall as its content". Declaring
+        nothing is fully supported and needs no change: the block gets the grid
+        defaults. An unusable declaration is replaced by the default with a
+        developer debugging message.
+      type: improved

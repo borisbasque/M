@@ -99,6 +99,10 @@ final class get_dashboard extends external_api {
                     PARAM_BOOL,
                     'Whether the block reports when its asynchronously loaded content is in place.'
                 ),
+                'minsize' => new external_single_structure([
+                    'columns' => new external_value(PARAM_INT, 'Minimum column span.'),
+                    'rows' => new external_value(PARAM_INT, 'Minimum row span.'),
+                ], 'The smallest size this block may be resized to: its own declaration, or the default.'),
             ])),
             'layout' => new external_multiple_structure(new external_single_structure([
                 'id' => new external_value(PARAM_INT, 'Block instance id.'),
@@ -115,7 +119,7 @@ final class get_dashboard extends external_api {
                 'minsize' => new external_single_structure([
                     'columns' => new external_value(PARAM_INT, 'Minimum column span of a block.'),
                     'rows' => new external_value(PARAM_INT, 'Minimum row span of a block.'),
-                ], 'Smallest size a block may be resized to.'),
+                ], 'Smallest size a block that declares no minimum of its own may be resized to.'),
             ], 'Grid rules the editor must enforce, as resolved by the server.'),
             'canedit' => new external_value(PARAM_BOOL, 'Whether the user may edit.'),
             'editing' => new external_value(PARAM_BOOL, 'Whether Edit mode is active.'),

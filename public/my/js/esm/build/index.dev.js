@@ -21,6 +21,7 @@ import DashboardLoading from "./components/DashboardLoading";
 import {
   columnsForWidth,
   disturbedCount,
+  fitMinimum,
   maxRow,
   packLayout,
   packWithPinned,
@@ -53,7 +54,7 @@ const DashboardScopeBanner = /* @__PURE__ */ __name(({ siteDefault, caneditother
     false,
     {
       fileName: "public/my/js/esm/src/index.tsx",
-      lineNumber: 78,
+      lineNumber: 79,
       columnNumber: 9
     }
   ),
@@ -68,13 +69,13 @@ const DashboardScopeBanner = /* @__PURE__ */ __name(({ siteDefault, caneditother
     false,
     {
       fileName: "public/my/js/esm/src/index.tsx",
-      lineNumber: 84,
+      lineNumber: 85,
       columnNumber: 31
     }
   )
 ] }, void 0, true, {
   fileName: "public/my/js/esm/src/index.tsx",
-  lineNumber: 77,
+  lineNumber: 78,
   columnNumber: 5
 }), "DashboardScopeBanner");
 const DASHBOARD_SETTLE_QUIET_MS = 250;
@@ -188,7 +189,10 @@ const Dashboard = /* @__PURE__ */ __name(({ loadingLabel = "", initialLayout = [
   const displayLayoutRef = useRef([]);
   const dataRef = useRef(null);
   const siteDefault = isSiteDefault();
-  const minimumSize = useCallback(() => dataRef.current?.grid.minsize ?? { columns: 1, rows: 1 }, []);
+  const minimumSize = useCallback((id) => {
+    const current = dataRef.current;
+    return current?.blocks.find((block) => block.id === id)?.minsize ?? current?.grid.minsize ?? { columns: 1, rows: 1 };
+  }, []);
   const load = useCallback(async () => {
     try {
       const response = await getDashboard(siteDefault);
@@ -210,7 +214,12 @@ const Dashboard = /* @__PURE__ */ __name(({ loadingLabel = "", initialLayout = [
   const [columnCount, columnCountRef] = useResponsiveColumnCount(gridRef, data);
   const displayLayout = useMemo(() => packLayout(canonical, columnCount), [canonical, columnCount]);
   displayLayoutRef.current = displayLayout;
-  const previewLayout = useMemo(() => interaction ? packWithPinned(displayLayout, columnCount, interaction.draft, minimumSize()) : displayLayout, [columnCount, displayLayout, interaction, minimumSize]);
+  const previewLayout = useMemo(() => interaction ? packWithPinned(
+    displayLayout,
+    columnCount,
+    interaction.draft,
+    fitMinimum(minimumSize(interaction.id), columnCount)
+  ) : displayLayout, [columnCount, displayLayout, interaction, minimumSize]);
   const bumpedBlockIds = useMemo(() => {
     if (interaction?.origin !== "pointer") {
       return /* @__PURE__ */ new Set();
@@ -248,7 +257,7 @@ const Dashboard = /* @__PURE__ */ __name(({ loadingLabel = "", initialLayout = [
       } else {
         const nextColumns = draft.columns + horizontal;
         const nextRows = draft.rows + vertical;
-        const minimum = minimumSize();
+        const minimum = fitMinimum(minimumSize(current.id), columnCount);
         if (nextColumns < minimum.columns || nextRows < minimum.rows) {
           void announce("dashboardminimumsize", `${minimum.columns} \xD7 ${minimum.rows}`);
           return current;
@@ -270,8 +279,8 @@ const Dashboard = /* @__PURE__ */ __name(({ loadingLabel = "", initialLayout = [
     if (!current || !currentData) {
       return;
     }
-    const minimum = minimumSize();
-    const derived = packWithPinned(currentDisplay, currentColumns, current.draft, minimum);
+    const minimum = minimumSize(current.id);
+    const derived = packWithPinned(currentDisplay, currentColumns, current.draft, fitMinimum(minimum, currentColumns));
     const disturbed = disturbedCount(current.before, derived, current.id);
     const next = writeBack(currentCanonical, derived, current.id, minimum);
     setSaving(true);
@@ -338,7 +347,7 @@ const Dashboard = /* @__PURE__ */ __name(({ loadingLabel = "", initialLayout = [
     }
     const grid = gridRef.current;
     const { rowHeight, gap } = readGridMetrics(grid);
-    const minimum = minimumSize();
+    const minimum = fitMinimum(minimumSize(id), columnCount);
     const cellWidth = grid ? (grid.getBoundingClientRect().width - gap * (columnCount - 1)) / columnCount : 1;
     const columnStride = cellWidth + gap;
     const rowStride = rowHeight + gap;
@@ -456,31 +465,33 @@ const Dashboard = /* @__PURE__ */ __name(({ loadingLabel = "", initialLayout = [
             row: palette.row,
             columns: Math.min(item.columns, columnCount)
           };
+          const minimum = response.blocks.find((block2) => block2.id === item.id)?.minsize ?? response.grid.minsize;
           const next = writeBack(
             response.layout,
             packWithPinned(
               packLayout(response.layout, columnCount),
               columnCount,
               pinned,
-              response.grid.minsize
+              fitMinimum(minimum, columnCount)
             ),
             item.id,
-            response.grid.minsize
+            minimum
           );
           await updateDashboard("save", siteDefault, next);
           setCanonical(next);
           canonicalRef.current = next;
         } else if (item && palette.position === "start") {
+          const minimum = response.blocks.find((block2) => block2.id === item.id)?.minsize ?? response.grid.minsize;
           const next = writeBack(
             response.layout,
             packWithPinned(
               packLayout(response.layout, columnCount),
               columnCount,
               { ...item, column: 0, row: 0 },
-              response.grid.minsize
+              fitMinimum(minimum, columnCount)
             ),
             item.id,
-            response.grid.minsize
+            minimum
           );
           await updateDashboard("save", siteDefault, next);
           setCanonical(next);
@@ -512,11 +523,11 @@ const Dashboard = /* @__PURE__ */ __name(({ loadingLabel = "", initialLayout = [
   if (!data) {
     return error ? /* @__PURE__ */ jsxDEV("div", { className: "core-my-dashboard-status alert alert-danger", role: "alert", children: error }, void 0, false, {
       fileName: "public/my/js/esm/src/index.tsx",
-      lineNumber: 713,
+      lineNumber: 720,
       columnNumber: 15
     }) : /* @__PURE__ */ jsxDEV(DashboardLoading, { label: loadingLabel, layout: initialLayout }, void 0, false, {
       fileName: "public/my/js/esm/src/index.tsx",
-      lineNumber: 714,
+      lineNumber: 721,
       columnNumber: 15
     });
   }
@@ -525,12 +536,12 @@ const Dashboard = /* @__PURE__ */ __name(({ loadingLabel = "", initialLayout = [
   return /* @__PURE__ */ jsxDEV("div", { className: "core-my-dashboard-app", "aria-busy": saving, children: [
     error && /* @__PURE__ */ jsxDEV("div", { className: "alert alert-danger", role: "alert", children: error }, void 0, false, {
       fileName: "public/my/js/esm/src/index.tsx",
-      lineNumber: 722,
+      lineNumber: 729,
       columnNumber: 19
     }),
     /* @__PURE__ */ jsxDEV("div", { className: "visually-hidden", "aria-live": "polite", "aria-atomic": "true", children: announcement }, void 0, false, {
       fileName: "public/my/js/esm/src/index.tsx",
-      lineNumber: 723,
+      lineNumber: 730,
       columnNumber: 9
     }),
     data.editing && /* @__PURE__ */ jsxDEV(
@@ -545,14 +556,14 @@ const Dashboard = /* @__PURE__ */ __name(({ loadingLabel = "", initialLayout = [
       false,
       {
         fileName: "public/my/js/esm/src/index.tsx",
-        lineNumber: 724,
+        lineNumber: 731,
         columnNumber: 26
       }
     ),
     data.editing && /* @__PURE__ */ jsxDEV("div", { className: "core-my-dashboard-toolbar", children: [
       /* @__PURE__ */ jsxDEV(Button, { variant: "secondary", label: data.labels.addblocktop, onClick: () => setPalette({ position: "start" }) }, void 0, false, {
         fileName: "public/my/js/esm/src/index.tsx",
-        lineNumber: 731,
+        lineNumber: 738,
         columnNumber: 13
       }),
       !siteDefault && /* @__PURE__ */ jsxDEV(
@@ -566,13 +577,13 @@ const Dashboard = /* @__PURE__ */ __name(({ loadingLabel = "", initialLayout = [
         false,
         {
           fileName: "public/my/js/esm/src/index.tsx",
-          lineNumber: 732,
+          lineNumber: 739,
           columnNumber: 30
         }
       )
     ] }, void 0, true, {
       fileName: "public/my/js/esm/src/index.tsx",
-      lineNumber: 730,
+      lineNumber: 737,
       columnNumber: 26
     }),
     /* @__PURE__ */ jsxDEV(
@@ -608,7 +619,7 @@ const Dashboard = /* @__PURE__ */ __name(({ loadingLabel = "", initialLayout = [
                 false,
                 {
                   fileName: "public/my/js/esm/src/index.tsx",
-                  lineNumber: 756,
+                  lineNumber: 763,
                   columnNumber: 59
                 }
               ) : null;
@@ -643,7 +654,7 @@ const Dashboard = /* @__PURE__ */ __name(({ loadingLabel = "", initialLayout = [
               false,
               {
                 fileName: "public/my/js/esm/src/index.tsx",
-                lineNumber: 773,
+                lineNumber: 780,
                 columnNumber: 24
               }
             );
@@ -654,17 +665,17 @@ const Dashboard = /* @__PURE__ */ __name(({ loadingLabel = "", initialLayout = [
       true,
       {
         fileName: "public/my/js/esm/src/index.tsx",
-        lineNumber: 738,
+        lineNumber: 745,
         columnNumber: 9
       }
     ),
     data.editing && /* @__PURE__ */ jsxDEV("div", { className: "core-my-dashboard-toolbar core-my-dashboard-toolbar--bottom", children: /* @__PURE__ */ jsxDEV(Button, { variant: "secondary", label: data.labels.addblockbottom, onClick: () => setPalette({ position: "end" }) }, void 0, false, {
       fileName: "public/my/js/esm/src/index.tsx",
-      lineNumber: 795,
+      lineNumber: 802,
       columnNumber: 13
     }) }, void 0, false, {
       fileName: "public/my/js/esm/src/index.tsx",
-      lineNumber: 794,
+      lineNumber: 801,
       columnNumber: 26
     }),
     palette && /* @__PURE__ */ jsxDEV(
@@ -680,7 +691,7 @@ const Dashboard = /* @__PURE__ */ __name(({ loadingLabel = "", initialLayout = [
       false,
       {
         fileName: "public/my/js/esm/src/index.tsx",
-        lineNumber: 797,
+        lineNumber: 804,
         columnNumber: 21
       }
     ),
@@ -706,13 +717,13 @@ const Dashboard = /* @__PURE__ */ __name(({ loadingLabel = "", initialLayout = [
       false,
       {
         fileName: "public/my/js/esm/src/index.tsx",
-        lineNumber: 804,
+        lineNumber: 811,
         columnNumber: 27
       }
     )
   ] }, void 0, true, {
     fileName: "public/my/js/esm/src/index.tsx",
-    lineNumber: 721,
+    lineNumber: 728,
     columnNumber: 12
   });
 }, "Dashboard");

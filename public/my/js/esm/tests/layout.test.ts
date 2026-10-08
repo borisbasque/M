@@ -15,6 +15,7 @@
 import {
     columnsForWidth,
     disturbedCount,
+    fitMinimum,
     maxRow,
     packInOrder,
     packLayout,
@@ -245,5 +246,16 @@ describe('readGridMetrics', () => {
     it('falls back to the default metrics when there is no grid or no computed value', () => {
         expect(readGridMetrics(null)).toEqual({rowHeight: 96, gap: 16});
         expect(readGridMetrics(document.createElement('div'))).toEqual({rowHeight: 96, gap: 16});
+    });
+});
+
+describe('fitMinimum', () => {
+    it('keeps a minimum that fits the current column count', () => {
+        expect(fitMinimum({columns: 2, rows: 4}, 4)).toEqual({columns: 2, rows: 4});
+    });
+
+    it('caps a minimum wider than the grid at the full width, keeping its height', () => {
+        expect(fitMinimum({columns: 3, rows: 4}, 2)).toEqual({columns: 2, rows: 4});
+        expect(fitMinimum({columns: 3, rows: 4}, 1)).toEqual({columns: 1, rows: 4});
     });
 });

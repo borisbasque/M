@@ -255,6 +255,32 @@ final class update_dashboard_test extends \advanced_testcase {
     }
 
     /**
+     * A block cannot be saved smaller than its own declared minimum, even when that is above the default.
+     */
+    public function test_execute_rejects_a_block_below_its_declared_minimum(): void {
+        global $PAGE, $USER;
+
+        $this->resetAfterTest();
+        $this->setAdminUser();
+        $USER->editing = 1;
+        $_POST['sesskey'] = sesskey();
+
+        $payload = get_dashboard::execute(false);
+        $calendar = array_column($payload['blocks'], 'id', 'name')['calendar_month'];
+        foreach ($payload['layout'] as &$item) {
+            if ($item['id'] === $calendar) {
+                // Above the default minimum of 2 rows, below the calendar's own 4.
+                $item['rows'] = 3;
+            }
+        }
+        unset($item);
+        $PAGE = new \moodle_page();
+
+        $this->expectException(\invalid_parameter_exception::class);
+        update_dashboard::execute('save', false, $payload['layout']);
+    }
+
+    /**
      * Data provider for test_execute_rejects_invalid_rectangle.
      *
      * @return array

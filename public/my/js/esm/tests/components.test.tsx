@@ -290,6 +290,7 @@ describe('core_my grid components', () => {
                 weight: 0,
                 actions: [],
                 asynccontent: false,
+                minsize: {columns: 1, rows: 2},
             }}
             item={{id: 7, column: 0, row: 0, columns: 2, rows: 2}}
             labels={{...labels, tile: '{$a} block'} as DashboardLabels}
@@ -351,7 +352,7 @@ describe('core_my grid components', () => {
         const {container} = render(<DashboardTile
             block={{
                 id: 12, name: 'timeline', title: 'Timeline', content: '<p>Events</p>', footer: '',
-                region: 'content', weight: 0, actions: [], asynccontent: true,
+                region: 'content', weight: 0, actions: [], asynccontent: true, minsize: {columns: 1, rows: 2},
             }}
             item={{id: 12, column: 0, row: 0, columns: 2, rows: 2}}
             labels={{...labels, tile: '{$a} block'} as DashboardLabels}
@@ -382,6 +383,7 @@ describe('core_my grid components', () => {
                 weight: 0,
                 actions: [],
                 asynccontent: false,
+                minsize: {columns: 1, rows: 2},
             }}
             item={{id: 8, column: 0, row: 0, columns: 2, rows: 2}}
             labels={{...labels, tile: '{$a} block'} as DashboardLabels}
@@ -414,6 +416,7 @@ describe('core_my grid components', () => {
                 weight: 0,
                 actions: [],
                 asynccontent: false,
+                minsize: {columns: 1, rows: 2},
             }}
             item={{id: 9, column: 1, row: 1, columns: 2, rows: 2}}
             labels={{...labels, tile: '{$a} block'} as DashboardLabels}
@@ -445,6 +448,7 @@ describe('core_my grid components', () => {
                 weight: 0,
                 actions: [],
                 asynccontent: false,
+                minsize: {columns: 1, rows: 2},
             }}
             item={{id: 8, column: 0, row: 0, columns: 2, rows: 2}}
             labels={{
@@ -596,6 +600,7 @@ describe('core_my grid components', () => {
                 weight: 0,
                 actions: [],
                 asynccontent: false,
+                minsize: {columns: 1, rows: 2},
             }}
             item={{id: 13, column: 0, row: 0, columns: 2, rows: 2}}
             labels={{

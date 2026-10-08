@@ -41,6 +41,24 @@ Feature: Arrange dashboard blocks in a responsive grid
     Then I should see "Item resized to"
 
   @javascript
+  Scenario: A block cannot be resized below its own declared minimum
+    # The Calendar declares a 1 column by 4 row minimum and starts 5 rows tall.
+    When I turn editing mode on
+    And I click on "Resize block" "button" in the "Calendar" "block"
+    And I press the up key
+    And I press the up key
+    Then I should see "Minimum block size reached: 1 × 4."
+    And I press the enter key
+    And I should see "Item resized to 1 columns by 4 rows."
+    And the "calendar_month" dashboard block should be "4" rows tall
+    # The pointer route stops at the same limit.
+    When I drag the "calendar_month" dashboard block's resize handle up by "3" rows
+    Then the "calendar_month" dashboard block should be "4" rows tall
+    # A block that declares nothing stops at the default minimum instead, so the drag itself works.
+    When I drag the "timeline" dashboard block's resize handle up by "3" rows
+    Then the "timeline" dashboard block should be "2" rows tall
+
+  @javascript
   Scenario: Move a block into an adjacent free column
     When I turn editing mode on
     And I change viewport size to "2600x1000"

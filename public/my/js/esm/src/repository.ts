@@ -43,6 +43,8 @@ export interface DashboardBlock {
     // Whether the block reports when its asynchronously loaded content is in place
     // (block_base::has_async_content(), via the core_block/contentLoaded event).
     asynccontent: boolean;
+    // The smallest size this block may be resized to: its own Block API declaration, or the default.
+    minsize: GridSize;
 }
 
 export interface AvailableBlock {
