@@ -19,21 +19,27 @@ import BlockPalette from "./components/BlockPalette";
 import GridCell from "./components/GridCell";
 import DashboardLoading from "./components/DashboardLoading";
 import {
-  GRID_GAP,
-  MIN_COLUMNS,
-  MIN_ROWS,
-  ROW_HEIGHT,
   columnsForWidth,
   disturbedCount,
   maxRow,
   packLayout,
   packWithPinned,
+  readGridMetrics,
   writeBack
 } from "./layout";
 import {
   getDashboard,
   updateDashboard
 } from "./repository";
+const errorMessage = /* @__PURE__ */ __name((caught) => {
+  if (caught instanceof Error) {
+    return caught.message;
+  }
+  if (caught && typeof caught === "object" && typeof caught.message === "string") {
+    return caught.message;
+  }
+  return String(caught);
+}, "errorMessage");
 const DashboardScopeBanner = /* @__PURE__ */ __name(({ siteDefault, caneditotherscope, urls, labels }) => /* @__PURE__ */ jsxDEV("div", { className: "core-my-dashboard-scope", children: [
   /* @__PURE__ */ jsxDEV(
     Badge,
@@ -47,7 +53,7 @@ const DashboardScopeBanner = /* @__PURE__ */ __name(({ siteDefault, caneditother
     false,
     {
       fileName: "public/my/js/esm/src/index.tsx",
-      lineNumber: 61,
+      lineNumber: 78,
       columnNumber: 9
     }
   ),
@@ -62,13 +68,13 @@ const DashboardScopeBanner = /* @__PURE__ */ __name(({ siteDefault, caneditother
     false,
     {
       fileName: "public/my/js/esm/src/index.tsx",
-      lineNumber: 67,
+      lineNumber: 84,
       columnNumber: 31
     }
   )
 ] }, void 0, true, {
   fileName: "public/my/js/esm/src/index.tsx",
-  lineNumber: 60,
+  lineNumber: 77,
   columnNumber: 5
 }), "DashboardScopeBanner");
 const DASHBOARD_SETTLE_QUIET_MS = 250;
@@ -107,14 +113,20 @@ const useCollectedBlockJavascript = /* @__PURE__ */ __name((data, gridRef) => {
       observer.observe(grid, { childList: true, subtree: true });
     }
     quietTimer = setTimeout(settle, DASHBOARD_SETTLE_QUIET_MS);
-    void requireManyAsync(["core/fragment", "core/templates"]).then(([fragment, templates]) => {
-      if (superseded) {
+    void requireManyAsync(["core/fragment", "core/templates", "core_filters/events"]).then(
+      ([fragment, templates, filterEvents]) => {
+        if (superseded) {
+          return void 0;
+        }
+        const processed = fragment.processCollectedJavascript(data.javascript);
+        templates.runTemplateJS(processed);
+        const tiles = gridRef.current?.querySelectorAll(".core-my-dashboard-tile__content");
+        if (tiles?.length) {
+          filterEvents.notifyFilterContentUpdated(tiles);
+        }
         return void 0;
       }
-      const processed = fragment.processCollectedJavascript(data.javascript);
-      templates.runTemplateJS(processed);
-      return void 0;
-    });
+    );
     return () => {
       superseded = true;
       settle();
@@ -157,6 +169,7 @@ const Dashboard = /* @__PURE__ */ __name(({ loadingLabel = "", initialLayout = [
   const displayLayoutRef = useRef([]);
   const dataRef = useRef(null);
   const siteDefault = isSiteDefault();
+  const minimumSize = useCallback(() => dataRef.current?.grid.minsize ?? { columns: 1, rows: 1 }, []);
   const load = useCallback(async () => {
     try {
       const response = await getDashboard(siteDefault);
@@ -167,7 +180,7 @@ const Dashboard = /* @__PURE__ */ __name(({ loadingLabel = "", initialLayout = [
       setError("");
       return response;
     } catch (caught) {
-      setError(caught instanceof Error ? caught.message : String(caught));
+      setError(errorMessage(caught));
       return null;
     }
   }, [siteDefault]);
@@ -178,7 +191,7 @@ const Dashboard = /* @__PURE__ */ __name(({ loadingLabel = "", initialLayout = [
   const [columnCount, columnCountRef] = useResponsiveColumnCount(gridRef, data);
   const displayLayout = useMemo(() => packLayout(canonical, columnCount), [canonical, columnCount]);
   displayLayoutRef.current = displayLayout;
-  const previewLayout = useMemo(() => interaction ? packWithPinned(displayLayout, columnCount, interaction.draft) : displayLayout, [columnCount, displayLayout, interaction]);
+  const previewLayout = useMemo(() => interaction ? packWithPinned(displayLayout, columnCount, interaction.draft, minimumSize()) : displayLayout, [columnCount, displayLayout, interaction, minimumSize]);
   const bumpedBlockIds = useMemo(() => {
     if (interaction?.origin !== "pointer") {
       return /* @__PURE__ */ new Set();
@@ -216,8 +229,9 @@ const Dashboard = /* @__PURE__ */ __name(({ loadingLabel = "", initialLayout = [
       } else {
         const nextColumns = draft.columns + horizontal;
         const nextRows = draft.rows + vertical;
-        if (nextColumns < MIN_COLUMNS || nextRows < MIN_ROWS) {
-          void announce("dashboardminimumsize", `${MIN_COLUMNS} \xD7 ${MIN_ROWS}`);
+        const minimum = minimumSize();
+        if (nextColumns < minimum.columns || nextRows < minimum.rows) {
+          void announce("dashboardminimumsize", `${minimum.columns} \xD7 ${minimum.rows}`);
           return current;
         }
         draft.columns = Math.min(columnCount - draft.column, nextColumns);
@@ -227,7 +241,7 @@ const Dashboard = /* @__PURE__ */ __name(({ loadingLabel = "", initialLayout = [
       interactionRef.current = next;
       return next;
     });
-  }, [announce, columnCount]);
+  }, [announce, columnCount, minimumSize]);
   const commit = useCallback(async () => {
     const current = interactionRef.current;
     const currentData = dataRef.current;
@@ -237,9 +251,10 @@ const Dashboard = /* @__PURE__ */ __name(({ loadingLabel = "", initialLayout = [
     if (!current || !currentData) {
       return;
     }
-    const derived = packWithPinned(currentDisplay, currentColumns, current.draft);
+    const minimum = minimumSize();
+    const derived = packWithPinned(currentDisplay, currentColumns, current.draft, minimum);
     const disturbed = disturbedCount(current.before, derived, current.id);
-    const next = writeBack(currentCanonical, derived, current.id);
+    const next = writeBack(currentCanonical, derived, current.id, minimum);
     setSaving(true);
     try {
       await updateDashboard("save", siteDefault, next);
@@ -256,7 +271,7 @@ const Dashboard = /* @__PURE__ */ __name(({ loadingLabel = "", initialLayout = [
       interactionRef.current = null;
       setInteraction(null);
     } catch (caught) {
-      setError(caught instanceof Error ? caught.message : String(caught));
+      setError(errorMessage(caught));
     } finally {
       setSaving(false);
     }
@@ -303,11 +318,13 @@ const Dashboard = /* @__PURE__ */ __name(({ loadingLabel = "", initialLayout = [
       return;
     }
     const grid = gridRef.current;
-    const cellWidth = grid ? (grid.getBoundingClientRect().width - GRID_GAP * (columnCount - 1)) / columnCount : 1;
-    const columnStride = cellWidth + GRID_GAP;
-    const rowStride = ROW_HEIGHT + GRID_GAP;
-    const originalWidth = origin.columns * cellWidth + (origin.columns - 1) * GRID_GAP;
-    const originalHeight = origin.rows * ROW_HEIGHT + (origin.rows - 1) * GRID_GAP;
+    const { rowHeight, gap } = readGridMetrics(grid);
+    const minimum = minimumSize();
+    const cellWidth = grid ? (grid.getBoundingClientRect().width - gap * (columnCount - 1)) / columnCount : 1;
+    const columnStride = cellWidth + gap;
+    const rowStride = rowHeight + gap;
+    const originalWidth = origin.columns * cellWidth + (origin.columns - 1) * gap;
+    const originalHeight = origin.rows * rowHeight + (origin.rows - 1) * gap;
     const move = /* @__PURE__ */ __name((pointerEvent) => {
       const pointer = pointerRef.current;
       if (!pointer) {
@@ -336,18 +353,18 @@ const Dashboard = /* @__PURE__ */ __name(({ loadingLabel = "", initialLayout = [
           };
         } else {
           draft.columns = Math.max(
-            MIN_COLUMNS,
+            minimum.columns,
             Math.min(columnCount - draft.column, origin.columns + horizontal)
           );
-          draft.rows = Math.max(MIN_ROWS, origin.rows + vertical);
+          draft.rows = Math.max(minimum.rows, origin.rows + vertical);
           drag = {
             x: 0,
             y: 0,
             width: Math.max(cellWidth, Math.min(
-              (columnCount - origin.column) * columnStride - GRID_GAP,
+              (columnCount - origin.column) * columnStride - gap,
               originalWidth + deltaX
             )),
-            height: Math.max(ROW_HEIGHT, originalHeight + deltaY),
+            height: Math.max(rowHeight, originalHeight + deltaY),
             shrinking: deltaX < 0 || deltaY < 0
           };
         }
@@ -398,7 +415,7 @@ const Dashboard = /* @__PURE__ */ __name(({ loadingLabel = "", initialLayout = [
       await load();
       await announce("dashboardblockremoved");
     } catch (caught) {
-      setError(caught instanceof Error ? caught.message : String(caught));
+      setError(errorMessage(caught));
     } finally {
       setSaving(false);
     }
@@ -422,8 +439,14 @@ const Dashboard = /* @__PURE__ */ __name(({ loadingLabel = "", initialLayout = [
           };
           const next = writeBack(
             response.layout,
-            packWithPinned(packLayout(response.layout, columnCount), columnCount, pinned),
-            item.id
+            packWithPinned(
+              packLayout(response.layout, columnCount),
+              columnCount,
+              pinned,
+              response.grid.minsize
+            ),
+            item.id,
+            response.grid.minsize
           );
           await updateDashboard("save", siteDefault, next);
           setCanonical(next);
@@ -434,9 +457,11 @@ const Dashboard = /* @__PURE__ */ __name(({ loadingLabel = "", initialLayout = [
             packWithPinned(
               packLayout(response.layout, columnCount),
               columnCount,
-              { ...item, column: 0, row: 0 }
+              { ...item, column: 0, row: 0 },
+              response.grid.minsize
             ),
-            item.id
+            item.id,
+            response.grid.minsize
           );
           await updateDashboard("save", siteDefault, next);
           setCanonical(next);
@@ -446,7 +471,7 @@ const Dashboard = /* @__PURE__ */ __name(({ loadingLabel = "", initialLayout = [
       setPalette(null);
       await announce("dashboardblockadded", block.title);
     } catch (caught) {
-      setError(caught instanceof Error ? caught.message : String(caught));
+      setError(errorMessage(caught));
     } finally {
       setSaving(false);
     }
@@ -460,7 +485,7 @@ const Dashboard = /* @__PURE__ */ __name(({ loadingLabel = "", initialLayout = [
       await updateDashboard("reset", false);
       window.location.reload();
     } catch (caught) {
-      setError(caught instanceof Error ? caught.message : String(caught));
+      setError(errorMessage(caught));
     } finally {
       setSaving(false);
     }
@@ -468,11 +493,11 @@ const Dashboard = /* @__PURE__ */ __name(({ loadingLabel = "", initialLayout = [
   if (!data) {
     return error ? /* @__PURE__ */ jsxDEV("div", { className: "core-my-dashboard-status alert alert-danger", role: "alert", children: error }, void 0, false, {
       fileName: "public/my/js/esm/src/index.tsx",
-      lineNumber: 650,
+      lineNumber: 688,
       columnNumber: 15
     }) : /* @__PURE__ */ jsxDEV(DashboardLoading, { label: loadingLabel, layout: initialLayout }, void 0, false, {
       fileName: "public/my/js/esm/src/index.tsx",
-      lineNumber: 651,
+      lineNumber: 689,
       columnNumber: 15
     });
   }
@@ -481,12 +506,12 @@ const Dashboard = /* @__PURE__ */ __name(({ loadingLabel = "", initialLayout = [
   return /* @__PURE__ */ jsxDEV("div", { className: "core-my-dashboard-app", "aria-busy": saving, children: [
     error && /* @__PURE__ */ jsxDEV("div", { className: "alert alert-danger", role: "alert", children: error }, void 0, false, {
       fileName: "public/my/js/esm/src/index.tsx",
-      lineNumber: 659,
+      lineNumber: 697,
       columnNumber: 19
     }),
     /* @__PURE__ */ jsxDEV("div", { className: "visually-hidden", "aria-live": "polite", "aria-atomic": "true", children: announcement }, void 0, false, {
       fileName: "public/my/js/esm/src/index.tsx",
-      lineNumber: 660,
+      lineNumber: 698,
       columnNumber: 9
     }),
     data.editing && /* @__PURE__ */ jsxDEV(
@@ -501,14 +526,14 @@ const Dashboard = /* @__PURE__ */ __name(({ loadingLabel = "", initialLayout = [
       false,
       {
         fileName: "public/my/js/esm/src/index.tsx",
-        lineNumber: 661,
+        lineNumber: 699,
         columnNumber: 26
       }
     ),
     data.editing && /* @__PURE__ */ jsxDEV("div", { className: "core-my-dashboard-toolbar", children: [
       /* @__PURE__ */ jsxDEV(Button, { variant: "secondary", label: data.labels.addblocktop, onClick: () => setPalette({ position: "start" }) }, void 0, false, {
         fileName: "public/my/js/esm/src/index.tsx",
-        lineNumber: 668,
+        lineNumber: 706,
         columnNumber: 13
       }),
       !siteDefault && /* @__PURE__ */ jsxDEV(
@@ -522,13 +547,13 @@ const Dashboard = /* @__PURE__ */ __name(({ loadingLabel = "", initialLayout = [
         false,
         {
           fileName: "public/my/js/esm/src/index.tsx",
-          lineNumber: 669,
+          lineNumber: 707,
           columnNumber: 30
         }
       )
     ] }, void 0, true, {
       fileName: "public/my/js/esm/src/index.tsx",
-      lineNumber: 667,
+      lineNumber: 705,
       columnNumber: 26
     }),
     /* @__PURE__ */ jsxDEV(
@@ -538,7 +563,7 @@ const Dashboard = /* @__PURE__ */ __name(({ loadingLabel = "", initialLayout = [
         className: "core-my-dashboard-grid",
         style: {
           gridTemplateColumns: `repeat(${columnCount}, minmax(0, 1fr))`,
-          gridTemplateRows: `repeat(${rows}, ${ROW_HEIGHT}px)`
+          gridTemplateRows: `repeat(${rows}, var(--core-my-dashboard-row-height))`
         },
         "data-columns": columnCount,
         children: [
@@ -564,7 +589,7 @@ const Dashboard = /* @__PURE__ */ __name(({ loadingLabel = "", initialLayout = [
                 false,
                 {
                   fileName: "public/my/js/esm/src/index.tsx",
-                  lineNumber: 693,
+                  lineNumber: 731,
                   columnNumber: 59
                 }
               ) : null;
@@ -599,7 +624,7 @@ const Dashboard = /* @__PURE__ */ __name(({ loadingLabel = "", initialLayout = [
               false,
               {
                 fileName: "public/my/js/esm/src/index.tsx",
-                lineNumber: 710,
+                lineNumber: 748,
                 columnNumber: 24
               }
             );
@@ -610,17 +635,17 @@ const Dashboard = /* @__PURE__ */ __name(({ loadingLabel = "", initialLayout = [
       true,
       {
         fileName: "public/my/js/esm/src/index.tsx",
-        lineNumber: 675,
+        lineNumber: 713,
         columnNumber: 9
       }
     ),
     data.editing && /* @__PURE__ */ jsxDEV("div", { className: "core-my-dashboard-toolbar core-my-dashboard-toolbar--bottom", children: /* @__PURE__ */ jsxDEV(Button, { variant: "secondary", label: data.labels.addblockbottom, onClick: () => setPalette({ position: "end" }) }, void 0, false, {
       fileName: "public/my/js/esm/src/index.tsx",
-      lineNumber: 732,
+      lineNumber: 770,
       columnNumber: 13
     }) }, void 0, false, {
       fileName: "public/my/js/esm/src/index.tsx",
-      lineNumber: 731,
+      lineNumber: 769,
       columnNumber: 26
     }),
     palette && /* @__PURE__ */ jsxDEV(
@@ -636,7 +661,7 @@ const Dashboard = /* @__PURE__ */ __name(({ loadingLabel = "", initialLayout = [
       false,
       {
         fileName: "public/my/js/esm/src/index.tsx",
-        lineNumber: 734,
+        lineNumber: 772,
         columnNumber: 21
       }
     ),
@@ -662,19 +687,20 @@ const Dashboard = /* @__PURE__ */ __name(({ loadingLabel = "", initialLayout = [
       false,
       {
         fileName: "public/my/js/esm/src/index.tsx",
-        lineNumber: 741,
+        lineNumber: 779,
         columnNumber: 27
       }
     )
   ] }, void 0, true, {
     fileName: "public/my/js/esm/src/index.tsx",
-    lineNumber: 658,
+    lineNumber: 696,
     columnNumber: 12
   });
 }, "Dashboard");
 var index_default = Dashboard;
 export {
   DashboardScopeBanner,
-  index_default as default
+  index_default as default,
+  errorMessage
 };
 //# sourceMappingURL=index.dev.js.map

@@ -25,10 +25,46 @@ export const MAX_COLUMNS = 6;
 export const SIX_COLUMN_THRESHOLD = 1921;
 export const FOUR_COLUMN_THRESHOLD = 920;
 export const TWO_COLUMN_THRESHOLD = 690;
-export const ROW_HEIGHT = 96;
-export const GRID_GAP = 16;
-export const MIN_COLUMNS = 1;
-export const MIN_ROWS = 2;
+
+/** A size on the grid, in whole columns and rows. */
+export interface GridSize {
+    columns: number;
+    rows: number;
+}
+
+/** The grid's rendered row unit and gutter, in pixels. */
+export interface GridMetrics {
+    rowHeight: number;
+    gap: number;
+}
+
+// Used only where the grid's computed style cannot be read (no element yet, or a test DOM without
+// layout). The real values come from the --core-my-dashboard-row-height and
+// --core-my-dashboard-gap custom properties in theme/boost/scss/moodle/my.scss.
+const FALLBACK_GRID_METRICS: GridMetrics = {rowHeight: 96, gap: 16};
+
+/**
+ * Read the grid's actual row unit and gutter from its computed style.
+ *
+ * The SCSS is the single source of both values; reading them back keeps the editor's pointer
+ * maths correct whatever they are set to, including when the rem-based row unit scales with the
+ * user's text size.
+ *
+ * @param grid The rendered .core-my-dashboard-grid element.
+ * @return The row height and gap in pixels.
+ */
+export const readGridMetrics = (grid: HTMLElement | null): GridMetrics => {
+    if (!grid) {
+        return FALLBACK_GRID_METRICS;
+    }
+    const style = window.getComputedStyle(grid);
+    const rowHeight = parseFloat(style.gridAutoRows);
+    const gap = parseFloat(style.rowGap);
+    return {
+        rowHeight: Number.isFinite(rowHeight) && rowHeight > 0 ? rowHeight : FALLBACK_GRID_METRICS.rowHeight,
+        gap: Number.isFinite(gap) && gap >= 0 ? gap : FALLBACK_GRID_METRICS.gap,
+    };
+};
 
 // Below this rendered width a tile is treated like a legacy narrow side-region block,
 // so that block CSS designed around Boost's fixed-width sidebar keeps applying correctly.
@@ -255,18 +291,30 @@ const firstFreeCell = (rect: GridRect, occupied: Set<string>, columnCount: numbe
     return null;
 };
 
+/**
+ * Pack a layout around one item held at its (draft) position, displacing whatever it overlaps.
+ *
+ * @param items Layout to pack.
+ * @param columnCount Current responsive column count.
+ * @param pinned The item being moved or resized, at its draft rectangle.
+ * @param minimum The smallest size the pinned item may take, as sent by the server. Callers
+ *     already refuse to go below it; this is a safety floor so a stale draft can never persist
+ *     a block smaller than the server will accept.
+ * @return The packed layout, pinned item first.
+ */
 export const packWithPinned = (
     items: LayoutItem[],
     columnCount: number,
     pinned: LayoutItem,
+    minimum: GridSize = {columns: 1, rows: 1},
 ): LayoutItem[] => {
-    const columns = Math.min(pinned.columns, columnCount);
+    const columns = Math.min(Math.max(minimum.columns, pinned.columns), columnCount);
     const safePinned = {
         ...pinned,
         column: Math.max(0, Math.min(pinned.column, columnCount - columns)),
         row: Math.max(0, pinned.row),
         columns,
-        rows: Math.max(MIN_ROWS, pinned.rows),
+        rows: Math.max(minimum.rows, pinned.rows),
     };
     const occupied = new Set<string>();
     occupy(occupied, safePinned);
@@ -317,6 +365,7 @@ export const writeBack = (
     canonical: LayoutItem[],
     derived: LayoutItem[],
     pinnedId?: number,
+    minimum?: GridSize,
 ): LayoutItem[] => {
     const original = new Map(canonical.map(item => [item.id, item]));
     const restored = [...derived]
@@ -329,7 +378,9 @@ export const writeBack = (
             sourceColumns: undefined,
         }));
     const pinned = restored.find(item => item.id === pinnedId);
-    const packed = pinned ? packWithPinned(restored, MAX_COLUMNS, pinned) : packInOrder(restored, MAX_COLUMNS);
+    const packed = pinned
+        ? packWithPinned(restored, MAX_COLUMNS, pinned, minimum)
+        : packInOrder(restored, MAX_COLUMNS);
     return packed.map(item => ({
         id: item.id,
         column: item.column,

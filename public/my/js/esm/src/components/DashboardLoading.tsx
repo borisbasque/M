@@ -14,7 +14,7 @@
  */
 
 import React, {useLayoutEffect, useRef, useState} from 'react';
-import {columnsForWidth, packLayout, ROW_HEIGHT, type LayoutItem} from '../layout';
+import {columnsForWidth, packLayout, type LayoutItem} from '../layout';
 
 interface DashboardLoadingProps {
     label: string;
@@ -59,7 +59,7 @@ const PositionedGrid = ({layout}: {layout: LayoutItem[]}) => {
         className="core-my-dashboard-grid core-my-dashboard-loading__grid--positioned"
         style={{
             gridTemplateColumns: `repeat(${columnCount}, minmax(0, 1fr))`,
-            gridTemplateRows: `repeat(${rows}, ${ROW_HEIGHT}px)`,
+            gridTemplateRows: `repeat(${rows}, var(--core-my-dashboard-row-height))`,
         }}
         aria-hidden="true"
         data-columns={columnCount}

@@ -9,7 +9,7 @@ import { jsxDEV } from "react/jsx-dev-runtime";
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
 import { useLayoutEffect, useRef, useState } from "react";
-import { columnsForWidth, packLayout, ROW_HEIGHT } from "../layout";
+import { columnsForWidth, packLayout } from "../layout";
 const GenericGrid = /* @__PURE__ */ __name(() => /* @__PURE__ */ jsxDEV("div", { className: "core-my-dashboard-loading__grid", "aria-hidden": "true", children: Array.from({ length: 6 }, (_, index) => /* @__PURE__ */ jsxDEV("div", { className: "core-my-dashboard-loading__tile", children: [
   /* @__PURE__ */ jsxDEV("div", { className: "core-my-dashboard-loading__heading" }, void 0, false, {
     fileName: "public/my/js/esm/src/components/DashboardLoading.tsx",
@@ -63,7 +63,7 @@ const PositionedGrid = /* @__PURE__ */ __name(({ layout }) => {
       className: "core-my-dashboard-grid core-my-dashboard-loading__grid--positioned",
       style: {
         gridTemplateColumns: `repeat(${columnCount}, minmax(0, 1fr))`,
-        gridTemplateRows: `repeat(${rows}, ${ROW_HEIGHT}px)`
+        gridTemplateRows: `repeat(${rows}, var(--core-my-dashboard-row-height))`
       },
       "aria-hidden": "true",
       "data-columns": columnCount,

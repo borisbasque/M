@@ -11,10 +11,19 @@ const MAX_COLUMNS = 6;
 const SIX_COLUMN_THRESHOLD = 1921;
 const FOUR_COLUMN_THRESHOLD = 920;
 const TWO_COLUMN_THRESHOLD = 690;
-const ROW_HEIGHT = 96;
-const GRID_GAP = 16;
-const MIN_COLUMNS = 1;
-const MIN_ROWS = 2;
+const FALLBACK_GRID_METRICS = { rowHeight: 96, gap: 16 };
+const readGridMetrics = /* @__PURE__ */ __name((grid) => {
+  if (!grid) {
+    return FALLBACK_GRID_METRICS;
+  }
+  const style = window.getComputedStyle(grid);
+  const rowHeight = parseFloat(style.gridAutoRows);
+  const gap = parseFloat(style.rowGap);
+  return {
+    rowHeight: Number.isFinite(rowHeight) && rowHeight > 0 ? rowHeight : FALLBACK_GRID_METRICS.rowHeight,
+    gap: Number.isFinite(gap) && gap >= 0 ? gap : FALLBACK_GRID_METRICS.gap
+  };
+}, "readGridMetrics");
 const NARROW_BLOCK_WIDTH = 480;
 const columnsForWidth = /* @__PURE__ */ __name((width) => {
   if (width >= SIX_COLUMN_THRESHOLD) {
@@ -157,14 +166,14 @@ const firstFreeCell = /* @__PURE__ */ __name((rect, occupied, columnCount) => {
   }
   return null;
 }, "firstFreeCell");
-const packWithPinned = /* @__PURE__ */ __name((items, columnCount, pinned) => {
-  const columns = Math.min(pinned.columns, columnCount);
+const packWithPinned = /* @__PURE__ */ __name((items, columnCount, pinned, minimum = { columns: 1, rows: 1 }) => {
+  const columns = Math.min(Math.max(minimum.columns, pinned.columns), columnCount);
   const safePinned = {
     ...pinned,
     column: Math.max(0, Math.min(pinned.column, columnCount - columns)),
     row: Math.max(0, pinned.row),
     columns,
-    rows: Math.max(MIN_ROWS, pinned.rows)
+    rows: Math.max(minimum.rows, pinned.rows)
   };
   const occupied = /* @__PURE__ */ new Set();
   occupy(occupied, safePinned);
@@ -193,7 +202,7 @@ const packWithPinned = /* @__PURE__ */ __name((items, columnCount, pinned) => {
   }
   return result;
 }, "packWithPinned");
-const writeBack = /* @__PURE__ */ __name((canonical, derived, pinnedId) => {
+const writeBack = /* @__PURE__ */ __name((canonical, derived, pinnedId, minimum) => {
   const original = new Map(canonical.map((item) => [item.id, item]));
   const restored = [...derived].sort((left, right) => left.row - right.row || left.column - right.column || left.id - right.id).map((item) => ({
     ...item,
@@ -201,7 +210,7 @@ const writeBack = /* @__PURE__ */ __name((canonical, derived, pinnedId) => {
     sourceColumns: void 0
   }));
   const pinned = restored.find((item) => item.id === pinnedId);
-  const packed = pinned ? packWithPinned(restored, MAX_COLUMNS, pinned) : packInOrder(restored, MAX_COLUMNS);
+  const packed = pinned ? packWithPinned(restored, MAX_COLUMNS, pinned, minimum) : packInOrder(restored, MAX_COLUMNS);
   return packed.map((item) => ({
     id: item.id,
     column: item.column,
@@ -220,12 +229,8 @@ const maxRow = /* @__PURE__ */ __name((items) => items.reduce(
 ), "maxRow");
 export {
   FOUR_COLUMN_THRESHOLD,
-  GRID_GAP,
   MAX_COLUMNS,
-  MIN_COLUMNS,
-  MIN_ROWS,
   NARROW_BLOCK_WIDTH,
-  ROW_HEIGHT,
   SIX_COLUMN_THRESHOLD,
   TWO_COLUMN_THRESHOLD,
   columnsForWidth,
@@ -234,6 +239,7 @@ export {
   packInOrder,
   packLayout,
   packWithPinned,
+  readGridMetrics,
   writeBack
 };
 //# sourceMappingURL=layout.dev.js.map

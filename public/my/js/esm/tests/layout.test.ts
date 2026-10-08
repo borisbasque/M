@@ -19,6 +19,7 @@ import {
     packInOrder,
     packLayout,
     packWithPinned,
+    readGridMetrics,
     writeBack,
     type LayoutItem,
 } from '../src/layout';
@@ -174,14 +175,14 @@ describe('core_my responsive dashboard layout', () => {
     it('falls back to pushDown when pushRight has no room in a single-column grid', () => {
         // With only one column available, pushRight (which only ever moves within the same row)
         // can never find room, so the row-neighbour case must fall back to pushDown instead.
-        // packWithPinned enforces MIN_ROWS on the pinned block, so it occupies rows 0-1 even
-        // though it was only given rows: 1 - the other item is displaced to row 2, not row 1.
+        // packWithPinned enforces the given minimum on the pinned block, so it occupies rows 0-1
+        // even though it was only given rows: 1 - the other item is displaced to row 2, not row 1.
         const layout: LayoutItem[] = [
             {id: 1, column: 0, row: 0, columns: 1, rows: 1},
             {id: 2, column: 0, row: 0, columns: 1, rows: 1},
         ];
 
-        const packed = packWithPinned(layout, 1, layout[0]);
+        const packed = packWithPinned(layout, 1, layout[0], {columns: 1, rows: 2});
 
         expect(packed.find(item => item.id === 2)).toMatchObject({column: 0, row: 2});
     });
@@ -226,5 +227,23 @@ describe('core_my responsive dashboard layout', () => {
 
     it('returns an empty layout unchanged rather than erroring', () => {
         expect(packLayout([], 4)).toEqual([]);
+    });
+});
+
+describe('readGridMetrics', () => {
+    it('reads the row unit and gap from the grid element\'s computed style', () => {
+        const grid = document.createElement('div');
+        grid.style.gridAutoRows = '120px';
+        grid.style.rowGap = '10px';
+        document.body.appendChild(grid);
+
+        expect(readGridMetrics(grid)).toEqual({rowHeight: 120, gap: 10});
+
+        grid.remove();
+    });
+
+    it('falls back to the default metrics when there is no grid or no computed value', () => {
+        expect(readGridMetrics(null)).toEqual({rowHeight: 96, gap: 16});
+        expect(readGridMetrics(document.createElement('div'))).toEqual({rowHeight: 96, gap: 16});
     });
 });

@@ -241,7 +241,12 @@ const DashboardTile = ({
 
     return <section
         ref={tileRef}
-        className={`core-my-dashboard-tile${activeMode ? ' core-my-dashboard-tile--active' : ''}${drag ? ' core-my-dashboard-tile--pointer-dragging' : ''}${isBumped ? ' core-my-dashboard-tile--bumped' : ''}`}
+        className={[
+            'core-my-dashboard-tile',
+            activeMode && 'core-my-dashboard-tile--active',
+            drag && 'core-my-dashboard-tile--pointer-dragging',
+            isBumped && 'core-my-dashboard-tile--bumped',
+        ].filter(Boolean).join(' ')}
         style={{
             gridColumn: `${displayItem.column + 1} / span ${displayItem.columns}`,
             gridRow: `${displayItem.row + 1} / span ${displayItem.rows}`,

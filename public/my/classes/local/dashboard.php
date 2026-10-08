@@ -35,8 +35,20 @@ final class dashboard {
     /** Default grid row span for legacy and newly-added blocks. */
     public const DEFAULT_ROWS = 3;
 
-    /** Default grid row span for the first legacy block in each stack (taller than the rest). */
+    /** Default grid row span for the first legacy block in each stack (two rows taller than the rest). */
     public const DEFAULT_ROWS_FIRST = 5;
+
+    /** First column (zero-based) of the legacy centre-column stack, leaving an empty column to its left. */
+    public const CONTENT_COLUMN = 1;
+
+    /** Column span of the legacy centre-column stack, and of newly-added blocks. */
+    public const CONTENT_COLUMNS = 3;
+
+    /** First column (zero-based) of the legacy block-drawer stack, directly after the centre stack. */
+    public const DRAWER_COLUMN = 4;
+
+    /** Column span of the legacy block-drawer stack. */
+    public const DRAWER_COLUMNS = 1;
 
     /** Legacy regions which may still be attached to dashboard blocks. */
     private const REGIONS = ['content', 'side-pre', 'side-post'];
@@ -206,6 +218,9 @@ final class dashboard {
             'blocks' => $blocks,
             'layout' => $layout,
             'availableblocks' => $available,
+            'grid' => [
+                'minsize' => self::get_minimum_size(),
+            ],
             'canedit' => $canedit,
             'editing' => $editing,
             'sitedefault' => $sitedefault,
@@ -311,9 +326,6 @@ final class dashboard {
         return $method->getDeclaringClass()->getName() !== \block_edit_form::class;
     }
 
-    /** Row height in pixels, matching the client's ROW_HEIGHT in js/esm/src/layout.ts. */
-    private const ROW_HEIGHT_PX = 96;
-
     /**
      * Return a loading placeholder which is visible before the React application starts.
      *
@@ -369,10 +381,12 @@ final class dashboard {
                 . \html_writer::div($tiles, 'core-my-dashboard-grid core-my-dashboard-loading__grid--positioned', [
                     'aria-hidden' => 'true',
                     'style' => sprintf(
-                        'grid-template-columns: repeat(%d, minmax(0, 1fr)); grid-template-rows: repeat(%d, %dpx);',
+                        // The row unit is a CSS custom property on .core-my-dashboard-grid (see my.scss),
+                        // shared with the React grid, rather than a pixel value repeated here.
+                        'grid-template-columns: repeat(%d, minmax(0, 1fr)); '
+                            . 'grid-template-rows: repeat(%d, var(--core-my-dashboard-row-height));',
                         self::MAX_COLUMNS,
                         $rows,
-                        self::ROW_HEIGHT_PX,
                     ),
                 ]),
             'core-my-dashboard-loading',
@@ -480,7 +494,7 @@ final class dashboard {
                 ?? $instance->instance->defaultregion;
             $isdrawer = $region !== 'content';
             $stack = $isdrawer ? 'drawer' : 'content';
-            $columns = $isdrawer ? 1 : 3;
+            $columns = $isdrawer ? self::DRAWER_COLUMNS : self::CONTENT_COLUMNS;
             $row = $nextrow[$stack];
             if (
                 $position && $position->gridcolumn !== null && $position->gridrow !== null
@@ -493,8 +507,8 @@ final class dashboard {
             } else {
                 // Leave an empty column on each side: legacy content blocks take the next
                 // three columns, legacy side-region ("drawer") blocks take the column after.
-                // The first block in each stack is a row taller than the rest.
-                $column = $isdrawer ? 4 : 1;
+                // The first block in each stack is two rows taller than the rest.
+                $column = $isdrawer ? self::DRAWER_COLUMN : self::CONTENT_COLUMN;
                 $rows = $row === 0 ? self::DEFAULT_ROWS_FIRST : self::DEFAULT_ROWS;
             }
             $nextrow[$stack] = max($nextrow[$stack], $row + $rows);
@@ -616,9 +630,10 @@ final class dashboard {
             'visible' => $block->instance->visible ?? 1,
             'region' => $block->instance->region ?? $block->instance->defaultregion,
             'weight' => $block->instance->weight ?? $block->instance->defaultweight,
-            'gridcolumn' => 0,
+            // Same shape as a migrated centre-column block, below everything already placed.
+            'gridcolumn' => self::CONTENT_COLUMN,
             'gridrow' => $bottom,
-            'gridcolumns' => 2,
+            'gridcolumns' => self::CONTENT_COLUMNS,
             'gridrows' => self::DEFAULT_ROWS,
         ]);
 
@@ -682,7 +697,10 @@ final class dashboard {
     /**
      * Resolve the default minimum size through one replaceable extension point.
      *
-     * @return array
+     * Sent to the client in the dashboard payload ('grid' => 'minsize'), so the editor and
+     * {@see self::validate_layout()} always enforce the same value.
+     *
+     * @return array{columns: int, rows: int}
      */
     public static function get_minimum_size(): array {
         return ['columns' => 1, 'rows' => 2];

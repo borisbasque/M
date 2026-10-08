@@ -24,16 +24,14 @@ import BlockPalette from './components/BlockPalette';
 import GridCell from './components/GridCell';
 import DashboardLoading from './components/DashboardLoading';
 import {
-    GRID_GAP,
-    MIN_COLUMNS,
-    MIN_ROWS,
-    ROW_HEIGHT,
     columnsForWidth,
     disturbedCount,
     maxRow,
     packLayout,
     packWithPinned,
+    readGridMetrics,
     writeBack,
+    type GridSize,
     type LayoutItem,
 } from './layout';
 import {
@@ -44,6 +42,25 @@ import {
     type DashboardLabels,
     type DashboardUrls,
 } from './repository';
+
+/**
+ * Turn a rejection into readable text.
+ *
+ * Moodle's web-service layer rejects with a plain object carrying `message` (and `errorcode`),
+ * not an Error, so `String(caught)` would show "[object Object]".
+ *
+ * @param caught Whatever a failed call rejected with.
+ * @return The message to display.
+ */
+export const errorMessage = (caught: unknown): string => {
+    if (caught instanceof Error) {
+        return caught.message;
+    }
+    if (caught && typeof caught === 'object' && typeof (caught as {message?: unknown}).message === 'string') {
+        return (caught as {message: string}).message;
+    }
+    return String(caught);
+};
 
 interface DashboardScopeBannerProps {
     siteDefault: boolean;
@@ -170,15 +187,25 @@ const useCollectedBlockJavascript = (
         // first callback.
         quietTimer = setTimeout(settle, DASHBOARD_SETTLE_QUIET_MS);
 
-        void requireManyAsync(['core/fragment', 'core/templates']).then(([fragment, templates]) => {
-            if (superseded) {
+        void requireManyAsync(['core/fragment', 'core/templates', 'core_filters/events']).then(
+            ([fragment, templates, filterEvents]) => {
+                if (superseded) {
+                    return undefined;
+                }
+                const processed = (fragment as {processCollectedJavascript: (source: string) => string})
+                    .processCollectedJavascript(data.javascript);
+                (templates as {runTemplateJS: (source: string) => void}).runTemplateJS(processed);
+                // Tile content is injected by React rather than Templates.replaceNodeContents(), so
+                // tell the filter system about it the same way that would have: without this,
+                // filter-driven content in a block (MathJax, media players) never initialises.
+                const tiles = gridRef.current?.querySelectorAll('.core-my-dashboard-tile__content');
+                if (tiles?.length) {
+                    (filterEvents as {notifyFilterContentUpdated: (nodes: NodeListOf<Element>) => void})
+                        .notifyFilterContentUpdated(tiles);
+                }
                 return undefined;
-            }
-            const processed = (fragment as {processCollectedJavascript: (source: string) => string})
-                .processCollectedJavascript(data.javascript);
-            (templates as {runTemplateJS: (source: string) => void}).runTemplateJS(processed);
-            return undefined;
-        });
+            },
+        );
         return () => {
             superseded = true;
             settle();
@@ -249,6 +276,12 @@ const Dashboard = ({loadingLabel = '', initialLayout = []}: DashboardProps) => {
     const dataRef = useRef<DashboardData | null>(null);
     const siteDefault = isSiteDefault();
 
+    // The server resolves the minimum block size and sends it with the payload, so the editor and
+    // the server's own validation can never disagree. Read through the ref so callbacks registered
+    // in an earlier render (e.g. a pointerup listener) still see the current payload's value.
+    const minimumSize = useCallback((): GridSize =>
+        dataRef.current?.grid.minsize ?? {columns: 1, rows: 1}, []);
+
     /**
      * Fetch a full dashboard payload and reset the canonical layout to match it.
      *
@@ -265,7 +298,7 @@ const Dashboard = ({loadingLabel = '', initialLayout = []}: DashboardProps) => {
             setError('');
             return response;
         } catch (caught) {
-            setError(caught instanceof Error ? caught.message : String(caught));
+            setError(errorMessage(caught));
             return null;
         }
     }, [siteDefault]);
@@ -280,8 +313,8 @@ const Dashboard = ({loadingLabel = '', initialLayout = []}: DashboardProps) => {
     const displayLayout = useMemo(() => packLayout(canonical, columnCount), [canonical, columnCount]);
     displayLayoutRef.current = displayLayout;
     const previewLayout = useMemo(() => interaction
-        ? packWithPinned(displayLayout, columnCount, interaction.draft)
-        : displayLayout, [columnCount, displayLayout, interaction]);
+        ? packWithPinned(displayLayout, columnCount, interaction.draft, minimumSize())
+        : displayLayout, [columnCount, displayLayout, interaction, minimumSize]);
     const bumpedBlockIds = useMemo(() => {
         if (interaction?.origin !== 'pointer') {
             return new Set<number>();
@@ -342,8 +375,9 @@ const Dashboard = ({loadingLabel = '', initialLayout = []}: DashboardProps) => {
             } else {
                 const nextColumns = draft.columns + horizontal;
                 const nextRows = draft.rows + vertical;
-                if (nextColumns < MIN_COLUMNS || nextRows < MIN_ROWS) {
-                    void announce('dashboardminimumsize', `${MIN_COLUMNS} × ${MIN_ROWS}`);
+                const minimum = minimumSize();
+                if (nextColumns < minimum.columns || nextRows < minimum.rows) {
+                    void announce('dashboardminimumsize', `${minimum.columns} × ${minimum.rows}`);
                     return current;
                 }
                 draft.columns = Math.min(columnCount - draft.column, nextColumns);
@@ -353,7 +387,7 @@ const Dashboard = ({loadingLabel = '', initialLayout = []}: DashboardProps) => {
             interactionRef.current = next;
             return next;
         });
-    }, [announce, columnCount]);
+    }, [announce, columnCount, minimumSize]);
 
     /**
      * Persist the in-progress interaction's draft rectangle as the new canonical layout.
@@ -377,9 +411,10 @@ const Dashboard = ({loadingLabel = '', initialLayout = []}: DashboardProps) => {
         if (!current || !currentData) {
             return;
         }
-        const derived = packWithPinned(currentDisplay, currentColumns, current.draft);
+        const minimum = minimumSize();
+        const derived = packWithPinned(currentDisplay, currentColumns, current.draft, minimum);
         const disturbed = disturbedCount(current.before, derived, current.id);
-        const next = writeBack(currentCanonical, derived, current.id);
+        const next = writeBack(currentCanonical, derived, current.id, minimum);
         setSaving(true);
         try {
             await updateDashboard('save', siteDefault, next);
@@ -396,7 +431,7 @@ const Dashboard = ({loadingLabel = '', initialLayout = []}: DashboardProps) => {
             interactionRef.current = null;
             setInteraction(null);
         } catch (caught) {
-            setError(caught instanceof Error ? caught.message : String(caught));
+            setError(errorMessage(caught));
         } finally {
             setSaving(false);
         }
@@ -470,13 +505,15 @@ const Dashboard = ({loadingLabel = '', initialLayout = []}: DashboardProps) => {
             return;
         }
         const grid = gridRef.current;
+        const {rowHeight, gap} = readGridMetrics(grid);
+        const minimum = minimumSize();
         const cellWidth = grid
-            ? (grid.getBoundingClientRect().width - GRID_GAP * (columnCount - 1)) / columnCount
+            ? (grid.getBoundingClientRect().width - gap * (columnCount - 1)) / columnCount
             : 1;
-        const columnStride = cellWidth + GRID_GAP;
-        const rowStride = ROW_HEIGHT + GRID_GAP;
-        const originalWidth = origin.columns * cellWidth + (origin.columns - 1) * GRID_GAP;
-        const originalHeight = origin.rows * ROW_HEIGHT + (origin.rows - 1) * GRID_GAP;
+        const columnStride = cellWidth + gap;
+        const rowStride = rowHeight + gap;
+        const originalWidth = origin.columns * cellWidth + (origin.columns - 1) * gap;
+        const originalHeight = origin.rows * rowHeight + (origin.rows - 1) * gap;
         const move = (pointerEvent: PointerEvent) => {
             const pointer = pointerRef.current;
             if (!pointer) {
@@ -502,17 +539,17 @@ const Dashboard = ({loadingLabel = '', initialLayout = []}: DashboardProps) => {
                         y: Math.max(-origin.row * rowStride, deltaY),
                     };
                 } else {
-                    draft.columns = Math.max(MIN_COLUMNS,
+                    draft.columns = Math.max(minimum.columns,
                         Math.min(columnCount - draft.column, origin.columns + horizontal));
-                    draft.rows = Math.max(MIN_ROWS, origin.rows + vertical);
+                    draft.rows = Math.max(minimum.rows, origin.rows + vertical);
                     drag = {
                         x: 0,
                         y: 0,
                         width: Math.max(cellWidth, Math.min(
-                            (columnCount - origin.column) * columnStride - GRID_GAP,
+                            (columnCount - origin.column) * columnStride - gap,
                             originalWidth + deltaX,
                         )),
-                        height: Math.max(ROW_HEIGHT, originalHeight + deltaY),
+                        height: Math.max(rowHeight, originalHeight + deltaY),
                         shrinking: deltaX < 0 || deltaY < 0,
                     };
                 }
@@ -565,7 +602,7 @@ const Dashboard = ({loadingLabel = '', initialLayout = []}: DashboardProps) => {
             await load();
             await announce('dashboardblockremoved');
         } catch (caught) {
-            setError(caught instanceof Error ? caught.message : String(caught));
+            setError(errorMessage(caught));
         } finally {
             setSaving(false);
         }
@@ -602,14 +639,15 @@ const Dashboard = ({loadingLabel = '', initialLayout = []}: DashboardProps) => {
                         columns: Math.min(item.columns, columnCount),
                     };
                     const next = writeBack(response.layout,
-                        packWithPinned(packLayout(response.layout, columnCount), columnCount, pinned), item.id);
+                        packWithPinned(packLayout(response.layout, columnCount), columnCount, pinned,
+                            response.grid.minsize), item.id, response.grid.minsize);
                     await updateDashboard('save', siteDefault, next);
                     setCanonical(next);
                     canonicalRef.current = next;
                 } else if (item && palette.position === 'start') {
                     const next = writeBack(response.layout,
                         packWithPinned(packLayout(response.layout, columnCount), columnCount,
-                            {...item, column: 0, row: 0}), item.id);
+                            {...item, column: 0, row: 0}, response.grid.minsize), item.id, response.grid.minsize);
                     await updateDashboard('save', siteDefault, next);
                     setCanonical(next);
                     canonicalRef.current = next;
@@ -618,7 +656,7 @@ const Dashboard = ({loadingLabel = '', initialLayout = []}: DashboardProps) => {
             setPalette(null);
             await announce('dashboardblockadded', block.title);
         } catch (caught) {
-            setError(caught instanceof Error ? caught.message : String(caught));
+            setError(errorMessage(caught));
         } finally {
             setSaving(false);
         }
@@ -639,7 +677,7 @@ const Dashboard = ({loadingLabel = '', initialLayout = []}: DashboardProps) => {
             // Reload the document to keep the server-rendered edit switch in sync.
             window.location.reload();
         } catch (caught) {
-            setError(caught instanceof Error ? caught.message : String(caught));
+            setError(errorMessage(caught));
         } finally {
             setSaving(false);
         }
@@ -677,7 +715,7 @@ const Dashboard = ({loadingLabel = '', initialLayout = []}: DashboardProps) => {
             className="core-my-dashboard-grid"
             style={{
                 gridTemplateColumns: `repeat(${columnCount}, minmax(0, 1fr))`,
-                gridTemplateRows: `repeat(${rows}, ${ROW_HEIGHT}px)`,
+                gridTemplateRows: `repeat(${rows}, var(--core-my-dashboard-row-height))`,
             }}
             data-columns={columnCount}
         >

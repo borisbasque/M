@@ -107,6 +107,12 @@ final class get_dashboard extends external_api {
                 'name' => new external_value(PARAM_PLUGIN, 'Block plugin name.'),
                 'title' => new external_value(PARAM_RAW, 'Block title.'),
             ])),
+            'grid' => new external_single_structure([
+                'minsize' => new external_single_structure([
+                    'columns' => new external_value(PARAM_INT, 'Minimum column span of a block.'),
+                    'rows' => new external_value(PARAM_INT, 'Minimum row span of a block.'),
+                ], 'Smallest size a block may be resized to.'),
+            ], 'Grid rules the editor must enforce, as resolved by the server.'),
             'canedit' => new external_value(PARAM_BOOL, 'Whether the user may edit.'),
             'editing' => new external_value(PARAM_BOOL, 'Whether Edit mode is active.'),
             'sitedefault' => new external_value(PARAM_BOOL, 'Whether this is the site default.'),

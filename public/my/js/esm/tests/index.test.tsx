@@ -159,6 +159,7 @@ const buildData = (overrides: Partial<DashboardData> = {}): DashboardData => ({
     ],
     layout: baseLayout,
     availableblocks: [{name: 'calendar_month', title: 'Calendar'}],
+    grid: {minsize: {columns: 1, rows: 2}},
     canedit: true,
     editing: true,
     sitedefault: false,
@@ -266,7 +267,7 @@ describe('core_my Dashboard application', () => {
         const firstTile = screen.getByRole('region', {name: 'First block block'});
         const resizeHandle = within(firstTile).getByRole('button', {name: 'Resize block'});
         fireEvent.keyDown(resizeHandle, {key: ' '});
-        // The first block is 2 rows tall; MIN_ROWS is 2, so shrinking up once more is rejected.
+        // The first block is 2 rows tall; the payload's minimum is 2 rows, so shrinking up once more is rejected.
         fireEvent.keyDown(resizeHandle, {key: 'ArrowUp'});
         await act(async() => {
             fireEvent.keyDown(resizeHandle, {key: ' '});
@@ -279,6 +280,27 @@ describe('core_my Dashboard application', () => {
         // the commit path itself, is what's under test here.
         const args = (saveCall[0] as {args: {layout: LayoutItem[]}}).args;
         expect(args.layout.find(item => item.id === 101)?.rows).toBe(2);
+    });
+
+    it('enforces the minimum tile size sent by the server, not a client-side constant', async() => {
+        const fetchOneSpy = mockDashboardApi({getResponses: [buildData({grid: {minsize: {columns: 1, rows: 1}}})]});
+
+        render(<Dashboard />);
+        await screen.findByText('First block');
+
+        const firstTile = screen.getByRole('region', {name: 'First block block'});
+        const resizeHandle = within(firstTile).getByRole('button', {name: 'Resize block'});
+        fireEvent.keyDown(resizeHandle, {key: ' '});
+        // The server allows a 1-row block here, so the same shrink that is rejected above succeeds.
+        fireEvent.keyDown(resizeHandle, {key: 'ArrowUp'});
+        await act(async() => {
+            fireEvent.keyDown(resizeHandle, {key: ' '});
+        });
+
+        const saveCall = fetchOneSpy.mock.calls.find(([request]) =>
+            (request as {methodname: string}).methodname === 'core_my_update_dashboard')!;
+        const args = (saveCall[0] as {args: {layout: LayoutItem[]}}).args;
+        expect(args.layout.find(item => item.id === 101)?.rows).toBe(1);
     });
 
     // A full pixel-based pointer drag (pointerdown, a pointermove past the drag threshold, then
@@ -413,7 +435,11 @@ describe('core_my Dashboard application', () => {
         const firstRequire = new Promise(resolve => {
             resolveFirst = resolve;
         });
-        const secondRequire = Promise.resolve([{processCollectedJavascript}, {runTemplateJS}]);
+        const secondRequire = Promise.resolve([
+            {processCollectedJavascript},
+            {runTemplateJS},
+            {notifyFilterContentUpdated: jest.fn()},
+        ]);
         (requireManyAsync as jest.Mock)
             .mockImplementationOnce(() => firstRequire)
             .mockImplementationOnce(() => secondRequire);
@@ -429,7 +455,7 @@ describe('core_my Dashboard application', () => {
 
         // Now let the superseded first reload's collected-JS resolve.
         await act(async() => {
-            resolveFirst([{processCollectedJavascript}, {runTemplateJS}]);
+            resolveFirst([{processCollectedJavascript}, {runTemplateJS}, {notifyFilterContentUpdated: jest.fn()}]);
             await secondRequire;
         });
 
@@ -443,6 +469,7 @@ describe('core_my Dashboard application', () => {
         (requireManyAsync as jest.Mock).mockImplementation(() => Promise.resolve([
             {processCollectedJavascript: (source: string) => source},
             {runTemplateJS: jest.fn()},
+            {notifyFilterContentUpdated: jest.fn()},
         ]));
         const pendingSpy = jest.spyOn((globalThis as {M: {util: {js_pending: Function}}}).M.util, 'js_pending');
         const completeSpy = jest.spyOn((globalThis as {M: {util: {js_complete: Function}}}).M.util, 'js_complete');
@@ -469,12 +496,32 @@ describe('core_my Dashboard application', () => {
         await waitFor(() => expect(completeSpy).toHaveBeenCalledWith(settlingKey), {timeout: 2000});
     });
 
+    it('tells the filter system about the block content it injected', async() => {
+        const data = buildData({javascript: 'window.__ran = "filters";'});
+        mockDashboardApi({getResponses: [data]});
+        const notifyFilterContentUpdated = jest.fn();
+        (requireManyAsync as jest.Mock).mockImplementation(() => Promise.resolve([
+            {processCollectedJavascript: (source: string) => source},
+            {runTemplateJS: jest.fn()},
+            {notifyFilterContentUpdated},
+        ]));
+
+        render(<Dashboard />);
+        await screen.findByText('First block');
+
+        await waitFor(() => expect(notifyFilterContentUpdated).toHaveBeenCalledTimes(1));
+        const nodes = Array.from(notifyFilterContentUpdated.mock.calls[0][0] as NodeListOf<Element>);
+        expect(nodes).toHaveLength(data.blocks.length);
+        expect(nodes.map(node => node.textContent)).toEqual(['First', 'Second']);
+    });
+
     it('settles quickly when a reload causes no DOM mutations at all', async() => {
         const data = buildData({javascript: 'window.__ran = "settle-quiet";'});
         mockDashboardApi({getResponses: [data]});
         (requireManyAsync as jest.Mock).mockImplementation(() => Promise.resolve([
             {processCollectedJavascript: (source: string) => source},
             {runTemplateJS: jest.fn()},
+            {notifyFilterContentUpdated: jest.fn()},
         ]));
         const pendingSpy = jest.spyOn((globalThis as {M: {util: {js_pending: Function}}}).M.util, 'js_pending');
         const completeSpy = jest.spyOn((globalThis as {M: {util: {js_complete: Function}}}).M.util, 'js_complete');

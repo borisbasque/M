@@ -22,7 +22,7 @@
  */
 
 import {fetchOne} from '@moodle/lms/core/ajax';
-import type {LayoutItem} from './layout';
+import type {GridSize, LayoutItem} from './layout';
 
 export interface BlockAction {
     id: string;
@@ -87,10 +87,16 @@ export interface DashboardUrls {
     sitedefault: string;
 }
 
+/** Grid rules resolved by the server, which the editor enforces. */
+export interface DashboardGrid {
+    minsize: GridSize;
+}
+
 export interface DashboardData {
     blocks: DashboardBlock[];
     layout: LayoutItem[];
     availableblocks: AvailableBlock[];
+    grid: DashboardGrid;
     canedit: boolean;
     editing: boolean;
     sitedefault: boolean;

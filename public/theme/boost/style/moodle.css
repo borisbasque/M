@@ -36923,9 +36923,12 @@ body.editing#page-course-learningoutcomes .activity-item:hover:not(:has(.activit
 }
 
 .core-my-dashboard-grid {
+  --core-my-dashboard-row-height: var(--mds-scale-1700);
+  --core-my-dashboard-gap: var(--mds-spacing-md);
   position: relative;
   display: grid;
-  gap: var(--mds-spacing-md);
+  gap: var(--core-my-dashboard-gap);
+  grid-auto-rows: var(--core-my-dashboard-row-height);
   align-items: stretch;
   min-width: 0;
 }
@@ -37101,14 +37104,14 @@ body.editing#page-course-learningoutcomes .activity-item:hover:not(:has(.activit
   height: var(--mds-scale-800);
   min-height: var(--mds-scale-800);
   padding: 0;
-  color: var(--mds-bg-feedback-secondary-dark);
+  color: var(--mds-text-subtle);
   pointer-events: auto;
   background: transparent;
   border: none;
 }
 
 .mds-btn.btn.core-my-grid-controls__direction:hover {
-  color: var(--mds-text-subtle);
+  color: var(--mds-text-default);
   background: transparent;
 }
 
@@ -37243,7 +37246,7 @@ body.editing#page-course-learningoutcomes .activity-item:hover:not(:has(.activit
   pointer-events: none;
   background-color: var(--mds-bg-feedback-primary-subtle);
   background-image: repeating-linear-gradient(135deg, transparent 0, transparent var(--mds-spacing-xs), var(--mds-border-feedback-primary) var(--mds-spacing-xs), var(--mds-border-feedback-primary) var(--mds-spacing-sm));
-  border: var(--mds-stroke-weight-lg) solid var(--mds-border-feedback-primary);
+  border: var(--mds-stroke-weight-lg) solid var(--mds-border-interactive-primary-default);
 }
 
 .core-my-dashboard-palette {
