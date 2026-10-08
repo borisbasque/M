@@ -17,16 +17,17 @@
 namespace core_my;
 
 use context_system;
+use PHPUnit\Framework\Attributes\CoversFunction;
 
 /**
  * Tests for the responsive dashboard upgrade migration.
  *
  * @package    core_my
  * @category   test
- * @coversNothing
  * @copyright  2026 Matt Porritt <matt.porritt@moodle.com>
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
+#[CoversFunction('upgrade_my_dashboard_grid_positions')]
 final class upgrade_test extends \advanced_testcase {
     /**
      * Legacy main and side-region stacks are migrated to the six-column grid.
@@ -35,14 +36,6 @@ final class upgrade_test extends \advanced_testcase {
         global $CFG, $DB;
 
         $this->resetAfterTest();
-        $dbman = $DB->get_manager();
-        $table = new \xmldb_table('block_positions');
-        foreach (['gridrows', 'gridcolumns', 'gridrow', 'gridcolumn'] as $fieldname) {
-            $field = new \xmldb_field($fieldname);
-            if ($dbman->field_exists($table, $field)) {
-                $dbman->drop_field($table, $field);
-            }
-        }
 
         $page = $DB->get_record('my_pages', [
             'userid' => null,
@@ -73,10 +66,11 @@ final class upgrade_test extends \advanced_testcase {
             'defaultweight' => 50,
         ]);
 
-        set_config('version', 2026081800.00);
+        // Call the migration directly rather than replaying xmldb_main_upgrade() from an old
+        // version, which would also run every later core upgrade step against the test database.
         require_once($CFG->libdir . '/upgradelib.php');
-        require_once($CFG->dirroot . '/lib/db/upgrade.php');
-        $this->assertTrue(xmldb_main_upgrade(2026081800.00));
+        require_once($CFG->libdir . '/db/upgradelib.php');
+        upgrade_my_dashboard_grid_positions();
 
         $mainposition = $DB->get_record('block_positions', ['blockinstanceid' => $main->id], '*', MUST_EXIST);
         $sideposition = $DB->get_record('block_positions', ['blockinstanceid' => $side->id], '*', MUST_EXIST);
@@ -92,8 +86,8 @@ final class upgrade_test extends \advanced_testcase {
                 || (int) $postsideposition->gridrow + (int) $postsideposition->gridrows <= (int) $sideposition->gridrow,
             'Legacy side-pre and side-post blocks must not overlap after migration.',
         );
-        $this->assertSame(4, (int) $mainposition->gridrows);
-        $this->assertSame(4, (int) $sideposition->gridrows);
+        $this->assertSame(5, (int) $mainposition->gridrows);
+        $this->assertSame(5, (int) $sideposition->gridrows);
         $this->assertSame(3, (int) $postsideposition->gridrows);
     }
 }

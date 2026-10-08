@@ -2377,3 +2377,105 @@ function moodlenet_migrate_profile_field(): void {
                      )";
     $DB->execute($sql, ['fieldid' => $field->id, 'fieldid2' => $field->id]);
 }
+
+/**
+ * Give every dashboard block a position on the flexible dashboard's six-column grid.
+ *
+ * Translates the legacy dashboard's two stacks into grid rectangles: centre-column ("content")
+ * blocks become a three-column stack starting at column 1, and side-region ("drawer") blocks a
+ * one-column stack beside it, each keeping its relative order. The first block in each stack is
+ * five rows tall and the rest three. Covers the site default and every user's customised
+ * dashboard, in batches of 500 pages.
+ *
+ * The values are deliberately hard-coded rather than read from \core_my\local\dashboard, so
+ * this step keeps doing exactly the same thing however that class changes later.
+ */
+function upgrade_my_dashboard_grid_positions(): void {
+    global $DB;
+
+    $lastpageid = 0;
+    do {
+        $pages = $DB->get_records_select(
+            'my_pages',
+            'id > :lastpageid AND name = :name AND private = :private',
+            ['lastpageid' => $lastpageid, 'name' => '__default', 'private' => 1],
+            'id ASC',
+            'id, userid',
+            0,
+            500,
+        );
+        foreach ($pages as $mypage) {
+            $lastpageid = $mypage->id;
+            if ($mypage->userid) {
+                $context = context_user::instance($mypage->userid, IGNORE_MISSING);
+            } else {
+                $context = context_system::instance();
+            }
+            if (!$context) {
+                continue;
+            }
+
+            $sql = "SELECT bi.id, bi.defaultregion, bi.defaultweight, bp.id AS positionid,
+                           bp.region, bp.weight, bp.visible
+                      FROM {block_instances} bi
+                 LEFT JOIN {block_positions} bp
+                        ON bp.blockinstanceid = bi.id
+                       AND bp.contextid = :positioncontextid
+                       AND bp.pagetype = :positionpagetype
+                       AND bp.subpage = :positionsubpage
+                     WHERE bi.parentcontextid = :parentcontextid
+                       AND bi.pagetypepattern = :instancepagetype
+                       AND bi.subpagepattern = :instancesubpage";
+            $params = [
+                'positioncontextid' => $context->id,
+                'positionpagetype' => 'my-index',
+                'positionsubpage' => (string) $mypage->id,
+                'parentcontextid' => $context->id,
+                'instancepagetype' => 'my-index',
+                'instancesubpage' => (string) $mypage->id,
+            ];
+            $blocks = $DB->get_records_sql($sql, $params);
+            uasort($blocks, static function ($left, $right): int {
+                $leftregion = $left->region ?? $left->defaultregion;
+                $rightregion = $right->region ?? $right->defaultregion;
+                $regionorder = ['content' => 0, 'side-pre' => 1];
+                $regioncomparison = ($regionorder[$leftregion] ?? 2) <=> ($regionorder[$rightregion] ?? 2);
+                if ($regioncomparison !== 0) {
+                    return $regioncomparison;
+                }
+                return ($left->weight ?? $left->defaultweight) <=> ($right->weight ?? $right->defaultweight);
+            });
+
+            $nextrow = ['content' => 0, 'drawer' => 0];
+            foreach ($blocks as $block) {
+                $region = $block->region ?? $block->defaultregion;
+                $isdrawer = $region !== 'content';
+                $stack = $isdrawer ? 'drawer' : 'content';
+                $position = (object) [
+                    'blockinstanceid' => $block->id,
+                    'contextid' => $context->id,
+                    'pagetype' => 'my-index',
+                    'subpage' => (string) $mypage->id,
+                    'visible' => $block->visible ?? 1,
+                    'region' => $region,
+                    'weight' => $block->weight ?? $block->defaultweight,
+                    // Leave an empty column on each side: legacy content blocks take
+                    // the next three columns, legacy side-region blocks the column after.
+                    // The first block in each stack is two rows taller than the rest.
+                    'gridcolumn' => $isdrawer ? 4 : 1,
+                    'gridrow' => $nextrow[$stack],
+                    'gridcolumns' => $isdrawer ? 1 : 3,
+                    'gridrows' => $nextrow[$stack] === 0 ? 5 : 3,
+                ];
+                $nextrow[$stack] = $position->gridrow + $position->gridrows;
+                if ($block->positionid) {
+                    $position->id = $block->positionid;
+                    $DB->update_record('block_positions', $position);
+                } else {
+                    $DB->insert_record('block_positions', $position);
+                }
+            }
+            upgrade_set_timeout(60);
+        }
+    } while ($pages);
+}
