@@ -139,5 +139,14 @@ class block_myoverview extends block_base {
             return true;
         }
     }
-}
 
+    /**
+     * This block loads its content asynchronously and reports when it is in place.
+     *
+     * @return bool
+     */
+    #[\Override]
+    public function has_async_content(): bool {
+        return true;
+    }
+}

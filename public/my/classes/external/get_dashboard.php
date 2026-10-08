@@ -95,6 +95,10 @@ final class get_dashboard extends external_api {
                         'Modal form class to open in place of navigating, or an empty string.'
                     ),
                 ]), 'The block\'s remaining editing-controls-menu actions.'),
+                'asynccontent' => new external_value(
+                    PARAM_BOOL,
+                    'Whether the block reports when its asynchronously loaded content is in place.'
+                ),
             ])),
             'layout' => new external_multiple_structure(new external_single_structure([
                 'id' => new external_value(PARAM_INT, 'Block instance id.'),

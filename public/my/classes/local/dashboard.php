@@ -199,6 +199,7 @@ final class dashboard {
                     'region' => $region,
                     'weight' => (int) $instance->instance->weight,
                     'actions' => self::get_menu_actions($content->controls, $instance->instance->blockname),
+                    'asynccontent' => $instance->has_async_content(),
                 ];
             }
         }

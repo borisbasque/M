@@ -10,13 +10,21 @@ import { jsxDEV } from "react/jsx-dev-runtime";
  * @module     block_timeline/Timeline
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
-import { useState, useCallback } from "react";
+import { useState, useCallback, useEffect, useRef } from "react";
+import { requireAsync } from "@moodle/lms/core/amd";
 import DayFilter from "@moodle/lms/block_timeline/nav/DayFilter";
 import ViewSelector from "@moodle/lms/block_timeline/nav/ViewSelector";
 import Search from "@moodle/lms/block_timeline/nav/Search";
 import DatesView from "@moodle/lms/block_timeline/views/DatesView";
 import CoursesView from "@moodle/lms/block_timeline/views/CoursesView";
 import { setUserPreference } from "./repository";
+const createFirstLoad = /* @__PURE__ */ __name(() => {
+  let markLoaded = /* @__PURE__ */ __name(() => void 0, "markLoaded");
+  const promise = new Promise((resolve) => {
+    markLoaded = resolve;
+  });
+  return { promise, markLoaded };
+}, "createFirstLoad");
 const PREF_FILTER = "block_timeline_user_filter_preference";
 const PREF_ORDER = "block_timeline_user_sort_preference";
 const FILTER_OFFSETS = {
@@ -43,51 +51,66 @@ function Timeline({ midnight, filter, order, limit, nocoursesurl, noeventsurl, h
   const handleSearch = useCallback((value) => {
     setSearchvalue(value);
   }, []);
+  const rootRef = useRef(null);
+  const firstLoad = useRef(null);
+  if (!firstLoad.current) {
+    firstLoad.current = createFirstLoad();
+  }
+  useEffect(() => {
+    const root = rootRef.current;
+    const loading = firstLoad.current?.promise;
+    if (!root || !loading || root.dataset.contentTracked) {
+      return;
+    }
+    root.dataset.contentTracked = "true";
+    void requireAsync("core_block/events").then((events) => events.trackBlockContentLoading(root, loading)).catch(() => null);
+  }, []);
+  const handleLoaded = useCallback(() => firstLoad.current?.markLoaded(), []);
   const offsets = FILTER_OFFSETS[activeFilter];
   const showCoursesView = activeOrder === "sortbycourses";
-  return /* @__PURE__ */ jsxDEV("div", { "data-region": "timeline", className: "block-timeline", children: [
+  return /* @__PURE__ */ jsxDEV("div", { ref: rootRef, "data-region": "timeline", className: "block-timeline", children: [
     /* @__PURE__ */ jsxDEV("div", { className: "p-0 px-2", children: [
       /* @__PURE__ */ jsxDEV("div", { className: "d-flex flex-wrap gap-1 g-0", children: [
         /* @__PURE__ */ jsxDEV("div", { children: /* @__PURE__ */ jsxDEV(DayFilter, { activeFilter, onChange: handleFilterChange }, void 0, false, {
           fileName: "public/blocks/timeline/js/esm/src/Timeline.tsx",
-          lineNumber: 101,
+          lineNumber: 146,
           columnNumber: 25
         }, this) }, void 0, false, {
           fileName: "public/blocks/timeline/js/esm/src/Timeline.tsx",
-          lineNumber: 100,
+          lineNumber: 145,
           columnNumber: 21
         }, this),
         /* @__PURE__ */ jsxDEV("div", { children: /* @__PURE__ */ jsxDEV(ViewSelector, { activeOrder, onChange: handleOrderChange }, void 0, false, {
           fileName: "public/blocks/timeline/js/esm/src/Timeline.tsx",
-          lineNumber: 104,
+          lineNumber: 149,
           columnNumber: 25
         }, this) }, void 0, false, {
           fileName: "public/blocks/timeline/js/esm/src/Timeline.tsx",
-          lineNumber: 103,
+          lineNumber: 148,
           columnNumber: 21
         }, this),
         /* @__PURE__ */ jsxDEV("div", { className: "flex-grow-1 d-flex justify-content-end nav-search", children: /* @__PURE__ */ jsxDEV(Search, { onSearch: handleSearch, onSearching: setSearchPending }, void 0, false, {
           fileName: "public/blocks/timeline/js/esm/src/Timeline.tsx",
-          lineNumber: 107,
+          lineNumber: 152,
           columnNumber: 25
         }, this) }, void 0, false, {
           fileName: "public/blocks/timeline/js/esm/src/Timeline.tsx",
-          lineNumber: 106,
+          lineNumber: 151,
           columnNumber: 21
         }, this)
       ] }, void 0, true, {
         fileName: "public/blocks/timeline/js/esm/src/Timeline.tsx",
-        lineNumber: 99,
+        lineNumber: 144,
         columnNumber: 17
       }, this),
       /* @__PURE__ */ jsxDEV("div", { className: "pb-3 px-2 border-bottom" }, void 0, false, {
         fileName: "public/blocks/timeline/js/esm/src/Timeline.tsx",
-        lineNumber: 110,
+        lineNumber: 155,
         columnNumber: 17
       }, this)
     ] }, void 0, true, {
       fileName: "public/blocks/timeline/js/esm/src/Timeline.tsx",
-      lineNumber: 98,
+      lineNumber: 143,
       columnNumber: 13
     }, this),
     /* @__PURE__ */ jsxDEV("div", { className: "p-0", children: [
@@ -101,19 +124,20 @@ function Timeline({ midnight, filter, order, limit, nocoursesurl, noeventsurl, h
           noeventsurl,
           hasenrolledcourses,
           limit,
-          searchPending
+          searchPending,
+          onLoaded: handleLoaded
         },
         void 0,
         false,
         {
           fileName: "public/blocks/timeline/js/esm/src/Timeline.tsx",
-          lineNumber: 116,
+          lineNumber: 161,
           columnNumber: 25
         },
         this
       ) }, void 0, false, {
         fileName: "public/blocks/timeline/js/esm/src/Timeline.tsx",
-        lineNumber: 114,
+        lineNumber: 159,
         columnNumber: 17
       }, this),
       /* @__PURE__ */ jsxDEV("div", { "data-region": "view-courses", className: showCoursesView ? "" : "d-none", children: showCoursesView && /* @__PURE__ */ jsxDEV(
@@ -125,29 +149,30 @@ function Timeline({ midnight, filter, order, limit, nocoursesurl, noeventsurl, h
           nocoursesurl,
           noeventsurl,
           hasenrolledcourses,
-          searchPending
+          searchPending,
+          onLoaded: handleLoaded
         },
         void 0,
         false,
         {
           fileName: "public/blocks/timeline/js/esm/src/Timeline.tsx",
-          lineNumber: 130,
+          lineNumber: 176,
           columnNumber: 25
         },
         this
       ) }, void 0, false, {
         fileName: "public/blocks/timeline/js/esm/src/Timeline.tsx",
-        lineNumber: 128,
+        lineNumber: 174,
         columnNumber: 17
       }, this)
     ] }, void 0, true, {
       fileName: "public/blocks/timeline/js/esm/src/Timeline.tsx",
-      lineNumber: 113,
+      lineNumber: 158,
       columnNumber: 13
     }, this)
   ] }, void 0, true, {
     fileName: "public/blocks/timeline/js/esm/src/Timeline.tsx",
-    lineNumber: 97,
+    lineNumber: 142,
     columnNumber: 9
   }, this);
 }

@@ -30,6 +30,7 @@ import * as Templates from 'core/templates';
 import * as CourseEvents from 'core_course/events';
 import SELECTORS from 'block_myoverview/selectors';
 import * as PagedContentEvents from 'core/paged_content_events';
+import {trackBlockContentLoading} from 'core_block/events';
 import * as Aria from 'core/aria';
 import {debounce} from 'core/utils';
 import {setUserPreference} from 'core_user/repository';
@@ -693,6 +694,7 @@ const searchFunctionalityCurry = () => {
  * @param {object} root The root element for the courses view.
  * @param {function} promiseFunction How do we fetch the courses and what do we do with them?
  * @param {null | string} inputValue What to search for
+ * @return {Promise} Resolves once the paged content is in the document.
  */
 const initializePagedContent = (root, promiseFunction, inputValue = null) => {
     const pagingLimit = parseInt(root.find(SELECTORS.courseView.region).attr('data-paging'), 10);
@@ -743,10 +745,12 @@ const initializePagedContent = (root, promiseFunction, inputValue = null) => {
         config
     );
 
-    pagedContentPromise.then((html, js) => {
+    const inserted = pagedContentPromise.then((html, js) => {
         registerPagedEventHandlers(root, namespace);
         return Templates.replaceNodeContents(root.find(SELECTORS.courseView.region), html, js);
-    }).catch(Notification.exception);
+    });
+    inserted.catch(Notification.exception);
+    return inserted;
 };
 
 /**
@@ -851,7 +855,22 @@ export const init = root => {
         root.attr('data-init', true);
     }
 
-    initializePagedContent(root, standardFunctionalityCurry());
+    // The courses are rendered into the paged content's first page after the paged content itself
+    // is inserted, so the content is only complete once that page has been shown.
+    const firstPageShown = new Promise(resolve => {
+        const eventName = namespace + PagedContentEvents.PAGES_SHOWN;
+        const shown = () => {
+            resolve();
+            // Unsubscribe after this publish has finished: core/pubsub iterates its subscribers
+            // while unsubscribe() splices the same array, so removing ourselves mid-publish would
+            // skip the next subscriber - the paging bar, which then never updates its buttons.
+            setTimeout(() => PubSub.unsubscribe(eventName, shown), 0);
+        };
+        PubSub.subscribe(eventName, shown);
+    });
+    const inserted = initializePagedContent(root, standardFunctionalityCurry());
+    // A failure has already been reported by initializePagedContent().
+    trackBlockContentLoading(root, Promise.all([inserted, firstPageShown])).catch(() => null);
 };
 
 /**

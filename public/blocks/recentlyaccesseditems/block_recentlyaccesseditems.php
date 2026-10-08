@@ -62,4 +62,14 @@ class block_recentlyaccesseditems extends block_base {
     public function applicable_formats() {
         return array('my' => true);
     }
+
+    /**
+     * This block loads its content asynchronously and reports when it is in place.
+     *
+     * @return bool
+     */
+    #[\Override]
+    public function has_async_content(): bool {
+        return true;
+    }
 }

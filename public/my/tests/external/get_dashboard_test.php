@@ -71,6 +71,23 @@ final class get_dashboard_test extends \advanced_testcase {
     }
 
     /**
+     * Blocks that load content asynchronously say so, so the dashboard can wait for them precisely.
+     */
+    public function test_execute_reports_which_blocks_load_content_asynchronously(): void {
+        $this->resetAfterTest();
+        $this->setUser($this->getDataGenerator()->create_user());
+
+        $result = external_api::clean_returnvalue(get_dashboard::execute_returns(), get_dashboard::execute(false));
+        $async = array_column($result['blocks'], 'asynccontent', 'name');
+
+        $this->assertTrue($async['myoverview']);
+        $this->assertTrue($async['recentlyaccesseditems']);
+        $this->assertTrue($async['timeline']);
+        // Rendered on the server: nothing to wait for.
+        $this->assertFalse($async['calendar_month']);
+    }
+
+    /**
      * A brand-new user's dashboard (with no customisation of their own, so it is copied
      * straight from the site's unmigrated default page) uses the default grid shape: an
      * empty column on each side, content blocks taking the next three columns, side-region

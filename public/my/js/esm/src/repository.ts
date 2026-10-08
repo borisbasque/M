@@ -40,6 +40,9 @@ export interface DashboardBlock {
     region: string;
     weight: number;
     actions: BlockAction[];
+    // Whether the block reports when its asynchronously loaded content is in place
+    // (block_base::has_async_content(), via the core_block/contentLoaded event).
+    asynccontent: boolean;
 }
 
 export interface AvailableBlock {

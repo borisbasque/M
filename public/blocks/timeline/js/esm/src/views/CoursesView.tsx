@@ -77,6 +77,8 @@ interface CoursesViewProps {
     hasenrolledcourses: boolean;
     /** True while the search debounce is pending — suppresses stale results until it resolves. */
     searchPending?: boolean;
+    /** Called each time a load of the course list finishes. */
+    onLoaded?: () => void;
 }
 
 /** Renders timeline events grouped by in-progress courses with lazy-load pagination. */
@@ -88,7 +90,11 @@ export default function CoursesView({
     noeventsurl,
     hasenrolledcourses,
     searchPending,
+    onLoaded,
 }: CoursesViewProps) {
+    // Read through a ref so a new callback never restarts the load effect below.
+    const onLoadedRef = useRef(onLoaded);
+    onLoadedRef.current = onLoaded;
     const [displayedCourses, setDisplayedCourses] = useState<CourseWithEvents[]>([]);
     const [perCourse, setPerCourse] = useState<Map<number, PerCourseState>>(new Map());
     const [nextBatch, setNextBatch] = useState<Batch | null>(null);
@@ -195,6 +201,7 @@ export default function CoursesView({
 
             if (!cancelled) {
                 setLoading(false);
+                onLoadedRef.current?.();
             }
         };
 

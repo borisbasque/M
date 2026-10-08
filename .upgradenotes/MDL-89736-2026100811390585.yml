@@ -1,0 +1,15 @@
+issueNumber: MDL-89736
+notes:
+  core_block:
+    - message: >-
+        Blocks that load part of their content asynchronously can now report it.
+        Override the optional `block_base::has_async_content()` to return true,
+        and pass the element the block loads into, with a promise for the load,
+        to `trackBlockContentLoading()` from `core_block/events`. While loading,
+        the element is marked `aria-busy` and a `core/pending` key is held, so
+        Behat waits precisely; when the load succeeds or fails, the new
+        `core_block/contentLoaded` event (`eventTypes.blockContentLoaded`) is
+        fired, carrying the block instance id, name and whether it failed. Pages
+        such as the flexible dashboard wait for this event instead of guessing.
+        Declaring nothing is fully supported.
+      type: improved

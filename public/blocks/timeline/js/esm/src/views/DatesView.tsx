@@ -20,7 +20,7 @@
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
 
-import {useState, useEffect, useCallback} from 'react';
+import {useState, useEffect, useCallback, useRef} from 'react';
 import String from '@moodle/lms/core/String';
 import {getString} from '@moodle/lms/core/stringUtils';
 import {Button} from '@moodlehq/design-system';
@@ -43,6 +43,8 @@ interface DatesViewProps {
     limit: number;
     /** True while the search debounce is pending — suppresses stale results until it resolves. */
     searchPending?: boolean;
+    /** Called each time a load of the list finishes. */
+    onLoaded?: () => void;
 }
 
 /**
@@ -57,7 +59,11 @@ export default function DatesView({
     hasenrolledcourses,
     limit,
     searchPending,
+    onLoaded,
 }: DatesViewProps) {
+    // Read through a ref so a new callback never restarts the load effect below.
+    const onLoadedRef = useRef(onLoaded);
+    onLoadedRef.current = onLoaded;
     const [days, setDays] = useState<DayGroup[]>([]);
     const [loading, setLoading] = useState(true);
     const [hasMore, setHasMore] = useState(false);
@@ -149,6 +155,7 @@ export default function DatesView({
         load(0, false, () => cancelled).finally(() => {
             if (!cancelled) {
                 setLoading(false);
+                onLoadedRef.current?.();
             }
         });
 

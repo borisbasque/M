@@ -28,7 +28,8 @@ define(
     'block_starredcourses/repository',
     'core/pubsub',
     'core/templates',
-    'core_course/events'
+    'core_course/events',
+    'core_block/events'
 ],
 function(
     $,
@@ -36,7 +37,8 @@ function(
     Repository,
     PubSub,
     Templates,
-    CourseEvents
+    CourseEvents,
+    BlockEvents
 ) {
 
     var SELECTORS = {
@@ -118,7 +120,8 @@ function(
         root = $(root);
 
         registerEventListeners(root);
-        reloadContent(root);
+        // A failure is reported by reloadContent() itself, which then resolves.
+        BlockEvents.trackBlockContentLoading(root, reloadContent(root));
     };
 
     return {

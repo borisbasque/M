@@ -27,9 +27,15 @@
  *     window.console.log(e.target); // The HTMLElement relating to the block whose content was updated.
  *     window.console.log(e.detail.instanceId); // The instanceId of the block that was updated.
  * });
+ *
+ * @example <caption>Example of a block reporting that its asynchronously loaded content is in place.</caption>
+ * import {trackBlockContentLoading} from 'core_block/events';
+ *
+ * export const init = root => trackBlockContentLoading(root, fetchAndRenderContent(root));
  */
 
 import {dispatchEvent} from 'core/event_dispatcher';
+import Pending from 'core/pending';
 
 /**
  * Events for `core_block`.
@@ -48,6 +54,21 @@ export const eventTypes = {
      * @property {number} detail.instanceId The block instance id
      */
     blockContentUpdated: 'core_block/contentUpdated',
+
+    /**
+     * An event triggered once a block's asynchronously loaded content is in place, or has failed to
+     * load. Fired by blocks that declare {@see block_base::has_async_content()}.
+     *
+     * @event blockContentLoaded
+     * @type {CustomEvent}
+     * @property {HTMLElement} target The element the block loaded its content into
+     * @property {object} detail
+     * @property {number|null} detail.instanceId The block instance id, where the page provides it
+     * @property {string|null} detail.blockName The block name, e.g. myoverview, where the page provides it
+     * @property {boolean} detail.failed Whether loading failed
+     * @since 6.0
+     */
+    blockContentLoaded: 'core_block/contentLoaded',
 };
 
 /**
@@ -65,3 +86,70 @@ export const notifyBlockContentUpdated = element => dispatchEvent(
     },
     element
 );
+
+/**
+ * Trigger an event to indicate that a block's asynchronously loaded content is in place.
+ *
+ * The instance id and block name come from the closest element carrying them: the standard block
+ * markup and the flexible dashboard's tiles both provide `data-instance-id` and `data-block`.
+ *
+ * @method notifyBlockContentLoaded
+ * @param {HTMLElement} element The element the block loaded its content into.
+ * @param {boolean} [failed=false] Whether loading failed.
+ * @returns {CustomEvent}
+ * @fires blockContentLoaded
+ * @since 6.0
+ */
+export const notifyBlockContentLoaded = (element, failed = false) => {
+    const instance = element.closest('[data-instance-id]');
+    const block = element.closest('[data-block]');
+    return dispatchEvent(
+        eventTypes.blockContentLoaded,
+        {
+            instanceId: instance ? Number(instance.dataset.instanceId) : null,
+            blockName: block ? block.dataset.block : null,
+            failed,
+        },
+        element
+    );
+};
+
+/**
+ * Report a block's asynchronous content loading, from start to finish.
+ *
+ * While the promise is outstanding the block is marked busy for assistive technology and a
+ * `core/pending` key is held, so anything waiting for the page's JavaScript to settle (Behat
+ * included) waits for the content too. When it settles - whether it succeeded or failed - the
+ * busy state is cleared and {@link event:blockContentLoaded} is fired, so a page is never left
+ * waiting on a block that will not finish.
+ *
+ * @method trackBlockContentLoading
+ * @param {HTMLElement|jQuery} root The element the block loads its content into.
+ * @param {Promise} loading Resolves once the content is in the document.
+ * @returns {Promise} The same outcome as `loading`, so callers can keep chaining.
+ * @since 6.0
+ */
+export const trackBlockContentLoading = (root, loading) => {
+    // Blocks commonly hold their root as a jQuery object.
+    const element = root && root.jquery ? root.get(0) : root;
+    if (!element) {
+        return Promise.resolve(loading);
+    }
+    const pending = new Pending('core_block/contentLoading');
+    element.setAttribute('aria-busy', 'true');
+    const finish = failed => {
+        element.removeAttribute('aria-busy');
+        notifyBlockContentLoaded(element, failed);
+        pending.resolve();
+    };
+    return Promise.resolve(loading).then(
+        result => {
+            finish(false);
+            return result;
+        },
+        error => {
+            finish(true);
+            throw error;
+        }
+    );
+};

@@ -28,8 +28,10 @@ import type {TimelineProps} from '../src/common/types';
 // Mock child views to isolate Timeline state logic.
 jest.mock('../src/views/DatesView', () => ({
     __esModule: true,
-    'default': ({offsets}: {offsets: {filteroverdue: boolean}}) => (
-        <div data-testid="dates-view" data-filteroverdue={String(offsets.filteroverdue)} />
+    'default': ({offsets, onLoaded}: {offsets: {filteroverdue: boolean}; onLoaded?: () => void}) => (
+        <div data-testid="dates-view" data-filteroverdue={String(offsets.filteroverdue)}>
+            <button data-testid="dates-loaded" onClick={() => onLoaded?.()} />
+        </div>
     ),
 }));
 jest.mock('../src/views/CoursesView', () => ({
@@ -69,6 +71,32 @@ const defaultProps: TimelineProps = {
 };
 
 describe('Timeline', () => {
+    let trackBlockContentLoading: jest.Mock;
+
+    beforeEach(() => {
+        trackBlockContentLoading = jest.fn((element: HTMLElement, loading: Promise<void>) => loading);
+        mockAmdModule('core_block/events', {trackBlockContentLoading});
+    });
+
+    it('reports its first load to the block API once the view has loaded', async() => {
+        const {container} = render(<Timeline {...defaultProps} />);
+
+        await waitFor(() => expect(trackBlockContentLoading).toHaveBeenCalledTimes(1));
+        const [element, loading] = trackBlockContentLoading.mock.calls[0] as [HTMLElement, Promise<void>];
+        expect(element).toBe(container.querySelector('[data-region="timeline"]'));
+
+        let settled = false;
+        void loading.then(() => {
+            settled = true;
+            return settled;
+        });
+        await Promise.resolve();
+        expect(settled).toBe(false);
+
+        fireEvent.click(screen.getByTestId('dates-loaded'));
+        await waitFor(() => expect(settled).toBe(true));
+    });
+
     it('renders the DatesView by default when order is sortbydates', () => {
         render(<Timeline {...defaultProps} />);
         expect(screen.getByTestId('dates-view')).toBeInTheDocument();

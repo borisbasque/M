@@ -115,7 +115,7 @@ const defaultProps = {
     hasenrolledcourses: true,
 };
 
-async function renderView(props: Partial<typeof defaultProps> = {}) {
+async function renderView(props: Partial<typeof defaultProps> & {onLoaded?: () => void} = {}) {
     let result!: ReturnType<typeof render>;
     await act(async() => {
         result = render(<CoursesView {...defaultProps} {...props} />);
@@ -140,6 +140,17 @@ beforeEach(() => {
 });
 
 describe('CoursesView', () => {
+    it('reports when its first load has finished', async() => {
+        mockCoursePages([makeCourse(1)]);
+        mockEventsByCourseId({"1": [makeEvent(1, 1)]});
+        const onLoaded = jest.fn();
+
+        await renderView({onLoaded});
+
+        await waitFor(() => expect(onLoaded).toHaveBeenCalledTimes(1));
+        expect(screen.getByText('Course 1')).toBeInTheDocument();
+    });
+
     it('hides a course whose events are all filtered out, keeping only visible courses', async() => {
         mockCoursePages([makeCourse(1), makeCourse(2)]);
         mockEventsByCourseId({"1": [makeEvent(1, 1)], "2": []});

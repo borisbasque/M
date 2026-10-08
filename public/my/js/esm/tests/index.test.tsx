@@ -142,7 +142,7 @@ const baseLayout: LayoutItem[] = [
 const secondBlockOnly = [
     {
         id: 102, name: 'online_users', title: 'Second block', content: '<p>Second</p>',
-        footer: '', region: 'content', weight: 1, actions: [],
+        footer: '', region: 'content', weight: 1, actions: [], asynccontent: false,
     },
 ];
 
@@ -150,11 +150,11 @@ const buildData = (overrides: Partial<DashboardData> = {}): DashboardData => ({
     blocks: [
         {
             id: 101, name: 'html', title: 'First block', content: '<p>First</p>',
-            footer: '', region: 'content', weight: 0, actions: [],
+            footer: '', region: 'content', weight: 0, actions: [], asynccontent: false,
         },
         {
             id: 102, name: 'online_users', title: 'Second block', content: '<p>Second</p>',
-            footer: '', region: 'content', weight: 1, actions: [],
+            footer: '', region: 'content', weight: 1, actions: [], asynccontent: false,
         },
     ],
     layout: baseLayout,
@@ -329,7 +329,7 @@ describe('core_my Dashboard application', () => {
     it('places a newly added block into the specific empty cell that was clicked', async() => {
         const newBlock = {
             id: 103, name: 'calendar_month', title: 'Calendar', content: '<p>Cal</p>',
-            footer: '', region: 'content', weight: 2, actions: [],
+            footer: '', region: 'content', weight: 2, actions: [], asynccontent: false,
         };
         // The server appends the new block wherever it likes (here, far from where the user
         // clicked) - the client is expected to notice and immediately re-save it into the cell.
@@ -396,7 +396,7 @@ describe('core_my Dashboard application', () => {
     it('adds a block from the palette and reloads the dashboard', async() => {
         const newBlock = {
             id: 103, name: 'calendar_month', title: 'Calendar', content: '<p>Cal</p>',
-            footer: '', region: 'content', weight: 2, actions: [],
+            footer: '', region: 'content', weight: 2, actions: [], asynccontent: false,
         };
         const afterAdd = buildData({
             blocks: [...buildData().blocks, newBlock],
@@ -513,6 +513,43 @@ describe('core_my Dashboard application', () => {
         const nodes = Array.from(notifyFilterContentUpdated.mock.calls[0][0] as NodeListOf<Element>);
         expect(nodes).toHaveLength(data.blocks.length);
         expect(nodes.map(node => node.textContent)).toEqual(['First', 'Second']);
+    });
+
+    it('waits for every block that declares async content to report it loaded', async() => {
+        const base = buildData({javascript: 'window.__ran = "async-blocks";'});
+        const data = {...base, blocks: base.blocks.map(block => ({...block, asynccontent: true}))};
+        mockDashboardApi({getResponses: [data]});
+        (requireManyAsync as jest.Mock).mockImplementation(() => Promise.resolve([
+            {processCollectedJavascript: (source: string) => source},
+            {runTemplateJS: jest.fn()},
+            {notifyFilterContentUpdated: jest.fn()},
+        ]));
+        const pendingSpy = jest.spyOn((globalThis as {M: {util: {js_pending: Function}}}).M.util, 'js_pending');
+        const completeSpy = jest.spyOn((globalThis as {M: {util: {js_complete: Function}}}).M.util, 'js_complete');
+
+        const {container} = render(<Dashboard />);
+        await screen.findByText('First block');
+        await waitFor(() => expect(pendingSpy.mock.calls.some(
+            ([key]) => (key as string).startsWith('core_my/dashboard:settling:'),
+        )).toBe(true));
+        const settlingKey = pendingSpy.mock.calls
+            .map(([key]) => key as string)
+            .find(key => key.startsWith('core_my/dashboard:settling:'))!;
+        const loaded = (id: number) => container.querySelector(`[data-instance-id="${id}"] .core-my-dashboard-tile__content`)!
+            .dispatchEvent(new CustomEvent('core_block/contentLoaded', {bubbles: true, detail: {instanceId: id}}));
+
+        // Well past the quiet window: still waiting, because the second block has not reported.
+        await act(async() => {
+            loaded(101);
+            await new Promise(resolve => setTimeout(resolve, 400));
+        });
+        expect(completeSpy).not.toHaveBeenCalledWith(settlingKey);
+
+        // Then settles once the grid has also been quiet for the quiet window.
+        await act(async() => {
+            loaded(102);
+        });
+        await waitFor(() => expect(completeSpy).toHaveBeenCalledWith(settlingKey), {timeout: 2000});
     });
 
     it('settles quickly when a reload causes no DOM mutations at all', async() => {

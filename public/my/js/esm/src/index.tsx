@@ -117,6 +117,8 @@ type ConfirmAction = {type: 'remove'; id: number} | {type: 'reset'};
 // See the settling MutationObserver in the collected-JS effect below for what these guard.
 const DASHBOARD_SETTLE_QUIET_MS = 250;
 const DASHBOARD_SETTLE_TIMEOUT_MS = 5000;
+// Fired by blocks that declare asynchronous content: eventTypes.blockContentLoaded in core_block/events.
+const BLOCK_CONTENT_LOADED = 'core_block/contentLoaded';
 let dashboardSettleCounter = 0;
 
 const isSiteDefault = (): boolean => window.location.pathname.endsWith('/my/indexsys.php');
@@ -131,16 +133,16 @@ const layoutChanged = (original: LayoutItem, draft: LayoutItem): boolean =>
  *
  * A block's own async fetch-and-replace of its rendered content (e.g. Course overview, Recently
  * accessed items) is invisible to anything watching M.util.pending_js - Behat's
- * wait_for_pending_js() included - unless that block's own code says so, which this project's
- * acceptance criteria rules out asking every block to do (a backwards-compatible block API
- * extension to do this properly is filed as a follow-up on the parent epic). Detect it
- * generically instead: such a replacement is always a structural (childList) DOM mutation
- * somewhere under the grid, so treat the dashboard as still settling from the moment this
- * reload's collected JS starts running until the grid goes quiet for a short window - bounded by
- * a hard ceiling in case some future block's own mutations (or a genuine failure) never quiesce,
- * so this can never hang a caller indefinitely. Only childList is watched (not
- * attributes/characterData), so unrelated noise - drag positioning, resize-driven style changes -
- * never resets it.
+ * wait_for_pending_js() included - unless the block reports it. Blocks that declare
+ * block_base::has_async_content() do (MDL-89736): they hold their own core/pending key while
+ * loading and fire core_block/contentLoaded when done, so the dashboard waits for exactly those
+ * events. Blocks that declare nothing - every contributed block today - must keep working
+ * unmodified, so the dashboard also waits for a heuristic: such a replacement is always a
+ * structural (childList) DOM mutation somewhere under the grid, so treat it as still settling
+ * until the grid goes quiet for a short window. Either way a hard ceiling bounds the wait, in case
+ * a block never reports or never goes quiet, so this can never hang a caller indefinitely. Only
+ * childList is watched (not attributes/characterData), so unrelated noise - drag positioning,
+ * resize-driven style changes - never resets the quiet window.
  *
  * @param data The current dashboard payload, or null before the first load resolves.
  * @param gridRef The grid element to watch for mutations under.
@@ -159,10 +161,22 @@ const useCollectedBlockJavascript = (
         let superseded = false;
 
         let settled = false;
+        let quiet = false;
         let quietTimer: ReturnType<typeof setTimeout> | undefined;
         let hardTimer: ReturnType<typeof setTimeout> | undefined;
         let observer: MutationObserver | undefined;
+        const grid = gridRef.current;
         const pending = new Pending(`core_my/dashboard:settling:${dashboardSettleCounter++}`);
+
+        // Blocks that declare asynchronous content (MDL-89736) say exactly when it is in place, so
+        // wait for every one of them. The DOM must also go quiet: that covers blocks that declare
+        // nothing, and late touches by declaring blocks after their main content lands (Course
+        // overview, for one, updates its paging bar after its first page is shown).
+        const awaiting = new Set(data.blocks.filter(block => block.asynccontent).map(block => block.id));
+        const onContentLoaded = (event: Event) => {
+            awaiting.delete(Number((event as CustomEvent<{instanceId: number | null}>).detail?.instanceId));
+            settleIfDone();
+        };
         const settle = () => {
             if (settled) {
                 return;
@@ -171,21 +185,32 @@ const useCollectedBlockJavascript = (
             clearTimeout(quietTimer);
             clearTimeout(hardTimer);
             observer?.disconnect();
+            grid?.removeEventListener(BLOCK_CONTENT_LOADED, onContentLoaded);
             pending.resolve();
         };
+        const settleIfDone = () => {
+            if (awaiting.size === 0 && quiet) {
+                settle();
+            }
+        };
+        const startQuietWindow = () => {
+            quiet = false;
+            clearTimeout(quietTimer);
+            quietTimer = setTimeout(() => {
+                quiet = true;
+                settleIfDone();
+            }, DASHBOARD_SETTLE_QUIET_MS);
+        };
         hardTimer = setTimeout(settle, DASHBOARD_SETTLE_TIMEOUT_MS);
-        const grid = gridRef.current;
         if (grid) {
-            observer = new MutationObserver(() => {
-                clearTimeout(quietTimer);
-                quietTimer = setTimeout(settle, DASHBOARD_SETTLE_QUIET_MS);
-            });
+            grid.addEventListener(BLOCK_CONTENT_LOADED, onContentLoaded);
+            observer = new MutationObserver(startQuietWindow);
             observer.observe(grid, {childList: true, subtree: true});
         }
         // Nothing may ever mutate at all (every block already rendered its final content
         // server-side) - start the quiet window immediately too, not only on the observer's
         // first callback.
-        quietTimer = setTimeout(settle, DASHBOARD_SETTLE_QUIET_MS);
+        startQuietWindow();
 
         void requireManyAsync(['core/fragment', 'core/templates', 'core_filters/events']).then(
             ([fragment, templates, filterEvents]) => {

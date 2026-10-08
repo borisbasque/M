@@ -92,4 +92,14 @@ class block_recentlyaccessedcourses extends block_base {
             'plugin' => $configs,
         ];
     }
+
+    /**
+     * This block loads its content asynchronously and reports when it is in place.
+     *
+     * @return bool
+     */
+    #[\Override]
+    public function has_async_content(): bool {
+        return true;
+    }
 }

@@ -23,7 +23,8 @@
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
 
-import {useState, useCallback} from 'react';
+import {useState, useCallback, useEffect, useRef} from 'react';
+import {requireAsync} from '@moodle/lms/core/amd';
 import DayFilter from '@moodle/lms/block_timeline/nav/DayFilter';
 import ViewSelector from '@moodle/lms/block_timeline/nav/ViewSelector';
 import Search from '@moodle/lms/block_timeline/nav/Search';
@@ -31,6 +32,30 @@ import DatesView from '@moodle/lms/block_timeline/views/DatesView';
 import CoursesView from '@moodle/lms/block_timeline/views/CoursesView';
 import {setUserPreference} from './repository';
 import type {TimelineProps, FilterName, OrderName, FilterOffsets} from './common/types';
+
+/** The part of core_block/events (an AMD module) the timeline uses. */
+interface BlockEvents {
+    trackBlockContentLoading: (element: HTMLElement, loading: Promise<void>) => Promise<void>;
+}
+
+/** The timeline's first load, as a promise and the function that settles it. */
+interface FirstLoad {
+    promise: Promise<void>;
+    markLoaded: () => void;
+}
+
+/**
+ * Create a promise for the first load, settled by calling markLoaded().
+ *
+ * @return The promise and its settling function.
+ */
+const createFirstLoad = (): FirstLoad => {
+    let markLoaded: () => void = () => undefined;
+    const promise = new Promise<void>(resolve => {
+        markLoaded = resolve;
+    });
+    return {promise, markLoaded};
+};
 
 const PREF_FILTER = 'block_timeline_user_filter_preference';
 const PREF_ORDER = 'block_timeline_user_sort_preference';
@@ -90,11 +115,31 @@ export default function Timeline({midnight, filter, order, limit, nocoursesurl, 
         setSearchvalue(value);
     }, []);
 
+    // Report the first load through the block API (core_block/events), so the page - and Behat - can
+    // tell when the timeline's content is in place rather than guessing.
+    const rootRef = useRef<HTMLDivElement>(null);
+    const firstLoad = useRef<FirstLoad | null>(null);
+    if (!firstLoad.current) {
+        firstLoad.current = createFirstLoad();
+    }
+    useEffect(() => {
+        const root = rootRef.current;
+        const loading = firstLoad.current?.promise;
+        if (!root || !loading || root.dataset.contentTracked) {
+            return;
+        }
+        root.dataset.contentTracked = 'true';
+        void requireAsync<BlockEvents>('core_block/events')
+            .then(events => events.trackBlockContentLoading(root, loading))
+            .catch(() => null);
+    }, []);
+    const handleLoaded = useCallback(() => firstLoad.current?.markLoaded(), []);
+
     const offsets = FILTER_OFFSETS[activeFilter];
     const showCoursesView = activeOrder === 'sortbycourses';
 
     return (
-        <div data-region="timeline" className="block-timeline">
+        <div ref={rootRef} data-region="timeline" className="block-timeline">
             <div className="p-0 px-2">
                 <div className="d-flex flex-wrap gap-1 g-0">
                     <div>
@@ -122,6 +167,7 @@ export default function Timeline({midnight, filter, order, limit, nocoursesurl, 
                             hasenrolledcourses={hasenrolledcourses}
                             limit={limit}
                             searchPending={searchPending}
+                            onLoaded={handleLoaded}
                         />
                     )}
                 </div>
@@ -135,6 +181,7 @@ export default function Timeline({midnight, filter, order, limit, nocoursesurl, 
                             noeventsurl={noeventsurl}
                             hasenrolledcourses={hasenrolledcourses}
                             searchPending={searchPending}
+                            onLoaded={handleLoaded}
                         />
                     )}
                 </div>

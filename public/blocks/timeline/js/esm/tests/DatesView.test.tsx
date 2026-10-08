@@ -79,7 +79,7 @@ const defaultProps = {
     limit: 5,
 };
 
-async function renderView(props: Partial<typeof defaultProps> = {}) {
+async function renderView(props: Partial<typeof defaultProps> & {onLoaded?: () => void} = {}) {
     let result!: ReturnType<typeof render>;
     await act(async() => {
         result = render(<DatesView {...defaultProps} {...props} />);
@@ -101,6 +101,16 @@ beforeEach(() => {
 });
 
 describe('DatesView', () => {
+    it('reports when its first load has finished', async() => {
+        mockGetTimelineEvents.mockResolvedValue({events: [makeEvent(1, MIDNIGHT)]});
+        const onLoaded = jest.fn();
+
+        await renderView({onLoaded});
+
+        await waitFor(() => expect(onLoaded).toHaveBeenCalledTimes(1));
+        expect(screen.getAllByTestId('event-item')).toHaveLength(1);
+    });
+
     it('requests limit+1 events on first load and pops the sentinel when there are more', async() => {
         const events = Array.from({length: 6}, (_, i) => makeEvent(i + 1, MIDNIGHT));
         mockGetTimelineEvents.mockResolvedValue({events});

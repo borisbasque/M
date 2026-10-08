@@ -289,6 +289,7 @@ describe('core_my grid components', () => {
                 region: 'content',
                 weight: 0,
                 actions: [],
+                asynccontent: false,
             }}
             item={{id: 7, column: 0, row: 0, columns: 2, rows: 2}}
             labels={{...labels, tile: '{$a} block'} as DashboardLabels}
@@ -316,6 +317,7 @@ describe('core_my grid components', () => {
             region: 'content',
             weight: 0,
             actions: [],
+            asynccontent: false,
         };
         const tile = (item: LayoutItem) => <DashboardTile
             block={{...block}}
@@ -345,6 +347,29 @@ describe('core_my grid components', () => {
         expect(screen.getByText('Footer link')).toBeInTheDocument();
     });
 
+    it('identifies the block the way the standard block markup does, for core_block/events', () => {
+        const {container} = render(<DashboardTile
+            block={{
+                id: 12, name: 'timeline', title: 'Timeline', content: '<p>Events</p>', footer: '',
+                region: 'content', weight: 0, actions: [], asynccontent: true,
+            }}
+            item={{id: 12, column: 0, row: 0, columns: 2, rows: 2}}
+            labels={{...labels, tile: '{$a} block'} as DashboardLabels}
+            editing={false}
+            showControls={false}
+            onStart={jest.fn()}
+            onKeyDown={jest.fn()}
+            onPointerDown={jest.fn()}
+            onDirection={jest.fn()}
+            onCommit={jest.fn()}
+            onRemove={jest.fn()}
+        />);
+
+        const tile = container.querySelector('.core-my-dashboard-tile')!;
+        expect(tile).toHaveAttribute('data-instance-id', '12');
+        expect(tile).toHaveAttribute('data-block', 'timeline');
+    });
+
     it('wraps block content with the standard block classes so shared block CSS keeps applying', () => {
         const {container} = render(<DashboardTile
             block={{
@@ -356,6 +381,7 @@ describe('core_my grid components', () => {
                 region: 'content',
                 weight: 0,
                 actions: [],
+                asynccontent: false,
             }}
             item={{id: 8, column: 0, row: 0, columns: 2, rows: 2}}
             labels={{...labels, tile: '{$a} block'} as DashboardLabels}
@@ -387,6 +413,7 @@ describe('core_my grid components', () => {
                 region: 'content',
                 weight: 0,
                 actions: [],
+                asynccontent: false,
             }}
             item={{id: 9, column: 1, row: 1, columns: 2, rows: 2}}
             labels={{...labels, tile: '{$a} block'} as DashboardLabels}
@@ -417,6 +444,7 @@ describe('core_my grid components', () => {
                 region: 'content',
                 weight: 0,
                 actions: [],
+                asynccontent: false,
             }}
             item={{id: 8, column: 0, row: 0, columns: 2, rows: 2}}
             labels={{
@@ -567,6 +595,7 @@ describe('core_my grid components', () => {
                 region: 'content',
                 weight: 0,
                 actions: [],
+                asynccontent: false,
             }}
             item={{id: 13, column: 0, row: 0, columns: 2, rows: 2}}
             labels={{

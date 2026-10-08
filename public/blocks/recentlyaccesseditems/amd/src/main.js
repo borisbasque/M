@@ -27,13 +27,15 @@ define(
         'jquery',
         'block_recentlyaccesseditems/repository',
         'core/templates',
-        'core/notification'
+        'core/notification',
+        'core_block/events'
     ],
     function(
         $,
         Repository,
         Templates,
-        Notification
+        Notification,
+        BlockEvents
     ) {
 
         var NUM_ITEMS = 9;
@@ -111,19 +113,19 @@ define(
             var itemsContainer = root.find(SELECTORS.CARDDECK_CONTAINER);
             var itemsContent = root.find(SELECTORS.CARDDECK);
 
-            var itemsPromise = getRecentItems(NUM_ITEMS);
+            var itemCount = 0;
+            var loaded = getRecentItems(NUM_ITEMS).then(function(items) {
+                itemCount = items.length;
+                return renderItems(itemsContainer, items);
+            }).then(function(html, js) {
+                Templates.replaceNodeContents(itemsContent, html, js);
+                if (itemCount > 3) {
+                    registerEventListeners();
+                }
+                return null;
+            });
 
-            itemsPromise.then(function(items) {
-                var pageContentPromise = renderItems(itemsContainer, items);
-
-                pageContentPromise.then(function(html, js) {
-                    Templates.replaceNodeContents(itemsContent, html, js);
-                    if (items.length > 3) {
-                        registerEventListeners();
-                    }
-                    return null;
-                }).catch(Notification.exception);
-            }).catch(Notification.exception);
+            BlockEvents.trackBlockContentLoading(root, loaded).catch(Notification.exception);
         };
 
         return {

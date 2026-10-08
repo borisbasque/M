@@ -32,6 +32,7 @@ define(
         'core_course/events',
         'core_course/repository',
         'core/aria',
+        'core_block/events',
     ],
     function(
         $,
@@ -42,7 +43,8 @@ define(
         Templates,
         CourseEvents,
         CoursesRepository,
-        Aria
+        Aria,
+        BlockEvents
     ) {
 
         // Constants.
@@ -353,7 +355,7 @@ define(
             root = $(root);
 
             registerEventListeners(root);
-            loadContent(userid)
+            var loaded = loadContent(userid)
                 .then(function(renderedCourses) {
                     allCourses = renderedCourses;
                     contentLoaded = true;
@@ -366,8 +368,8 @@ define(
                     }
 
                     return;
-                })
-                .catch(Notification.exception);
+                });
+            BlockEvents.trackBlockContentLoading(root, loaded).catch(Notification.exception);
         };
 
         return {

@@ -757,6 +757,26 @@ EOD;
     public function can_block_be_added(moodle_page $page): bool {
         return true;
     }
+
+    /**
+     * This method can be overridden to declare that the block loads part of its content
+     * asynchronously after the page renders, and reports when it is in place.
+     *
+     * A block returning true must call trackBlockContentLoading() from core_block/events with the
+     * element it loads into and a promise for the load. That holds a core/pending key while loading
+     * (so Behat waits precisely), marks the element aria-busy, and fires the
+     * core_block/contentLoaded event when the load succeeds or fails. Pages such as the flexible
+     * dashboard then wait for that event instead of guessing when the block has finished.
+     *
+     * Declaring nothing is fully supported: the page treats the block's content as complete once
+     * its JavaScript has run.
+     *
+     * @return bool Whether the block reports its asynchronous content loading.
+     * @since Moodle 6.0
+     */
+    public function has_async_content(): bool {
+        return false;
+    }
 }
 
 /**

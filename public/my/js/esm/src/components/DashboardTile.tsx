@@ -276,6 +276,8 @@ const DashboardTile = ({
         aria-label={labels.tile.replace('{$a}', block.title)}
         data-block={block.name}
         data-block-id={block.id}
+        // As in the standard block markup, so core_block/events helpers identify the block.
+        data-instance-id={block.id}
         data-blockregion={narrow ? 'side-pre' : 'content'}
         data-bumped={isBumped || undefined}
     >
