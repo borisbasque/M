@@ -255,6 +255,14 @@ const handleRemovedNode = (node: Node) => {
         return;
     }
 
+    // Moving a node (e.g. reordering it with insertBefore) is reported as a removal followed by
+    // an addition. If it is still in the document by the time we see the removal, it was moved,
+    // not removed: its React roots survive the move, so leave them mounted. Unmounting here would
+    // remount every component inside it from scratch, discarding its state and refetching its data.
+    if (node.isConnected) {
+        return;
+    }
+
     if (node.matches?.(SELECTOR)) {
         unmountOne(node);
     }

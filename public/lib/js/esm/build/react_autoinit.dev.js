@@ -160,6 +160,9 @@ const handleRemovedNode = /* @__PURE__ */ __name((node) => {
   if (!(node instanceof Element)) {
     return;
   }
+  if (node.isConnected) {
+    return;
+  }
   if (node.matches?.(SELECTOR)) {
     unmountOne(node);
   }
