@@ -149,6 +149,47 @@ class api {
     }
 
     /**
+     * Fetch what the plugins directory says about a plugin, for showing it to people on this site.
+     *
+     * Uses the pluginfo.php end-point. Its optional 'summary' (a short plain-text description) and
+     * 'logo' (an absolute URL of the plugin's icon) are returned when the directory provides them.
+     * Both are proposed additions to API 1.3: a directory that does not provide them yet simply
+     * returns neither, and callers fall back to their own defaults.
+     *
+     * Bounded by a short timeout, so a slow directory never holds up the caller for long.
+     *
+     * @param string $component Frankenstyle name of the plugin.
+     * @param int $timeout Seconds to wait for the directory.
+     * @return array{summary: ?string, logo: ?string}|null What the directory provides, or null if
+     *     the directory could not be reached or does not know the plugin.
+     * @since Moodle 6.0
+     */
+    public function get_plugin_details(string $component, int $timeout = 10): ?array {
+        global $CFG;
+
+        $response = $this->call_service($this->get_serviceurl_pluginfo(), [
+            'plugin' => $component,
+            'format' => 'json',
+            'minversion' => 0,
+            'branch' => $this->convert_branch_numbering_format($CFG->branch),
+        ], ['CURLOPT_TIMEOUT' => $timeout, 'CURLOPT_CONNECTTIMEOUT' => $timeout]);
+
+        if (!$response || ($response->info['http_code'] ?? 0) != 200 || !isset($response->data->pluginfo)
+                || ($response->data->status ?? '') !== 'OK') {
+            return null;
+        }
+        $pluginfo = $response->data->pluginfo;
+        $summary = isset($pluginfo->summary) && is_string($pluginfo->summary)
+            ? trim(clean_param($pluginfo->summary, PARAM_TEXT)) : '';
+        $logo = isset($pluginfo->logo) && is_string($pluginfo->logo) && preg_match('|^https://|i', $pluginfo->logo)
+            ? clean_param($pluginfo->logo, PARAM_URL) : '';
+        return [
+            'summary' => $summary === '' ? null : $summary,
+            'logo' => $logo === '' ? null : $logo,
+        ];
+    }
+
+    /**
      * Makes sure the given data format match the expected output of the pluginfo service.
      *
      * Object validated by this method is guaranteed to contain all the data
@@ -253,9 +294,10 @@ class api {
      *
      * @param string $serviceurl
      * @param array $params
+     * @param array $options Extra cURL options, such as a timeout.
      * @return \stdClass|bool
      */
-    protected function call_service($serviceurl, array $params=array()) {
+    protected function call_service($serviceurl, array $params=array(), array $options = []) {
 
         $response = (object)array(
             'data' => null,
@@ -265,10 +307,10 @@ class api {
 
         $curl = new curl();
 
-        $response->data = json_decode($curl->get($serviceurl, $params, array(
+        $response->data = json_decode($curl->get($serviceurl, $params, array_merge([
             'CURLOPT_SSL_VERIFYHOST' => 2,
             'CURLOPT_SSL_VERIFYPEER' => true,
-        )));
+        ], $options)));
 
         $curlerrno = $curl->get_errno();
 

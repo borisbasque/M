@@ -66,9 +66,10 @@ class testable_api extends api {
      *
      * @param string $serviceurl
      * @param array $params
+     * @param array $options Extra cURL options, ignored here.
      * @return stdClass|bool
      */
-    protected function call_service($serviceurl, array $params=array()) {
+    protected function call_service($serviceurl, array $params=array(), array $options = []) {
 
         $response = (object)array(
             'data' => null,
@@ -174,6 +175,18 @@ class testable_api extends api {
                 if (substr($params['plugin'], -11) === '@2015100500') {
                     $response->data->pluginfo->version = $version2015100500info;
                 }
+
+            } else if (in_array($params['plugin'], ['block_described', 'block_undescribed'])) {
+                // Two blocks: one the directory describes, with a summary and a logo, and one it does not.
+                $response->data = clone $foobarinfo;
+                $response->data->pluginfo = clone $foobarinfo->pluginfo;
+                $response->data->pluginfo->component = $params['plugin'];
+                if ($params['plugin'] === 'block_described') {
+                    $response->data->pluginfo->summary = 'Shows <b>described</b> things.';
+                    $response->data->pluginfo->logo = 'https://mood.le/plugins/block_described/logo.png';
+                }
+                $response->info = ['http_code' => 200];
+                $response->status = '200 OK';
 
             } else if ($params['plugin'] === 'foo_bar' and isset($params['branch']) and isset($params['minversion'])) {
                 $response->data = $foobarinfo;

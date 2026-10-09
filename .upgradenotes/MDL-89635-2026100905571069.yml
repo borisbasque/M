@@ -1,0 +1,10 @@
+issueNumber: MDL-89635
+notes:
+  core:
+    - message: >-
+        The new \core\update\api::get_plugin_details() method returns the
+        summary and logo that the plugins directory shows for a plugin, when the
+        directory provides them, with a short timeout. The protected
+        \core\update\api::call_service() method takes an optional array of extra
+        cURL options; subclasses overriding it must add the parameter.
+      type: improved

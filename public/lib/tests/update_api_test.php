@@ -93,6 +93,26 @@ final class update_api_test extends \advanced_testcase {
     }
 
     /**
+     * Getting the summary and logo the plugins directory shows for a plugin, when it has them.
+     */
+    public function test_get_plugin_details(): void {
+
+        $client = \core\update\testable_api::client();
+
+        // Described: plain text only, and the logo's address.
+        $this->assertSame([
+            'summary' => 'Shows described things.',
+            'logo' => 'https://mood.le/plugins/block_described/logo.png',
+        ], $client->get_plugin_details('block_described'));
+
+        // Known, but the directory gives neither.
+        $this->assertSame(['summary' => null, 'logo' => null], $client->get_plugin_details('block_undescribed'));
+
+        // Not in the directory at all.
+        $this->assertNull($client->get_plugin_details('block_inhouse'));
+    }
+
+    /**
      * Getting info about the most suitable plugin version for us.
      */
     public function test_find_plugin(): void {

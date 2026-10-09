@@ -230,6 +230,15 @@ $tasks = array(
         'dayofweek' => '*',
         'month' => '*',
     ],
+    [
+        'classname' => 'core\task\block_directory_details_task',
+        'blocking' => 0,
+        'minute' => 'R',
+        'hour' => '*',
+        'day' => '*',
+        'dayofweek' => '*',
+        'month' => '*',
+    ],
     array(
         'classname' => 'core\task\check_for_updates_task',
         'blocking' => 0,

@@ -104,6 +104,14 @@ if ($hassiteconfig) {
 
     // blocks
     $ADMIN->add('blocksettings', new admin_page_manageblocks());
+    $temp = new admin_settingpage('blockdirectorysettings', new lang_string('blockdirectorysettings', 'admin'));
+    $temp->add(new admin_setting_configcheckbox(
+        'blockdirectorydetails',
+        new lang_string('blockdirectorydetails', 'admin'),
+        new lang_string('blockdirectorydetails_desc', 'admin'),
+        1,
+    ));
+    $ADMIN->add('blocksettings', $temp);
     $plugins = core_plugin_manager::instance()->get_plugins_of_type('block');
     core_collator::asort_objects_by_property($plugins, 'displayname');
     foreach ($plugins as $plugin) {
