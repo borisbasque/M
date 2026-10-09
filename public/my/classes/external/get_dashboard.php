@@ -142,6 +142,22 @@ final class get_dashboard extends external_api {
                 'switchtositedefault' => new external_value(PARAM_RAW, 'Switch-to-site-default CTA label.'),
                 'tile' => new external_value(PARAM_RAW, 'Dashboard tile label.'),
                 'undo' => new external_value(PARAM_RAW, 'Undo label.'),
+                'browseralreadyadded' => new external_value(PARAM_RAW, 'Block browser or empty dashboard label.'),
+                'browserallpresent' => new external_value(PARAM_RAW, 'Block browser or empty dashboard label.'),
+                'browserblocks' => new external_value(PARAM_RAW, 'Block browser or empty dashboard label.'),
+                'browsercount' => new external_value(PARAM_RAW, 'Block browser or empty dashboard label.'),
+                'browsercountone' => new external_value(PARAM_RAW, 'Block browser or empty dashboard label.'),
+                'browserdiscover' => new external_value(PARAM_RAW, 'Block browser or empty dashboard label.'),
+                'browserfallbackdescription' => new external_value(PARAM_RAW, 'Block browser or empty dashboard label.'),
+                'browserinsert' => new external_value(PARAM_RAW, 'Block browser or empty dashboard label.'),
+                'browsernomatch' => new external_value(PARAM_RAW, 'Block browser or empty dashboard label.'),
+                'browsersearch' => new external_value(PARAM_RAW, 'Block browser or empty dashboard label.'),
+                'browsertargetcell' => new external_value(PARAM_RAW, 'Block browser or empty dashboard label.'),
+                'browsertargetfree' => new external_value(PARAM_RAW, 'Block browser or empty dashboard label.'),
+                'clearsearch' => new external_value(PARAM_RAW, 'Block browser or empty dashboard label.'),
+                'empty' => new external_value(PARAM_RAW, 'Block browser or empty dashboard label.'),
+                'opensinnewwindow' => new external_value(PARAM_RAW, 'Block browser or empty dashboard label.'),
+                'restoredefault' => new external_value(PARAM_RAW, 'Block browser or empty dashboard label.'),
                 'up' => new external_value(PARAM_RAW, 'Up label.'),
             ]),
         ]);
@@ -215,6 +231,15 @@ final class get_dashboard extends external_api {
         return new external_single_structure([
             'name' => new external_value(PARAM_PLUGIN, 'Block plugin name.'),
             'title' => new external_value(PARAM_RAW, 'Block title.'),
+            'description' => new external_value(
+                PARAM_TEXT,
+                'What the block does, in one sentence, or an empty string when it declares none.',
+            ),
+            'iconhtml' => new external_value(PARAM_RAW, 'The block\'s icon, rendered, or an empty string when it has none.'),
+            'added' => new external_value(
+                PARAM_BOOL,
+                'Whether the block is already on the dashboard and allows only one, so cannot be added again.',
+            ),
         ]);
     }
 }

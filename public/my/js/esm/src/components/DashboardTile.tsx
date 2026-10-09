@@ -164,6 +164,8 @@ interface DashboardTileProps {
     dragOrigin?: LayoutItem;
     shouldAnimatePosition?: boolean;
     isBumped?: boolean;
+    // Just added: highlighted briefly so it is easy to spot.
+    highlighted?: boolean;
     onStart: (id: number, mode: 'move' | 'resize') => void;
     onKeyDown: (event: React.KeyboardEvent, id: number, mode: 'move' | 'resize') => void;
     onPointerDown: (event: React.PointerEvent, id: number, mode: 'move' | 'resize') => void;
@@ -185,6 +187,7 @@ const DashboardTile = ({
     dragOrigin,
     shouldAnimatePosition = false,
     isBumped = false,
+    highlighted = false,
     onStart,
     onKeyDown,
     onPointerDown,
@@ -271,6 +274,7 @@ const DashboardTile = ({
             activeMode && 'core-my-dashboard-tile--active',
             drag && 'core-my-dashboard-tile--pointer-dragging',
             isBumped && 'core-my-dashboard-tile--bumped',
+            highlighted && 'core-my-dashboard-tile--new',
         ].filter(Boolean).join(' ')}
         style={{
             gridColumn: `${displayItem.column + 1} / span ${displayItem.columns}`,

@@ -809,6 +809,43 @@ EOD;
     public function get_grid_preferred_size(): ?\core_block\grid_size {
         return null;
     }
+
+    /**
+     * A short description of what this block does, for people choosing a block to add.
+     *
+     * Shown in the dashboard's block browser under the block's name, in two lines at most, so keep
+     * it to one sentence. By default it is the block's 'plugindescription' string, when it has
+     * one; override this to describe the block some other way. Declaring nothing is fully
+     * supported: the browser then falls back to other sources, and finally to a generic line.
+     *
+     * @return string|null Plain text, already translated, or null for none.
+     * @since Moodle 6.0
+     */
+    public function get_description(): ?string {
+        $component = 'block_' . $this->name();
+        if (get_string_manager()->string_exists('plugindescription', $component)) {
+            return get_string('plugindescription', $component);
+        }
+        return null;
+    }
+
+    /**
+     * An icon representing this block, for people choosing a block to add.
+     *
+     * By default it is the block's own monologo icon (pix/monologo.svg), as for activities, when it
+     * has one. Override this to use one of core's icons instead. Declaring nothing is fully
+     * supported: the browser then falls back to other sources, and finally to the block's
+     * initials.
+     *
+     * @return \core\output\pix_icon|null The icon, or null for none.
+     * @since Moodle 6.0
+     */
+    public function get_icon(): ?\core\output\pix_icon {
+        if (\core\component::has_monologo_icon('block', $this->name())) {
+            return new \core\output\pix_icon('monologo', '', 'block_' . $this->name());
+        }
+        return null;
+    }
 }
 
 /**

@@ -304,4 +304,9 @@ class block_glossary_random extends block_base {
         $pluginclass = \core_plugin_manager::resolve_plugininfo_class('mod');
         return $pluginclass::get_enabled_plugin('glossary');
     }
+
+    #[\Override]
+    public function get_icon(): ?\core\output\pix_icon {
+        return new \core\output\pix_icon('monologo', '', 'mod_glossary');
+    }
 }

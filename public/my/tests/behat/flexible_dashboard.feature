@@ -14,22 +14,56 @@ Feature: Arrange dashboard blocks in a responsive grid
   Scenario: Move, resize, add and remove blocks with accessible controls
     When I turn editing mode on
     Then "Open block drawer" "button" should not exist
+    # A click without dragging picks the block up; the keyboard then moves it.
     And I click on "Move Course overview block" "button" in the "Course overview" "block"
-    And I click on "Down" "button" in the "Course overview" "block"
-    And I click on "Move Course overview block" "button" in the "Course overview" "block"
+    Then I should see "Course overview picked up" in the ".core-toast" "css_element"
+    And I press the down key
+    And I press the enter key
     Then I should see "Item moved to row"
+    And I should not see "Course overview picked up"
+    # Keyboard activation shows the on-screen direction controls too.
     When I click on "Resize block" "button" in the "Course overview" "block"
+    And I press the escape key
+    And I press the space key
     Then "Up" "button" should exist in the "Course overview" "block"
     And the resize directional controls are centred on the active resize handle
     And I press the down key
     And I press the enter key
     Then I should see "Item resized to"
-    When I click on "Add a block at the start of the dashboard" "button"
-    And I click on "Online users" "button" in the "Add a block" "dialogue"
+    When I click on "Add a block" "button" in the ".core-my-dashboard-toolbar" "css_element"
+    And I set the field "Search blocks" to "Online"
+    And I click on "Insert" "button" in the "Add a block" "dialogue"
     Then "Online users" "block" should exist
+    # A block added from the toolbar is picked up, ready to move.
+    And I should see "Online users picked up" in the ".core-toast" "css_element"
+    And I press the escape key
     When I click on "Delete Online users block" "button" in the "Online users" "block"
-    And I click on "Confirm" "button" in the "Remove block" "dialogue"
-    Then "Online users" "block" should not exist
+    Then "Online users" "block" should not be visible
+    And I should see "Online users removed." in the ".core-toast" "css_element"
+    When I click on "Undo" "button" in the ".core-toast" "css_element"
+    Then "Online users" "block" should be visible
+    When I click on "Delete Online users block" "button" in the "Online users" "block"
+    And I press the ctrl z key
+    Then "Online users" "block" should be visible
+
+  @javascript
+  Scenario: A removed block is gone for good once its toast has closed
+    When I turn editing mode on
+    And I click on "Delete Course overview block" "button" in the "Course overview" "block"
+    And I click on "Close" "button" in the ".core-toast" "css_element"
+    And I reload the page
+    Then "Course overview" "block" should not exist
+
+  @javascript
+  Scenario: Add a block from the block browser into the space picked for it
+    When I turn editing mode on
+    And I click on "Add a block" "button" in the ".core-my-dashboard-toolbar" "css_element"
+    Then I should see "Your block will go in the first free space" in the "Add a block" "dialogue"
+    And I should see "Shows a cloud of the tags used across the site." in the "Add a block" "dialogue"
+    And I set the field "Search blocks" to "zzz"
+    And I should see "No blocks match \"zzz\"." in the "Add a block" "dialogue"
+    And I press the escape key
+    Then "Add a block" "dialogue" should not exist
 
   @javascript
   Scenario: Drag the dedicated handles to move and resize a block
@@ -135,8 +169,10 @@ Feature: Arrange dashboard blocks in a responsive grid
     And "Hide Course overview block" "button" should not exist
     And the block actions menu sits to the right of the delete control
     # A block with fields of its own, like Text, still offers Configure.
-    When I click on "Add a block at the start of the dashboard" "button"
-    And I click on "Text" "button" in the "Add a block" "dialogue"
+    When I click on "Add a block" "button" in the ".core-my-dashboard-toolbar" "css_element"
+    And I set the field "Search blocks" to "Text"
+    And I click on "Insert" "button" in the "Add a block" "dialogue"
+    And I press the escape key
     And I click on ".core-my-dashboard-block-actions__trigger" "css_element" in the ".core-my-dashboard-tile[data-block='html']" "css_element"
     Then I should see "Configure (new text block) block" in the ".core-my-dashboard-block-actions__menu" "css_element"
 

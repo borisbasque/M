@@ -1,0 +1,13 @@
+issueNumber: MDL-89635
+notes:
+  core_block:
+    - message: >-
+        Blocks can describe themselves to people choosing a block to add, such
+        as in the dashboard's block browser. block_base::get_description()
+        returns a one-sentence description, by default the block's
+        plugindescription language string when it has one, and
+        block_base::get_icon() returns a pix_icon, by default the block's own
+        monologo icon (pix/monologo.svg) when it has one. Both are optional: a
+        block declaring neither keeps working, and the browser shows its
+        initials and a generic description instead.
+      type: improved

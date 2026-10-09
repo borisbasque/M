@@ -413,6 +413,33 @@ export const collapseEmptyRows = <T extends LayoutItem>(items: T[]): T[] => {
     return items.map(item => shift[item.row] ? {...item, row: item.row - shift[item.row]} : item);
 };
 
+/**
+ * The first space, in reading order, where a block of the given size fits without moving anything.
+ *
+ * @param items The layout to fit into.
+ * @param columnCount The grid's column count.
+ * @param columns The block's width, narrowed to the grid if wider.
+ * @param rows The block's height.
+ * @return The top-left cell of that space.
+ */
+export const firstFreeSpace = (
+    items: LayoutItem[],
+    columnCount: number,
+    columns: number,
+    rows: number,
+): {column: number; row: number} => {
+    const width = Math.min(columns, columnCount);
+    const occupied = new Set<string>();
+    items.forEach(item => occupy(occupied, item));
+    for (let row = 0; ; row++) {
+        for (let column = 0; column + width <= columnCount; column++) {
+            if (fits(occupied, column, row, width, rows)) {
+                return {column, row};
+            }
+        }
+    }
+};
+
 export const disturbedCount = (before: LayoutItem[], after: LayoutItem[], activeId: number): number => {
     const positions = new Map(before.map(item => [item.id, `${item.column}:${item.row}`]));
     return after.filter(item => item.id !== activeId

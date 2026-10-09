@@ -28,6 +28,26 @@ require_once(__DIR__ . '/../../../lib/behat/behat_base.php');
  */
 class behat_my extends behat_base {
     /**
+     * Add a block to the dashboard through the block browser, leaving it where it lands.
+     *
+     * Opens the browser from the toolbar, finds the block by name, inserts it and puts down the
+     * newly added block, which arrives picked up ready to move.
+     *
+     * @When /^I add the "(?P<blockname_string>(?:[^"]|\\")*)" block to the dashboard$/
+     * @param string $blockname The block's name, as listed in the browser.
+     */
+    public function i_add_the_block_to_the_dashboard(string $blockname): void {
+        $this->execute('behat_general::i_click_on_in_the', [
+            get_string('addblock'), 'button', '.core-my-dashboard-toolbar', 'css_element',
+        ]);
+        $this->execute('behat_forms::i_set_the_field_to', [get_string('browsersearch', 'my'), $blockname]);
+        $this->execute('behat_general::i_click_on_in_the', [
+            get_string('browserinsert', 'my'), 'button', get_string('addblock'), 'dialogue',
+        ]);
+        $this->execute('behat_general::i_press_named_key', ['', 'escape']);
+    }
+
+    /**
      * Re-run a script until its result satisfies a condition, rather than sleeping a fixed time.
      *
      * The editor's pointer and keyboard steps dispatch synthetic events and then read the DOM that

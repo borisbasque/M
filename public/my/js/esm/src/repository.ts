@@ -21,6 +21,7 @@
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
 
+import config from '@moodle/lms/core/config';
 import {fetchOne} from '@moodle/lms/core/ajax';
 import type {GridSize, LayoutItem} from './layout';
 
@@ -52,6 +53,12 @@ export interface DashboardBlock {
 export interface AvailableBlock {
     name: string;
     title: string;
+    // What the block does, in one sentence, or '' when it declares none.
+    description: string;
+    // The block's icon, rendered by the server, or '' when it has none.
+    iconhtml: string;
+    // Already on the dashboard, and only one is allowed: listed only so the browser can say so.
+    added: boolean;
 }
 
 export interface DashboardLabels {
@@ -89,6 +96,22 @@ export interface DashboardLabels {
     scopesitedefault: string;
     switchtoown: string;
     switchtositedefault: string;
+    browseralreadyadded: string;
+    browserallpresent: string;
+    browserblocks: string;
+    browsercount: string;
+    browsercountone: string;
+    browserdiscover: string;
+    browserfallbackdescription: string;
+    browserinsert: string;
+    browsernomatch: string;
+    browsersearch: string;
+    browsertargetcell: string;
+    browsertargetfree: string;
+    clearsearch: string;
+    empty: string;
+    opensinnewwindow: string;
+    restoredefault: string;
     tile: string;
     undo: string;
     up: string;
@@ -170,3 +193,37 @@ export const updateDashboard = (
         revision,
     },
 }, {timeout: UPDATE_TIMEOUT_MS});
+
+/**
+ * Send a block's removal, and the layout without it, as the page is being left.
+ *
+ * Requests made through core/ajax are aborted when the page unloads, so this uses a beacon, which
+ * the browser finishes sending after the page has gone - as the TinyMCE autosave and H5P do. Both
+ * changes travel in one batched request, removal first, the layout carrying the revision the
+ * removal moves the dashboard on to.
+ *
+ * @param siteDefault Whether the site default is being changed.
+ * @param blockid The block to remove.
+ * @param layout The layout without it.
+ * @param revision The revision the removal is made from, or null to skip the check.
+ * @return Whether the browser accepted the beacon for sending.
+ */
+export const beaconRemoval = (
+    siteDefault: boolean,
+    blockid: number,
+    layout: LayoutItem[],
+    revision: number | null,
+): boolean => {
+    const url = new URL(`${config.wwwroot}/lib/ajax/service.php`);
+    url.searchParams.set('sesskey', config.sesskey);
+    url.searchParams.set('info', 'core_my_update_dashboard');
+    const call = (index: number, action: 'remove' | 'save', args: Record<string, unknown>) => ({
+        index,
+        methodname: 'core_my_update_dashboard',
+        args: {action, sitedefault: siteDefault, layout: [], blockname: '', blockid: 0, ...args},
+    });
+    return navigator.sendBeacon(url, JSON.stringify([
+        call(0, 'remove', {blockid, revision}),
+        call(1, 'save', {layout, revision: revision === null ? null : revision + 1}),
+    ]));
+};

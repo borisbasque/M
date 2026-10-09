@@ -198,4 +198,9 @@ class block_course_list extends block_list {
             'plugin' => $configs,
         ];
     }
+
+    #[\Override]
+    public function get_icon(): ?\core\output\pix_icon {
+        return new \core\output\pix_icon('i/section', '', 'core');
+    }
 }

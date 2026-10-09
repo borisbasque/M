@@ -24,5 +24,6 @@
 
 $string['news_items:addinstance'] = 'Add a new latest announcements block';
 $string['news_items:myaddinstance'] = 'Add a new latest announcements block to Dashboard';
+$string['plugindescription'] = 'Shows the most recent site announcements.';
 $string['pluginname'] = 'Latest announcements';
 $string['privacy:metadata'] = 'The Latest announcements block only shows data stored in the forum and does not store data itself.';

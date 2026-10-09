@@ -36,6 +36,7 @@ $string['nextone'] = 'Next entry';
 $string['noentriesyet'] = 'There are no entries yet in the chosen glossary.';
 $string['notyetconfigured'] = 'Please configure this block using the edit icon.';
 $string['notyetglossary'] = 'You need to have at least one glossary to choose.';
+$string['plugindescription'] = 'Shows an entry from a glossary, changing as often as you choose.';
 $string['pluginname'] = 'Random glossary entry';
 $string['random'] = 'Random entry';
 $string['refresh'] = 'Days before a new entry is chosen';

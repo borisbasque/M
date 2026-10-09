@@ -13,7 +13,7 @@
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
 
-import React, {useEffect, useRef} from 'react';
+import React, {useEffect, useId, useRef} from 'react';
 import {Button} from '@moodlehq/design-system';
 
 interface ConfirmationDialogProps {
@@ -34,14 +34,22 @@ const ConfirmationDialog = ({
     onCancel,
 }: ConfirmationDialogProps) => {
     const dialogRef = useRef<HTMLDialogElement>(null);
+    const id = useId();
 
     useEffect(() => {
         dialogRef.current?.showModal();
     }, []);
 
-    return <dialog ref={dialogRef} className="core-my-dashboard-confirm" onCancel={onCancel}>
-        <h2>{title}</h2>
-        <p>{message}</p>
+    // Named and described by its own heading and message, so screen readers announce both on opening.
+    return <dialog
+        ref={dialogRef}
+        className="core-my-dashboard-confirm"
+        aria-labelledby={`${id}-title`}
+        aria-describedby={`${id}-message`}
+        onCancel={onCancel}
+    >
+        <h2 id={`${id}-title`}>{title}</h2>
+        <p id={`${id}-message`}>{message}</p>
         <div className="core-my-dashboard-confirm__actions">
             <Button variant="secondary" label={cancelLabel} onClick={onCancel} />
             <Button variant="danger" label={confirmLabel} onClick={onConfirm} />

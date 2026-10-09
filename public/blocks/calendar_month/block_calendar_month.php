@@ -84,4 +84,9 @@ class block_calendar_month extends block_base {
     public function get_grid_minimum_size(): \core_block\grid_size {
         return new \core_block\grid_size(columns: 1, rows: 4);
     }
+
+    #[\Override]
+    public function get_icon(): ?\core\output\pix_icon {
+        return new \core\output\pix_icon('i/calendar', '', 'core');
+    }
 }

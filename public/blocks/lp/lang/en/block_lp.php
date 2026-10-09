@@ -30,6 +30,7 @@ $string['lp:myaddinstance'] = 'Add a new learning plans block to Dashboard';
 $string['myplans'] = 'My plans';
 $string['noactiveplans'] = 'No active plans at the moment.';
 $string['planstoreview'] = 'Plans to review';
+$string['plugindescription'] = 'Shows your progress in your learning plans and competencies.';
 $string['pluginname'] = 'Learning plans';
 $string['viewmore'] = 'View more...';
 $string['viewotherplans'] = 'View other plans...';

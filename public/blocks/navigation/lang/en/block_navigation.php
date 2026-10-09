@@ -33,6 +33,7 @@ $string['expansionlimit'] = 'Generate navigation for the following';
 $string['linkcategoriesdesc'] = 'Display categories as links';
 $string['navigation:addinstance'] = 'Add a new navigation block';
 $string['navigation:myaddinstance'] = 'Add a new navigation block to Dashboard';
+$string['plugindescription'] = 'Links to the site\'s pages and your courses in a navigation tree.';
 $string['pluginname'] = 'Navigation';
 $string['trimmode'] = 'Trim mode';
 $string['trimmoderight'] = 'Trim characters from the right';

@@ -320,4 +320,30 @@ final class get_dashboard_test extends \advanced_testcase {
 
         $this->assertContains('comments', array_column($result['blocks'], 'name'));
     }
+
+    /**
+     * Each block that can be added comes with its description and icon; a block that allows only
+     * one and is already on the dashboard is listed as added, so the browser can say why it is missing.
+     */
+    public function test_execute_describes_the_blocks_that_can_be_added(): void {
+        global $USER;
+
+        $this->resetAfterTest();
+        $this->setAdminUser();
+        $USER->editing = 1;
+
+        $payload = external_api::clean_returnvalue(get_dashboard::execute_returns(), get_dashboard::execute(false));
+        $available = array_column($payload['availableblocks'], null, 'name');
+
+        $this->assertSame(get_string('plugindescription', 'block_online_users'), $available['online_users']['description']);
+        $this->assertStringContainsString('icon', $available['online_users']['iconhtml']);
+        $this->assertFalse($available['online_users']['added']);
+        // The default dashboard already has the calendar, which allows only one.
+        $this->assertTrue($available['calendar_month']['added']);
+        // Listed alphabetically.
+        $titles = array_column($payload['availableblocks'], 'title');
+        $sorted = $titles;
+        \core_collator::asort($sorted);
+        $this->assertSame(array_values($sorted), $titles);
+    }
 }

@@ -181,15 +181,15 @@ final class update_dashboard_test extends \advanced_testcase {
         $position = $DB->get_record('block_positions', ['blockinstanceid' => $result['blockid']], '*', MUST_EXIST);
         $this->assertSame((int) $position->gridrow, $result['layoutitem']['row']);
         $this->assertArrayHasKey('javascript', $result);
-        // Online users allows only one instance per page, so it is no longer offered.
-        $this->assertNotContains('online_users', array_column($result['availableblocks'], 'name'));
+        // Online users allows only one instance per page, so it is now listed as already added.
+        $this->assertTrue(array_column($result['availableblocks'], 'added', 'name')['online_users']);
 
         $PAGE = new \moodle_page();
         $removed = update_dashboard::execute('remove', false, [], '', $result['blockid']);
         $removed = external_api::clean_returnvalue(update_dashboard::execute_returns(), $removed);
         $this->assertFalse($DB->record_exists('block_instances', ['id' => $result['blockid']]));
-        // ...and once removed, it is offered again.
-        $this->assertContains('online_users', array_column($removed['availableblocks'], 'name'));
+        // ...and once removed, it can be added again.
+        $this->assertFalse(array_column($removed['availableblocks'], 'added', 'name')['online_users']);
         $this->assertArrayNotHasKey('block', $removed);
     }
 

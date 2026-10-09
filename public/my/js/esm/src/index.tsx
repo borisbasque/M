@@ -21,12 +21,13 @@ import Pending from '@moodle/lms/core/pending';
 import Toast, {type ToastAction, type ToastMessage} from '@moodle/lms/core/Toast';
 import DashboardTile from './components/DashboardTile';
 import ConfirmationDialog from './components/ConfirmationDialog';
-import BlockPalette from './components/BlockPalette';
+import BlockBrowser from './components/BlockBrowser';
 import GridCell from './components/GridCell';
 import DashboardLoading from './components/DashboardLoading';
 import {
     columnsForWidth,
     applyRowSpans,
+    firstFreeSpace,
     collapseEmptyRows,
     disturbedCount,
     fitMinimum,
@@ -41,6 +42,7 @@ import {
     type LayoutItem,
 } from './layout';
 import {
+    beaconRemoval,
     getDashboard,
     updateDashboard,
     type AvailableBlock,
@@ -114,10 +116,10 @@ interface PointerDrag {
     shrinking?: boolean;
 }
 
+/** Where the block browser was opened from: a space the person picked, or nowhere in particular. */
 interface PaletteTarget {
     column?: number;
     row?: number;
-    position?: 'start' | 'end';
 }
 
 // Removing a block can be undone, so only resetting the dashboard still asks first.
@@ -134,6 +136,8 @@ const BLOCK_CONTENT_LOADED = 'core_block/contentLoaded';
 // How close to the top or bottom of the window a drag scrolls the page, and how far per frame.
 const AUTOSCROLL_EDGE_PX = 64;
 const AUTOSCROLL_STEP_PX = 12;
+// How long a newly added block stays highlighted.
+const NEW_BLOCK_HIGHLIGHT_MS = 2000;
 let dashboardSettleCounter = 0;
 
 const isSiteDefault = (): boolean => window.location.pathname.endsWith('/my/indexsys.php');
@@ -350,15 +354,18 @@ const useResponsiveColumnCount = (
 interface DashboardProps {
     loadingLabel?: string;
     initialLayout?: LayoutItem[];
+    // Open the block browser once loaded: Edit mode was turned on to add a block (see my/index.php).
+    openBrowser?: boolean;
 }
 
-const Dashboard = ({loadingLabel = '', initialLayout = []}: DashboardProps) => {
+const Dashboard = ({loadingLabel = '', initialLayout = [], openBrowser = false}: DashboardProps) => {
     const [data, setData] = useState<DashboardData | null>(null);
     const [canonical, setCanonical] = useState<LayoutItem[]>([]);
     const [interaction, setInteraction] = useState<Interaction | null>(null);
     const [announcement, setAnnouncement] = useState('');
     const [error, setError] = useState('');
     const [palette, setPalette] = useState<PaletteTarget | null>(null);
+    const browserRequestedRef = useRef(openBrowser);
     const [confirmAction, setConfirmAction] = useState<ConfirmAction | null>(null);
     const [saveStatus, setSaveStatus] = useState<SaveStatus>('idle');
     // Set when changes could not be sent even after retrying; the banner offers to try again.
@@ -592,22 +599,36 @@ const Dashboard = ({loadingLabel = '', initialLayout = []}: DashboardProps) => {
         return () => window.removeEventListener('online', online);
     }, [retryUnsaved, unsaved]);
 
-    // Leaving the page with changes still unsent would lose them: ask first.
+    // Leaving the page with changes still unsent would lose them: ask first. A removal that is only
+    // waiting for its toast to close is sent as the page goes instead (see beaconRemoval()), so
+    // removing a block and then turning Edit mode off never asks.
     useEffect(() => {
-        if (saveStatus === 'idle' && !unsaved && hiddenIds.size === 0) {
-            return undefined;
-        }
         const beforeUnload = (event: BeforeUnloadEvent) => {
-            if (!reloadingRef.current) {
-                event.preventDefault();
+            if (reloadingRef.current) {
+                return;
             }
+            if (saveStatus === 'idle' && !unsaved) {
+                const pending = pendingRemovalRef.current;
+                if (pending) {
+                    pendingRemovalRef.current = null;
+                    beaconRemoval(siteDefault, pending.id, canonicalRef.current, revisionRef.current);
+                }
+                return;
+            }
+            event.preventDefault();
         };
         window.addEventListener('beforeunload', beforeUnload);
         return () => window.removeEventListener('beforeunload', beforeUnload);
-    }, [hiddenIds, saveStatus, unsaved]);
+    }, [saveStatus, siteDefault, unsaved]);
 
     useEffect(() => {
-        void load();
+        void load().then(response => {
+            if (response?.editing && browserRequestedRef.current) {
+                browserRequestedRef.current = false;
+                setPalette({});
+            }
+            return undefined;
+        });
     }, [load]);
 
     // Say so when changes cannot be sent because the browser is offline, and confirm once they are
@@ -734,14 +755,6 @@ const Dashboard = ({loadingLabel = '', initialLayout = []}: DashboardProps) => {
             handleSyncFailure(caught);
         }
     }, [dropToast, handleSyncFailure, patchData, queue, siteDefault]);
-
-    // A removal still waiting when the page is left is sent then; leaving first asks, since the
-    // browser may not finish sending it.
-    useEffect(() => {
-        const leave = () => void flushRemoval();
-        window.addEventListener('pagehide', leave);
-        return () => window.removeEventListener('pagehide', leave);
-    }, [flushRemoval]);
 
     /**
      * Record the layout as it is before a change, so Undo can return to it. Any removal still
@@ -1295,15 +1308,15 @@ const Dashboard = ({loadingLabel = '', initialLayout = []}: DashboardProps) => {
     }, [flushRemoval, pushHistory, showToast, undo, updateCanonical]);
 
     /**
-     * Add a new block instance, then, if the palette was opened from a specific empty cell or
-     * from the top toolbar button, place it there instead of wherever the server appended it.
+     * Add the block chosen in the block browser.
+     *
+     * Opened from a space the person picked, the block goes there. Opened anywhere else, it goes in
+     * the first space that fits and is picked up straight away, ready to move with the arrow keys.
      *
      * A new block's id, default size and rendered content are only known once the server
      * responds, so this cannot be drawn optimistically. But the same response carries everything
      * needed to insert just that block (see dashboard::get_added_block()), so nothing else on the
-     * dashboard is reloaded, re-rendered or has its JavaScript run again. Opening the palette
-     * from the bottom toolbar button needs no second save: the block already lands at the
-     * bottom, which is where dashboard::add() (server side) puts it by default.
+     * dashboard is reloaded, re-rendered or has its JavaScript run again.
      *
      * Adding is the one change that is never retried automatically: if the connection drops after
      * the server added the block but before the reply arrives, a retry would add a second one.
@@ -1341,43 +1354,65 @@ const Dashboard = ({loadingLabel = '', initialLayout = []}: DashboardProps) => {
             blocks: [...current.blocks.filter(existing => existing.id !== added.id), added],
             availableblocks: result.availableblocks ?? current.availableblocks,
         });
-        const appended = [...canonicalRef.current.filter(existing => existing.id !== item.id), item];
-        updateCanonical(appended);
         // Always queued, even with no JavaScript, so the new block is measured once it settles.
         setAddedScripts(scripts => [...scripts, {
             source: result.javascript ?? '',
             asyncBlocks: added.asynccontent ? [added.id] : [],
             blocks: [added.id],
         }]);
-        void toastString('dashboardblockadded', block.title, {
-            action: {label: current.labels.undo, onClick: () => void undo()},
-        });
 
-        const columns = columnCountRef.current;
-        let pinned: LayoutItem | null = null;
-        if (target?.column !== undefined && target.row !== undefined) {
-            pinned = {
-                ...item,
-                column: Math.min(target.column, columns - Math.min(item.columns, columns)),
-                row: target.row,
-                columns: Math.min(item.columns, columns),
-            };
-        } else if (target?.position === 'start') {
-            pinned = {...item, column: 0, row: 0};
-        }
-        if (!pinned) {
-            return;
-        }
+        const columns = columnCountRef.current ?? 1;
+        const others = canonicalRef.current.filter(existing => existing.id !== item.id);
+        const width = Math.min(item.columns, columns);
+        const targeted = target?.column !== undefined && target.row !== undefined;
+        const place = targeted
+            ? {column: Math.min(target.column!, columns - width), row: target.row!}
+            : firstFreeSpace(packLayout(others, columns), columns, width, item.rows);
+        const pinned: LayoutItem = {...item, ...place, columns: width};
         const minimum = added.minsize ?? current.grid.minsize;
+        const appended = [...others, item];
         const next = writeBack(appended,
             packWithPinned(packLayout(appended, columns), columns, pinned, fitMinimum(minimum, columns)), item.id, minimum);
         updateCanonical(next);
+        newBlockRef.current = {id: item.id, pickUp: !targeted};
+        if (targeted) {
+            void toastString('dashboardblockadded', block.title, {
+                action: {label: current.labels.undo, onClick: () => void undo()},
+            });
+        } else {
+            // Picked up next (see the effect below), whose instructions are the toast.
+            void announce('dashboardblockadded', block.title);
+        }
         try {
             await queue.saveLayout(next);
         } catch (caught) {
             handleSyncFailure(caught);
         }
-    }, [handleSyncFailure, load, palette, patchData, pushHistory, queue, siteDefault, toastString, undo, updateCanonical]);
+    }, [announce, handleSyncFailure, load, palette, patchData, pushHistory, queue, send, toastString, undo, updateCanonical]);
+
+    // Once a newly added block is on screen: scroll it into view, highlight it briefly, and pick it
+    // up ready to move when it went in the first free space rather than one the person picked.
+    const newBlockRef = useRef<{id: number; pickUp: boolean} | null>(null);
+    const [highlightId, setHighlightId] = useState<number | null>(null);
+    useEffect(() => {
+        const fresh = newBlockRef.current;
+        if (!fresh) {
+            return undefined;
+        }
+        const tile = gridRef.current?.querySelector<HTMLElement>(`.core-my-dashboard-tile[data-instance-id="${fresh.id}"]`);
+        if (!tile) {
+            return undefined;
+        }
+        newBlockRef.current = null;
+        tile.scrollIntoView?.({block: 'nearest'});
+        setHighlightId(fresh.id);
+        if (fresh.pickUp) {
+            tile.querySelector<HTMLElement>('.core-my-dashboard-handle--move')?.focus();
+            start(fresh.id, 'move', 'keyboard');
+        }
+        const timer = setTimeout(() => setHighlightId(null), NEW_BLOCK_HIGHLIGHT_MS);
+        return () => clearTimeout(timer);
+    }, [canonical, start]);
 
     /**
      * Discard the user's own dashboard customisation and revert to the site default.
@@ -1413,6 +1448,10 @@ const Dashboard = ({loadingLabel = '', initialLayout = []}: DashboardProps) => {
     const prospective = interaction && (layoutChanged(interaction.original, interaction.draft) ||
         (interaction.origin === 'pointer' && interaction.mode === 'resize' && interaction.drag?.shrinking))
         ? interaction.draft : undefined;
+    // With no blocks, the grid gives way to a message and a clear way forward. Adding a block from
+    // view mode turns Edit mode on first, and opens the browser once there.
+    const empty = displayLayout.length === 0;
+    const addBlockUrl = `${siteDefault ? data.urls.sitedefault : data.urls.ownpage}?edit=1&addblock=1`;
     // Being offline is said by a toast (see the saveStatus effect); only retrying is said here.
     const statusMessages: Record<SaveStatus, string> = {
         idle: '',
@@ -1448,9 +1487,9 @@ const Dashboard = ({loadingLabel = '', initialLayout = []}: DashboardProps) => {
         {data.editing && <div className="core-my-dashboard-toolbar">
             <Button
                 ref={addButtonRef}
-                variant="secondary"
-                label={data.labels.addblocktop}
-                onClick={() => setPalette({position: 'start'})}
+                variant="primary"
+                label={data.labels.addblock}
+                onClick={() => setPalette({})}
             />
             <Button
                 variant="ghost"
@@ -1465,8 +1504,22 @@ const Dashboard = ({loadingLabel = '', initialLayout = []}: DashboardProps) => {
                 onClick={() => setConfirmAction({type: 'reset'})}
             />}
         </div>}
+        {empty && data.canedit && <div className="core-my-dashboard-empty">
+            <p>{data.labels.empty}</p>
+            <div className="core-my-dashboard-empty__actions">
+                {data.editing
+                    ? <Button variant="primary" label={data.labels.addblock} onClick={() => setPalette({})} />
+                    : <a className="btn btn-primary" href={addBlockUrl}>{data.labels.addblock}</a>}
+                {!siteDefault && <Button
+                    variant="secondary"
+                    label={data.labels.restoredefault}
+                    onClick={() => setConfirmAction({type: 'reset'})}
+                />}
+            </div>
+        </div>}
         <div
             ref={gridRef}
+            hidden={empty || undefined}
             className="core-my-dashboard-grid"
             style={{
                 gridTemplateColumns: `repeat(${columnCount}, minmax(0, 1fr))`,
@@ -1520,6 +1573,7 @@ const Dashboard = ({loadingLabel = '', initialLayout = []}: DashboardProps) => {
                     dragOrigin={interaction?.id === item.id ? interaction.original : undefined}
                     shouldAnimatePosition={interaction?.origin === 'pointer' && interaction.id !== item.id}
                     isBumped={bumpedBlockIds.has(item.id)}
+                    highlighted={highlightId === item.id}
                     onStart={start}
                     onKeyDown={keyDown}
                     onPointerDown={pointerDown}
@@ -1529,14 +1583,20 @@ const Dashboard = ({loadingLabel = '', initialLayout = []}: DashboardProps) => {
                 />;
             })}
         </div>
-        {data.editing && <div className="core-my-dashboard-toolbar core-my-dashboard-toolbar--bottom">
-            <Button variant="secondary" label={data.labels.addblockbottom} onClick={() => setPalette({position: 'end'})} />
+        {data.editing && !empty && <div className="core-my-dashboard-toolbar core-my-dashboard-toolbar--bottom">
+            <Button
+                variant="secondary"
+                label={data.labels.addblock}
+                startIcon={<i className="fa fa-plus" aria-hidden="true" />}
+                onClick={() => setPalette({})}
+            />
         </div>}
-        {palette && <BlockPalette
-            title={data.labels.addblock}
-            closeLabel={data.labels.close}
+        {palette && <BlockBrowser
+            labels={data.labels}
             blocks={data.availableblocks}
-            onSelect={block => void add(block)}
+            targeted={palette.column !== undefined}
+            discoverUrl={null}
+            onInsert={block => void add(block)}
             onClose={() => setPalette(null)}
         />}
         {confirmAction && <ConfirmationDialog

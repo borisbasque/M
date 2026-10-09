@@ -44,6 +44,10 @@ jest.mock('@moodlehq/design-system', () => {
             <span {...props}>{label}</span>,
         Link: ({label, ...props}: React.AnchorHTMLAttributes<HTMLAnchorElement> & {label?: string}) =>
             <a {...props}>{label}</a>,
+        CloseButton: (props: React.ButtonHTMLAttributes<HTMLButtonElement>) => <button type="button" {...props} />,
+        Choicebox: ({label, supportingText: _supportingText, icon: _icon, ...props}:
+        React.InputHTMLAttributes<HTMLInputElement> & {label: string; supportingText?: string; icon?: React.ReactElement}) =>
+            <label><input type="radio" {...props} />{label}</label>,
     };
 }, {virtual: true});
 
@@ -131,6 +135,22 @@ const labels: DashboardLabels = {
     switchtositedefault: 'Switch to editing the default dashboard for all users',
     tile: '{$a} block',
     undo: 'Undo',
+    browseralreadyadded: 'Already added blocks are not listed.',
+    browserallpresent: 'Every block is already on your dashboard.',
+    browserblocks: 'Blocks',
+    browsercount: '{$a} blocks you can add.',
+    browsercountone: '1 block you can add.',
+    browserdiscover: 'Discover more blocks',
+    browserfallbackdescription: 'Added to your site by an administrator.',
+    browserinsert: 'Insert',
+    browsernomatch: 'No blocks match "{$a}".',
+    browsersearch: 'Search blocks',
+    browsertargetcell: 'Your block will go in the space you picked.',
+    browsertargetfree: 'Your block will go in the first free space.',
+    clearsearch: 'Clear search input',
+    empty: 'Your dashboard is empty.',
+    opensinnewwindow: 'Opens in new window',
+    restoredefault: 'Restore the default dashboard',
     up: 'Up',
 };
 
@@ -169,7 +189,7 @@ const buildData = (overrides: Partial<DashboardData> = {}): DashboardData => ({
         },
     ],
     layout: baseLayout,
-    availableblocks: [{name: 'calendar_month', title: 'Calendar'}],
+    availableblocks: [{name: 'calendar_month', title: 'Calendar', description: '', iconhtml: '', added: false}],
     grid: {minsize: {columns: 1, rows: 2}, autorowscap: 8},
     ownlayout: true,
     revision: 7,
@@ -713,7 +733,8 @@ describe('core_my Dashboard application', () => {
 
         const emptyCell = screen.getByRole('button', {name: 'Empty cell, Row 1, column 3'});
         fireEvent.click(emptyCell);
-        fireEvent.click(await screen.findByRole('button', {name: 'Calendar'}));
+        fireEvent.click(await screen.findByRole('radio', {name: 'Calendar'}));
+        fireEvent.click(screen.getByRole('button', {name: 'Insert'}));
 
         // Add, re-save into the clicked cell, then the new block is sized to its content.
         await waitFor(() => expect(updateCalls(fetchOneSpy)).toHaveLength(3));
@@ -842,10 +863,12 @@ describe('core_my Dashboard application', () => {
 
         // The reply refreshes the palette: the removed block type can be added again.
         await act(async() => {
-            resolveRemove({status: true, blockid: 0, availableblocks: [{name: 'html', title: 'Text'}]});
+            resolveRemove({status: true, blockid: 0, availableblocks: [
+                {name: 'html', title: 'Text', description: '', iconhtml: '', added: false},
+            ]});
         });
-        fireEvent.click(screen.getByRole('button', {name: labels.addblocktop}));
-        expect(await screen.findByRole('button', {name: 'Text'})).toBeInTheDocument();
+        fireEvent.click(screen.getAllByRole('button', {name: labels.addblock})[0]);
+        expect(await screen.findByRole('radio', {name: 'Text'})).toBeInTheDocument();
         expect(getCalls(fetchOneSpy)).toHaveLength(1);
     });
 
@@ -872,6 +895,30 @@ describe('core_my Dashboard application', () => {
         // No removal was ever sent; restoring the layout is the only request.
         expect(updateCalls(fetchOneSpy).every(([request]) =>
             (request as {args: {action: string}}).args.action === 'save')).toBe(true);
+    });
+
+    it('sends a waiting removal as the page is left, without asking first', async() => {
+        const sendBeacon = jest.fn(() => true);
+        Object.defineProperty(navigator, 'sendBeacon', {value: sendBeacon, configurable: true});
+        const fetchOneSpy = mockDashboardApi({getResponses: [buildData()]});
+        render(<Dashboard />);
+        await screen.findByText('First block');
+
+        await act(async() => {
+            fireEvent.click(screen.getByRole('button', {name: 'Delete First block block'}));
+        });
+        const leaving = new Event('beforeunload', {cancelable: true});
+        window.dispatchEvent(leaving);
+
+        expect(leaving.defaultPrevented).toBe(false);
+        expect(sendBeacon).toHaveBeenCalledTimes(1);
+        const [url, body] = sendBeacon.mock.calls[0] as unknown as [URL, string];
+        expect(url.toString()).toContain('/lib/ajax/service.php');
+        expect(JSON.parse(body)).toMatchObject([
+            {methodname: 'core_my_update_dashboard', args: {action: 'remove', blockid: 101, revision: 7}},
+            {methodname: 'core_my_update_dashboard', args: {action: 'save', revision: 8}},
+        ]);
+        expect(updateCalls(fetchOneSpy)).toHaveLength(0);
     });
 
     it('sends a waiting removal before the next change\'s layout', async() => {
@@ -914,8 +961,9 @@ describe('core_my Dashboard application', () => {
         await screen.findByText('First block');
         await waitFor(() => expect(runTemplateJS).toHaveBeenCalledWith('window.__ran = "initial";'));
 
-        fireEvent.click(screen.getByRole('button', {name: labels.addblocktop}));
-        fireEvent.click(await screen.findByRole('button', {name: 'Calendar'}));
+        fireEvent.click(screen.getAllByRole('button', {name: labels.addblock})[0]);
+        fireEvent.click(await screen.findByRole('radio', {name: 'Calendar'}));
+        fireEvent.click(screen.getByRole('button', {name: 'Insert'}));
 
         expect(await screen.findByText('Calendar')).toBeInTheDocument();
         expect((updateCalls(fetchOneSpy)[0][0] as {args: {action: string; blockname: string}}).args).toMatchObject({
@@ -930,6 +978,52 @@ describe('core_my Dashboard application', () => {
         const lastNotified = notifyFilterContentUpdated.mock.calls.at(-1)![0] as NodeListOf<Element>;
         expect(Array.from(lastNotified).map(node => node.closest('[data-instance-id]')?.getAttribute('data-instance-id')))
             .toEqual(['103']);
+    });
+
+    it('puts a block added from the toolbar in the first free space, picked up ready to move', async() => {
+        const fetchOneSpy = mockDashboardApi({
+            getResponses: [buildData()],
+            updateImpl: action => Promise.resolve(action === 'add'
+                ? addResult({id: 103, column: 0, row: 9, columns: 2, rows: 2})
+                : {status: true, blockid: 0}),
+        });
+        const {container} = render(<Dashboard />);
+        await screen.findByText('First block');
+        await waitFor(() => expect(container.querySelector('.core-my-dashboard-grid'))
+            .toHaveAttribute('data-columns', '6'));
+
+        fireEvent.click(screen.getAllByRole('button', {name: labels.addblock})[0]);
+        fireEvent.click(await screen.findByRole('radio', {name: 'Calendar'}));
+        await act(async() => {
+            fireEvent.click(screen.getByRole('button', {name: 'Insert'}));
+        });
+
+        // The two blocks fill columns 0-1 and 3-4 of the first rows, so a 2-wide block first fits below.
+        await waitFor(() => expect(updateCalls(fetchOneSpy)).toHaveLength(2));
+        const placed = (updateCalls(fetchOneSpy)[1][0] as {args: {layout: LayoutItem[]}}).args.layout
+            .find(item => item.id === 103);
+        expect(placed).toMatchObject({column: 0, row: 2});
+        const handle = await screen.findByRole('button', {name: 'Move Calendar block'});
+        await waitFor(() => expect(handle).toHaveAttribute('aria-pressed', 'true'));
+        expect(handle).toHaveFocus();
+    });
+
+    it('replaces an empty grid with a message and a way forward', async() => {
+        mockDashboardApi({getResponses: [buildData({blocks: [], layout: []})]});
+        render(<Dashboard />);
+
+        expect(await screen.findByText('Your dashboard is empty.')).toBeInTheDocument();
+        fireEvent.click(screen.getByRole('button', {name: 'Restore the default dashboard'}));
+        expect(screen.getByRole('dialog', {name: 'Reset dashboard'})).toBeInTheDocument();
+        fireEvent.click(screen.getAllByRole('button', {name: 'Add a block'}).at(-1)!);
+        expect(await screen.findByRole('dialog', {name: 'Add a block'})).toBeInTheDocument();
+    });
+
+    it('opens the block browser straight away when Edit mode was turned on to add a block', async() => {
+        mockDashboardApi({getResponses: [buildData()]});
+        render(<Dashboard openBrowser />);
+
+        expect(await screen.findByRole('dialog', {name: 'Add a block'})).toBeInTheDocument();
     });
 
     it('runs only the latest reload\'s collected block JS, not a superseded one', async() => {

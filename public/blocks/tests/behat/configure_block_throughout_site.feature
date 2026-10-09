@@ -72,8 +72,7 @@ Feature: Add and configure blocks throughout the site
     Given I log in as "admin"
     And I visit "/my/index.php"
     And I turn editing mode on
-    And I click on "Add a block at the start of the dashboard" "button"
-    And I click on "Text" "button" in the "Add a block" "dialogue"
+    And I add the "Text" block to the dashboard
     # A freshly-added, unconfigured block has no title yet, so it cannot be located by name -
     # data-block is the only reliable locator for it until it has been configured below.
     Then ".core-my-dashboard-tile[data-block='html']" "css_element" should exist

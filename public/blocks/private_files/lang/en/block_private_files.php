@@ -22,6 +22,7 @@
  * @license   http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
 
+$string['plugindescription'] = 'Gives quick access to the files in your private files area.';
 $string['pluginname'] = 'Private files';
 $string['privatefiles'] = 'Private files';
 $string['private_files:addinstance'] = 'Add a new private files block';

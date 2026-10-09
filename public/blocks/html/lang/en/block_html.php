@@ -31,6 +31,7 @@ $string['configtitle'] = 'Text block title';
 $string['html:addinstance'] = 'Add a new text block';
 $string['html:myaddinstance'] = 'Add a new text block to Dashboard';
 $string['newhtmlblock'] = '(new text block)';
+$string['plugindescription'] = 'Shows text, images or other content that you write yourself.';
 $string['pluginname'] = 'Text';
 $string['search:content'] = 'Text block content';
 $string['privacy:metadata:block'] = 'The Text block stores all of its data within the block subsystem.';

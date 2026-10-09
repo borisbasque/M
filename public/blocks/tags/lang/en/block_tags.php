@@ -27,6 +27,7 @@ $string['anytype'] = 'All';
 $string['configtitle'] = 'Tags block title';
 $string['disabledtags'] = 'Tags are disabled';
 $string['defaultdisplay'] = 'Display tags';
+$string['plugindescription'] = 'Shows a cloud of the tags used across the site.';
 $string['pluginname'] = 'Tags';
 $string['recursivecontext'] = 'Include child contexts';
 $string['recursivecontext_help'] = 'If unticked, tags of items in the context specified above will be displayed, but not tags of items in lower contexts. For example, course tags may be displayed, but not course activity tags.';

@@ -294,6 +294,22 @@ final class dashboard {
                 'undo' => get_string('dashboardundo', 'my'),
                 'up' => get_string('dashboardup', 'my'),
                 'blockactions' => get_string('dashboardblockactions', 'my'),
+                'browseralreadyadded' => get_string('browseralreadyadded', 'my'),
+                'browserallpresent' => get_string('browserallpresent', 'my'),
+                'browserblocks' => get_string('browserblocks', 'my'),
+                'browsercount' => get_string('browsercount', 'my'),
+                'browsercountone' => get_string('browsercountone', 'my'),
+                'browserdiscover' => get_string('browserdiscover', 'my'),
+                'browserfallbackdescription' => get_string('browserfallbackdescription', 'my'),
+                'browserinsert' => get_string('browserinsert', 'my'),
+                'browsernomatch' => get_string('browsernomatch', 'my'),
+                'browsersearch' => get_string('browsersearch', 'my'),
+                'browsertargetcell' => get_string('browsertargetcell', 'my'),
+                'browsertargetfree' => get_string('browsertargetfree', 'my'),
+                'clearsearch' => get_string('clearsearch'),
+                'empty' => get_string('dashboardempty', 'my'),
+                'opensinnewwindow' => get_string('opensinnewwindow'),
+                'restoredefault' => get_string('dashboardrestoredefault', 'my'),
             ],
         ];
     }
@@ -323,21 +339,58 @@ final class dashboard {
     }
 
     /**
-     * List the blocks the current user can add to the page set up in $PAGE.
+     * List the blocks the current user can add to the page set up in $PAGE, for the block browser.
+     *
+     * Each comes with its own description and icon where it declares them (see
+     * block_base::get_description() and get_icon()). Blocks that allow only one instance and are
+     * already on the dashboard are listed too, flagged as added, so the browser can say why they
+     * are missing rather than leave people looking for them.
      *
      * @return array
      */
     private static function get_available_blocks(): array {
-        global $PAGE;
+        global $OUTPUT, $PAGE;
 
+        $addable = $PAGE->blocks->get_addable_blocks();
         $available = [];
-        foreach ($PAGE->blocks->get_addable_blocks() as $block) {
+        foreach (blocks_get_record() as $record) {
+            $added = !isset($addable[$record->name]);
+            if ($added && !self::is_added_single_instance($record)) {
+                continue;
+            }
+            $block = block_instance($record->name);
+            if (!$block) {
+                continue;
+            }
+            $icon = $block->get_icon();
             $available[] = [
-                'name' => $block->name,
-                'title' => get_string('pluginname', 'block_' . $block->name),
+                'name' => $record->name,
+                'title' => get_string('pluginname', 'block_' . $record->name),
+                'description' => $block->get_description() ?? '',
+                'iconhtml' => $icon ? $OUTPUT->render($icon) : '',
+                'added' => $added,
             ];
         }
-        return $available;
+        \core_collator::asort_array_of_arrays_by_key($available, 'title');
+        return array_values($available);
+    }
+
+    /**
+     * Whether a block type is missing from the addable blocks only because it allows one instance
+     * per page and is already on this one.
+     *
+     * @param \stdClass $record The block type, from the block table.
+     * @return bool
+     */
+    private static function is_added_single_instance(\stdClass $record): bool {
+        global $PAGE;
+
+        $block = block_instance($record->name);
+        return $block && $record->visible
+            && !$block->instance_allow_multiple()
+            && $PAGE->blocks->is_block_present($record->name)
+            && blocks_name_allowed_in_format($record->name, $PAGE->pagetype)
+            && $block->user_can_addto($PAGE);
     }
 
     /**

@@ -69,4 +69,9 @@ class block_calendar_upcoming extends block_base {
 
         return $this->content;
     }
+
+    #[\Override]
+    public function get_icon(): ?\core\output\pix_icon {
+        return new \core\output\pix_icon('i/scheduled', '', 'core');
+    }
 }

@@ -102,7 +102,12 @@ $loadinglabel = get_string('loading');
 $initiallayout = \core_my\local\dashboard::get_skeleton_layout(true);
 echo html_writer::div(\core_my\local\dashboard::get_loading_placeholder($initiallayout), 'core-my-dashboard-mount', [
     'data-react-component' => '@moodle/lms/core_my/index',
-    'data-react-props' => json_encode(['loadingLabel' => $loadinglabel, 'initialLayout' => $initiallayout]),
+    'data-react-props' => json_encode([
+        'loadingLabel' => $loadinglabel,
+        'initialLayout' => $initiallayout,
+        // Set when Edit mode was turned on to add a block, from the empty dashboard's button.
+        'openBrowser' => optional_param('addblock', false, PARAM_BOOL),
+    ]),
 ]);
 
 echo $OUTPUT->footer();

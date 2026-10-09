@@ -18,7 +18,6 @@ import GridCell from '../src/components/GridCell';
 import GridControls from '../src/components/GridControls';
 import ConfirmationDialog from '../src/components/ConfirmationDialog';
 import DashboardTile, {BlockActionsMenu} from '../src/components/DashboardTile';
-import BlockPalette from '../src/components/BlockPalette';
 import DashboardHandle from '../src/components/DashboardHandle';
 import DashboardLoading from '../src/components/DashboardLoading';
 import {DashboardScopeBanner} from '../src/index';
@@ -732,25 +731,6 @@ describe('core_my grid components', () => {
         expect(HTMLDialogElement.prototype.showModal).toHaveBeenCalled();
         fireEvent.click(screen.getByRole('button', {name: 'Confirm'}));
         expect(confirm).toHaveBeenCalled();
-    });
-
-    it('uses a native modal shell for the replaceable block palette', () => {
-        HTMLDialogElement.prototype.showModal = jest.fn(function(this: HTMLDialogElement) {
-            // A typed `this` parameter: jsdom's dialog element, standing in for the real showModal().
-            // eslint-disable-next-line no-invalid-this
-            this.setAttribute('open', '');
-        });
-        const select = jest.fn();
-        render(<BlockPalette
-            title="Add a block"
-            closeLabel="Close"
-            blocks={[{name: 'online_users', title: 'Online users'}]}
-            onSelect={select}
-            onClose={jest.fn()}
-        />);
-
-        fireEvent.click(screen.getByRole('button', {name: 'Online users'}));
-        expect(select).toHaveBeenCalledWith({name: 'online_users', title: 'Online users'});
     });
 
     it('indicates the own-dashboard scope and offers no switch without the other capability', () => {

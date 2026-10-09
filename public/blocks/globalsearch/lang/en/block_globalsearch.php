@@ -24,5 +24,6 @@
 
 $string['globalsearch:addinstance'] = 'Add a new global search block';
 $string['globalsearch:myaddinstance'] = 'Add a new global search block to Dashboard';
+$string['plugindescription'] = 'Adds a box for searching the whole site.';
 $string['pluginname'] = 'Global search';
 $string['privacy:metadata'] = 'The Global search block only shows data stored in other locations.';

@@ -66,6 +66,7 @@ $string['list'] = 'List';
 $string['myoverview:myaddinstance'] = 'Add a new course overview block to Dashboard';
 $string['nocustomvalue'] = 'No {$a}';
 $string['past'] = 'Past';
+$string['plugindescription'] = 'Lists your courses and your progress in each, with filters and sorting.';
 $string['pluginname'] = 'Course overview';
 $string['privacy:metadata:overviewsortpreference'] = 'The Course overview block sort preference.';
 $string['privacy:metadata:overviewviewpreference'] = 'The Course overview block view preference.';

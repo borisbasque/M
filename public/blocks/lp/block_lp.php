@@ -90,4 +90,9 @@ class block_lp extends block_base {
     public function can_block_be_added(moodle_page $page): bool {
         return get_config('core_competency', 'enabled');
     }
+
+    #[\Override]
+    public function get_icon(): ?\core\output\pix_icon {
+        return new \core\output\pix_icon('i/competencies', '', 'core');
+    }
 }

@@ -220,6 +220,18 @@ const collapseEmptyRows = /* @__PURE__ */ __name((items) => {
   }
   return items.map((item) => shift[item.row] ? { ...item, row: item.row - shift[item.row] } : item);
 }, "collapseEmptyRows");
+const firstFreeSpace = /* @__PURE__ */ __name((items, columnCount, columns, rows) => {
+  const width = Math.min(columns, columnCount);
+  const occupied = /* @__PURE__ */ new Set();
+  items.forEach((item) => occupy(occupied, item));
+  for (let row = 0; ; row++) {
+    for (let column = 0; column + width <= columnCount; column++) {
+      if (fits(occupied, column, row, width, rows)) {
+        return { column, row };
+      }
+    }
+  }
+}, "firstFreeSpace");
 const disturbedCount = /* @__PURE__ */ __name((before, after, activeId) => {
   const positions = new Map(before.map((item) => [item.id, `${item.column}:${item.row}`]));
   return after.filter((item) => item.id !== activeId && positions.get(item.id) !== `${item.column}:${item.row}`).length;
@@ -275,6 +287,7 @@ export {
   collapseEmptyRows,
   columnsForWidth,
   disturbedCount,
+  firstFreeSpace,
   fitMinimum,
   maxRow,
   measureNaturalHeight,

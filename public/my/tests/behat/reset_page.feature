@@ -19,8 +19,7 @@ Feature: Reset dashboard page to default
   Scenario: Add blocks to page and reset
     When I log in as "student1"
     And I turn editing mode on
-    And I click on "Add a block at the start of the dashboard" "button"
-    And I click on "Latest announcements" "button" in the "Add a block" "dialogue"
+    And I add the "Latest announcements" block to the dashboard
     And I click on "Reset page to default" "button" in the ".core-my-dashboard-toolbar" "css_element"
     And I click on "Confirm" "button" in the "Reset dashboard" "dialogue"
     Then the dashboard edit mode switch should be off
