@@ -98,6 +98,9 @@ final class dashboard {
             $PAGE->set_blocks_editing_capability('moodle/my:manageblocks');
             if ($mypage && !$mypage->userid && !empty($USER->editing) && self::can_edit(false, $context)) {
                 $mypage = my_copy_page($USER->id, MY_PAGE_PRIVATE);
+                // The copy has new block instance ids, so anything cached against the site
+                // default's ids is now wrong.
+                self::purge_cache();
             }
         }
 
@@ -124,13 +127,18 @@ final class dashboard {
      *
      * Rendering every block's content is the expensive part of this (see the class-level note on
      * {@see self::get_skeleton_layout()}): each block instance re-runs its own queries on every
-     * call. For a user's own dashboard, the response is cached for a short time (the 'my_dashboard'
-     * definition in lib/db/caches.php - a subsystem like core_my has no db/caches.php of its own)
-     * and purged proactively by {@see self::save()}, {@see self::add()}, {@see self::remove()} and
-     * {@see self::reset()} - the actions that change it - so the cache only masks staleness caused
-     * by something else changing in the meantime (e.g. completing an activity elsewhere), never the
-     * user's own edits. The site default is never cached here: it is read rarely (only by admins,
-     * gated by moodle/my:configsyspages) and a stale response there could hide a capability change.
+     * call. For a user's own dashboard, the rendered blocks are cached for a short time (the
+     * 'my_dashboard' definition in lib/db/caches.php - a subsystem like core_my has no
+     * db/caches.php of its own).
+     *
+     * The layout is deliberately not part of what is cached: it is a cheap read of
+     * block_positions, so it is always read fresh. That means moving or resizing a block - by far
+     * the most frequent edit - never invalidates the cached block content. Only the actions that
+     * change which blocks exist ({@see self::add()}, {@see self::remove()}, {@see self::reset()}
+     * and the first private copy of the default page) purge it. The cache otherwise only masks
+     * staleness caused by something else changing in the meantime (e.g. completing an activity
+     * elsewhere). The site default is never cached here: it is read rarely (only by admins, gated
+     * by moodle/my:configsyspages) and a stale response there could hide a capability change.
      *
      * @param bool $sitedefault Whether to load the site default.
      * @return array
@@ -139,21 +147,38 @@ final class dashboard {
         global $USER;
 
         if ($sitedefault) {
-            return self::get_uncached($sitedefault);
+            return self::strip_cache_metadata(self::get_uncached($sitedefault));
         }
 
-        $editing = !empty($USER->editing)
-            && has_capability('moodle/my:manageblocks', context_user::instance($USER->id));
+        $editing = !empty($USER->editing) && self::can_edit(false, context_user::instance($USER->id));
         $cache = \cache::make('core', 'my_dashboard');
         $cachekey = $editing ? 'edit' : 'view';
         $cached = $cache->get($cachekey);
-        if ($cached !== false) {
-            return $cached;
+        if ($cached === false) {
+            $cached = self::get_uncached($sitedefault);
+            unset($cached['layout']);
+            $cache->set($cachekey, $cached);
         }
 
-        $result = self::get_uncached($sitedefault);
-        $cache->set($cachekey, $result);
-        return $result;
+        // Rebuild just enough of each block instance for get_layout() to derive defaults for any
+        // block without a saved grid position.
+        $instances = [];
+        foreach ($cached['layoutinstances'] as $id => $regions) {
+            $instances[$id] = (object) ['instance' => (object) $regions, 'minsize' => $regions['minsize']];
+        }
+        $cached['layout'] = self::get_layout($cached['pageid'], $cached['contextid'], $instances);
+        return self::strip_cache_metadata($cached);
+    }
+
+    /**
+     * Remove the internal fields {@see self::get_uncached()} adds for the cache's benefit.
+     *
+     * @param array $payload A dashboard payload.
+     * @return array The payload as returned to the client.
+     */
+    private static function strip_cache_metadata(array $payload): array {
+        unset($payload['pageid'], $payload['contextid'], $payload['layoutinstances']);
+        return $payload;
     }
 
     /**
@@ -191,38 +216,27 @@ final class dashboard {
                 if (empty($content->blockinstanceid) || !isset($instances[$content->blockinstanceid])) {
                     continue;
                 }
-                $instance = $instances[$content->blockinstanceid];
-                $blocks[] = [
-                    'id' => (int) $content->blockinstanceid,
-                    'name' => $instance->instance->blockname,
-                    'title' => (string) $content->title,
-                    'content' => (string) $content->content,
-                    'footer' => (string) $content->footer,
-                    'region' => $region,
-                    'weight' => (int) $instance->instance->weight,
-                    'actions' => self::get_menu_actions($content->controls, $instance->instance->blockname),
-                    'asynccontent' => $instance->has_async_content(),
-                    'minsize' => self::get_minimum_size($instance),
-                    'preferredrows' => self::get_preferred_size($instance)['rows'],
-                ];
+                $blocks[] = self::export_block($content, $instances[$content->blockinstanceid], $region);
             }
         }
 
         $layout = self::get_layout($mypage->id, $context->id, $instances);
-        $available = [];
-        if ($editing) {
-            foreach ($PAGE->blocks->get_addable_blocks() as $block) {
-                $available[] = [
-                    'name' => $block->name,
-                    'title' => get_string('pluginname', 'block_' . $block->name),
-                ];
-            }
+        $layoutinstances = [];
+        foreach ($instances as $id => $instance) {
+            $layoutinstances[$id] = [
+                'region' => $instance->instance->region ?? null,
+                'defaultregion' => $instance->instance->defaultregion ?? null,
+                'minsize' => self::get_minimum_size($instance),
+            ];
         }
 
         return [
             'blocks' => $blocks,
             'layout' => $layout,
-            'availableblocks' => $available,
+            'availableblocks' => $editing ? self::get_available_blocks() : [],
+            'pageid' => (int) $mypage->id,
+            'contextid' => (int) $context->id,
+            'layoutinstances' => $layoutinstances,
             'grid' => [
                 'minsize' => self::get_minimum_size(),
                 'autorowscap' => self::AUTO_ROWS_CAP,
@@ -265,6 +279,10 @@ final class dashboard {
                 'resizecontrols' => get_string('dashboardresizecontrols', 'my'),
                 'resizeinstructions' => get_string('dashboardresizehandleinstructions', 'my'),
                 'right' => get_string('dashboardright', 'my'),
+                'retry' => get_string('retry'),
+                'savefailed' => get_string('dashboardsavefailed', 'my'),
+                'saveoffline' => get_string('dashboardsaveoffline', 'my'),
+                'saveretrying' => get_string('dashboardsaveretrying', 'my'),
                 'scopeown' => get_string('dashboardscopeown', 'my'),
                 'scopesitedefault' => get_string('dashboardscopesitedefault', 'my'),
                 'switchtoown' => get_string('dashboardswitchtoown', 'my'),
@@ -274,6 +292,124 @@ final class dashboard {
                 'blockactions' => get_string('dashboardblockactions', 'my'),
             ],
         ];
+    }
+
+    /**
+     * Export one rendered block for the React client.
+     *
+     * @param \block_contents $content The block's rendered content.
+     * @param \block_base $instance The block instance.
+     * @param string $region The legacy region the block was rendered in.
+     * @return array
+     */
+    private static function export_block(\block_contents $content, \block_base $instance, string $region): array {
+        return [
+            'id' => (int) $content->blockinstanceid,
+            'name' => $instance->instance->blockname,
+            'title' => (string) $content->title,
+            'content' => (string) $content->content,
+            'footer' => (string) $content->footer,
+            'region' => $region,
+            'weight' => (int) $instance->instance->weight,
+            'actions' => self::get_menu_actions($content->controls, $instance->instance->blockname),
+            'asynccontent' => $instance->has_async_content(),
+            'minsize' => self::get_minimum_size($instance),
+            'preferredrows' => self::get_preferred_size($instance)['rows'],
+        ];
+    }
+
+    /**
+     * List the blocks the current user can add to the page set up in $PAGE.
+     *
+     * @return array
+     */
+    private static function get_available_blocks(): array {
+        global $PAGE;
+
+        $available = [];
+        foreach ($PAGE->blocks->get_addable_blocks() as $block) {
+            $available[] = [
+                'name' => $block->name,
+                'title' => get_string('pluginname', 'block_' . $block->name),
+            ];
+        }
+        return $available;
+    }
+
+    /**
+     * Start again from a fresh $PAGE, after an earlier step of the same request has changed the
+     * dashboard's blocks.
+     *
+     * A block_manager caches the blocks it loaded, so once add() or remove() has run, $PAGE no
+     * longer describes the page. This is what external_api::call_external_function() already does
+     * between calls in a batched AJAX request.
+     */
+    private static function reset_page(): void {
+        global $PAGE;
+
+        $PAGE = new \moodle_page();
+    }
+
+    /**
+     * Render a single block just added by {@see self::add()}, for the client to insert on its own.
+     *
+     * Returning the new block from the same request that added it saves the client a full
+     * dashboard reload (which would re-render, and re-run the JavaScript of, every other block)
+     * and a second round trip - both of which matter most on slow or high-latency connections.
+     *
+     * @param bool $sitedefault Whether the block was added to the site default.
+     * @param int $blockid The new block instance id.
+     * @return array The block, its layout item (when it has one), the collected JavaScript it needs
+     *     and the updated list of addable blocks.
+     */
+    public static function get_added_block(bool $sitedefault, int $blockid): array {
+        global $OUTPUT, $PAGE, $USER;
+
+        self::reset_page();
+        [$mypage, $context] = self::initialise_page($sitedefault, !empty($USER->editing));
+
+        $OUTPUT->header();
+        $PAGE->start_collecting_javascript_requirements();
+
+        $instances = [];
+        foreach (self::REGIONS as $region) {
+            foreach ($PAGE->blocks->get_blocks_for_region($region) as $instance) {
+                $instances[$instance->instance->id] = $instance;
+            }
+        }
+        if (!isset($instances[$blockid])) {
+            throw new \moodle_exception('blockdoesnotexist', 'error');
+        }
+        $instance = $instances[$blockid];
+        $content = $instance->get_content_for_output($OUTPUT);
+        if (!$content) {
+            throw new \moodle_exception('blockdoesnotexist', 'error');
+        }
+
+        $result = [
+            'block' => self::export_block($content, $instance, $instance->instance->region ?? 'content'),
+            'javascript' => $PAGE->requires->get_end_code(),
+            'availableblocks' => self::get_available_blocks(),
+        ];
+        foreach (self::get_layout($mypage->id, $context->id, $instances) as $candidate) {
+            if ($candidate['id'] === $blockid) {
+                $result['layoutitem'] = $candidate;
+                break;
+            }
+        }
+        return $result;
+    }
+
+    /**
+     * List the blocks that can be added after {@see self::remove()} has run in this request.
+     *
+     * @param bool $sitedefault Whether the site default was changed.
+     * @return array
+     */
+    public static function get_available_blocks_after_change(bool $sitedefault): array {
+        self::reset_page();
+        self::initialise_page($sitedefault, true);
+        return self::get_available_blocks();
     }
 
     /**
@@ -547,7 +683,7 @@ final class dashboard {
      * rows below it. Only blocks in the way move, and only down.
      *
      * @param array $layout Layout items in reading order.
-     * @param array $instances Block instances keyed by id.
+     * @param array $instances Block instances keyed by id, or cached stand-ins carrying a minsize.
      * @return array The layout, unchanged when every block already meets its minimum.
      */
     private static function enforce_minimum_sizes(array $layout, array $instances): array {
@@ -556,7 +692,9 @@ final class dashboard {
             if (!isset($instances[$item['id']])) {
                 continue;
             }
-            $minimum = self::get_minimum_size($instances[$item['id']]);
+            $instance = $instances[$item['id']];
+            // Cached instances (see get()) carry their resolved minimum instead of a block object.
+            $minimum = $instance instanceof \block_base ? self::get_minimum_size($instance) : $instance->minsize;
             if ($item['columns'] < $minimum['columns'] || $item['rows'] < $minimum['rows']) {
                 $item['columns'] = max($item['columns'], $minimum['columns']);
                 $item['rows'] = max($item['rows'], $minimum['rows']);
@@ -656,10 +794,7 @@ final class dashboard {
             }
         }
         $transaction->allow_commit();
-
-        if (!$sitedefault) {
-            self::purge_cache();
-        }
+        // No cache purge: the cache holds rendered blocks, not layout (see get()).
     }
 
     /**
@@ -930,7 +1065,9 @@ final class dashboard {
                 throw new \invalid_parameter_exception('The layout contains an invalid or duplicate block.');
             }
             $seen[$item['id']] = true;
-            $minimum = self::get_minimum_size($instances[$item['id']]);
+            $instance = $instances[$item['id']];
+            // Cached instances (see get()) carry their resolved minimum instead of a block object.
+            $minimum = $instance instanceof \block_base ? self::get_minimum_size($instance) : $instance->minsize;
             if (
                 $item['column'] < 0 || $item['row'] < 0
                     || $item['columns'] < $minimum['columns'] || $item['rows'] < $minimum['rows']

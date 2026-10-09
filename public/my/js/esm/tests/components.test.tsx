@@ -94,6 +94,10 @@ const labels = {
     down: 'Down',
     left: 'Left',
     right: 'Right',
+    retry: 'Retry',
+    savefailed: 'Your changes could not be saved.',
+    saveoffline: 'You are offline.',
+    saveretrying: 'Trying again.',
     done: 'Done',
     cancel: 'Cancel',
     movecontrols: 'Move block controls',
@@ -112,6 +116,53 @@ const urls = {
 };
 
 describe('core_my grid components', () => {
+    it('leaves block content alone when a tile re-renders, so block JS keeps what it built', () => {
+        const block = {
+            id: 9, name: 'recentlyaccesseditems', title: 'Recent', content: '<div class="skeleton">Loading</div>',
+            footer: '<p>Footer</p>', region: 'content', weight: 0, actions: [],
+        };
+        const props = {
+            labels: {
+                ...labels,
+                move: 'Move {$a} block',
+                remove: 'Delete {$a} block',
+                resize: 'Resize block',
+                tile: '{$a} block',
+            } as DashboardLabels,
+            editing: true,
+            showControls: false,
+            onStart: jest.fn(),
+            onKeyDown: jest.fn(),
+            onPointerDown: jest.fn(),
+            onDirection: jest.fn(),
+            onCommit: jest.fn(),
+            onRemove: jest.fn(),
+        };
+        const {container, rerender} = render(<DashboardTile
+            {...props}
+            block={block}
+            item={{id: 9, column: 0, row: 0, columns: 2, rows: 2}}
+        />);
+
+        // The block's own JavaScript replaces its server-rendered placeholder.
+        const content = container.querySelector('.core-my-dashboard-tile__content')!;
+        content.innerHTML = '<ul class="loaded"><li>Course 1</li></ul>';
+        const footer = container.querySelector('.core-my-dashboard-tile__block-footer')!;
+        footer.innerHTML = '<p>Updated footer</p>';
+
+        // A drag re-renders the tile with a new position (and a new, equal block object).
+        rerender(<DashboardTile
+            {...props}
+            block={{...block}}
+            item={{id: 9, column: 1, row: 0, columns: 2, rows: 2}}
+            activeMode="move"
+        />);
+
+        expect(content.querySelector('.loaded')).not.toBeNull();
+        expect(content.querySelector('.skeleton')).toBeNull();
+        expect(footer.textContent).toBe('Updated footer');
+    });
+
     it('exposes an available cell as a positioned button', () => {
         const activate = jest.fn();
         render(<GridCell

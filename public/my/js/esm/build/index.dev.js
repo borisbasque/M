@@ -35,6 +35,7 @@ import {
   getDashboard,
   updateDashboard
 } from "./repository";
+import { SaveQueue, isTransientError } from "./saveQueue";
 const errorMessage = /* @__PURE__ */ __name((caught) => {
   if (caught instanceof Error) {
     return caught.message;
@@ -57,7 +58,7 @@ const DashboardScopeBanner = /* @__PURE__ */ __name(({ siteDefault, caneditother
     false,
     {
       fileName: "public/my/js/esm/src/index.tsx",
-      lineNumber: 82,
+      lineNumber: 83,
       columnNumber: 9
     }
   ),
@@ -72,13 +73,13 @@ const DashboardScopeBanner = /* @__PURE__ */ __name(({ siteDefault, caneditother
     false,
     {
       fileName: "public/my/js/esm/src/index.tsx",
-      lineNumber: 88,
+      lineNumber: 89,
       columnNumber: 31
     }
   )
 ] }, void 0, true, {
   fileName: "public/my/js/esm/src/index.tsx",
-  lineNumber: 81,
+  lineNumber: 82,
   columnNumber: 5
 }), "DashboardScopeBanner");
 const DASHBOARD_SETTLE_QUIET_MS = 250;
@@ -87,82 +88,82 @@ const BLOCK_CONTENT_LOADED = "core_block/contentLoaded";
 let dashboardSettleCounter = 0;
 const isSiteDefault = /* @__PURE__ */ __name(() => window.location.pathname.endsWith("/my/indexsys.php"), "isSiteDefault");
 const layoutChanged = /* @__PURE__ */ __name((original, draft) => original.column !== draft.column || original.row !== draft.row || original.columns !== draft.columns || original.rows !== draft.rows, "layoutChanged");
-const useCollectedBlockJavascript = /* @__PURE__ */ __name((data, gridRef, onSettled) => {
-  const onSettledRef = useRef(onSettled);
-  onSettledRef.current = onSettled;
-  useEffect(() => {
-    if (!data?.javascript) {
-      if (data) {
-        onSettledRef.current();
-      }
-      return void 0;
+const runCollectedJavascript = /* @__PURE__ */ __name((script, grid, onSettled) => {
+  let superseded = false;
+  let settled = false;
+  let quiet = false;
+  let quietTimer;
+  let observer;
+  const pending = new Pending(`core_my/dashboard:settling:${dashboardSettleCounter++}`);
+  const awaiting = new Set(script.asyncBlocks);
+  const onContentLoaded = /* @__PURE__ */ __name((event) => {
+    awaiting.delete(Number(event.detail?.instanceId));
+    settleIfDone();
+  }, "onContentLoaded");
+  const settle = /* @__PURE__ */ __name(() => {
+    if (settled) {
+      return;
     }
-    let superseded = false;
-    let settled = false;
-    let quiet = false;
-    let quietTimer;
-    let hardTimer;
-    let observer;
-    const grid = gridRef.current;
-    const pending = new Pending(`core_my/dashboard:settling:${dashboardSettleCounter++}`);
-    const awaiting = new Set(data.blocks.filter((block) => block.asynccontent).map((block) => block.id));
-    const onContentLoaded = /* @__PURE__ */ __name((event) => {
-      awaiting.delete(Number(event.detail?.instanceId));
+    settled = true;
+    clearTimeout(quietTimer);
+    clearTimeout(hardTimer);
+    observer?.disconnect();
+    grid?.removeEventListener(BLOCK_CONTENT_LOADED, onContentLoaded);
+    pending.resolve();
+    if (!superseded) {
+      onSettled?.();
+    }
+  }, "settle");
+  const settleIfDone = /* @__PURE__ */ __name(() => {
+    if (awaiting.size === 0 && quiet) {
+      settle();
+    }
+  }, "settleIfDone");
+  const startQuietWindow = /* @__PURE__ */ __name(() => {
+    quiet = false;
+    clearTimeout(quietTimer);
+    quietTimer = setTimeout(() => {
+      quiet = true;
       settleIfDone();
-    }, "onContentLoaded");
-    const settle = /* @__PURE__ */ __name(() => {
-      if (settled) {
-        return;
-      }
-      settled = true;
-      clearTimeout(quietTimer);
-      clearTimeout(hardTimer);
-      observer?.disconnect();
-      grid?.removeEventListener(BLOCK_CONTENT_LOADED, onContentLoaded);
-      pending.resolve();
-      if (!superseded) {
-        onSettledRef.current();
-      }
-    }, "settle");
-    const settleIfDone = /* @__PURE__ */ __name(() => {
-      if (awaiting.size === 0 && quiet) {
-        settle();
-      }
-    }, "settleIfDone");
-    const startQuietWindow = /* @__PURE__ */ __name(() => {
-      quiet = false;
-      clearTimeout(quietTimer);
-      quietTimer = setTimeout(() => {
-        quiet = true;
-        settleIfDone();
-      }, DASHBOARD_SETTLE_QUIET_MS);
-    }, "startQuietWindow");
-    hardTimer = setTimeout(settle, DASHBOARD_SETTLE_TIMEOUT_MS);
-    if (grid) {
-      grid.addEventListener(BLOCK_CONTENT_LOADED, onContentLoaded);
-      observer = new MutationObserver(startQuietWindow);
-      observer.observe(grid, { childList: true, subtree: true });
-    }
-    startQuietWindow();
+    }, DASHBOARD_SETTLE_QUIET_MS);
+  }, "startQuietWindow");
+  const hardTimer = setTimeout(settle, DASHBOARD_SETTLE_TIMEOUT_MS);
+  if (grid) {
+    grid.addEventListener(BLOCK_CONTENT_LOADED, onContentLoaded);
+    observer = new MutationObserver(startQuietWindow);
+    observer.observe(grid, { childList: true, subtree: true });
+  }
+  startQuietWindow();
+  if (script.source) {
     void requireManyAsync(["core/fragment", "core/templates", "core_filters/events"]).then(
       ([fragment, templates, filterEvents]) => {
         if (superseded) {
           return void 0;
         }
-        const processed = fragment.processCollectedJavascript(data.javascript);
+        const processed = fragment.processCollectedJavascript(script.source);
         templates.runTemplateJS(processed);
-        const tiles = gridRef.current?.querySelectorAll(".core-my-dashboard-tile__content");
+        const tiles = grid?.querySelectorAll(".core-my-dashboard-tile__content");
         if (tiles?.length) {
           filterEvents.notifyFilterContentUpdated(tiles);
         }
         return void 0;
       }
     );
-    return () => {
-      superseded = true;
-      settle();
-    };
-  }, [data]);
+  }
+  return () => {
+    superseded = true;
+    settle();
+  };
+}, "runCollectedJavascript");
+const useCollectedBlockJavascript = /* @__PURE__ */ __name((script, gridRef, onSettled) => {
+  const onSettledRef = useRef(onSettled);
+  onSettledRef.current = onSettled;
+  useEffect(() => {
+    if (!script) {
+      return void 0;
+    }
+    return runCollectedJavascript(script, gridRef.current, () => onSettledRef.current());
+  }, [script]);
 }, "useCollectedBlockJavascript");
 const useResponsiveColumnCount = /* @__PURE__ */ __name((gridRef, data) => {
   const [columnCount, setColumnCount] = useState(1);
@@ -192,14 +193,23 @@ const Dashboard = /* @__PURE__ */ __name(({ loadingLabel = "", initialLayout = [
   const [error, setError] = useState("");
   const [palette, setPalette] = useState(null);
   const [confirmAction, setConfirmAction] = useState(null);
-  const [saving, setSaving] = useState(false);
+  const [saveStatus, setSaveStatus] = useState("idle");
+  const [unsaved, setUnsaved] = useState(false);
+  const [loadedScript, setLoadedScript] = useState(null);
+  const [addedScripts, setAddedScripts] = useState([]);
   const gridRef = useRef(null);
   const pointerRef = useRef(null);
   const interactionRef = useRef(null);
   const canonicalRef = useRef([]);
   const displayLayoutRef = useRef([]);
   const dataRef = useRef(null);
+  const unsentRemovalsRef = useRef(/* @__PURE__ */ new Set());
+  const reloadingRef = useRef(false);
   const siteDefault = isSiteDefault();
+  const [queue] = useState(() => new SaveQueue({
+    sendLayout: /* @__PURE__ */ __name((layout) => updateDashboard("save", siteDefault, layout), "sendLayout"),
+    onStatus: setSaveStatus
+  }));
   const minimumSize = useCallback((id) => {
     const current = dataRef.current;
     return current?.blocks.find((block) => block.id === id)?.minsize ?? current?.grid.minsize ?? { columns: 1, rows: 1 };
@@ -211,6 +221,12 @@ const Dashboard = /* @__PURE__ */ __name(({ loadingLabel = "", initialLayout = [
       dataRef.current = response;
       setCanonical(response.layout);
       canonicalRef.current = response.layout;
+      unsentRemovalsRef.current = /* @__PURE__ */ new Set();
+      setUnsaved(false);
+      setLoadedScript({
+        source: response.javascript,
+        asyncBlocks: response.blocks.filter((block) => block.asynccontent).map((block) => block.id)
+      });
       setError("");
       return response;
     } catch (caught) {
@@ -218,6 +234,64 @@ const Dashboard = /* @__PURE__ */ __name(({ loadingLabel = "", initialLayout = [
       return null;
     }
   }, [siteDefault]);
+  const patchData = useCallback((patch) => {
+    const current = dataRef.current;
+    if (!current) {
+      return;
+    }
+    const next = { ...current, ...patch };
+    dataRef.current = next;
+    setData(next);
+  }, []);
+  const updateCanonical = useCallback((next) => {
+    canonicalRef.current = next;
+    setCanonical(next);
+  }, []);
+  const handleSyncFailure = useCallback((caught) => {
+    if (isTransientError(caught)) {
+      setUnsaved(true);
+      return;
+    }
+    const message = errorMessage(caught);
+    void load().then((response) => {
+      if (response) {
+        setError(message);
+      }
+      return void 0;
+    });
+  }, [load]);
+  const retryUnsaved = useCallback(async () => {
+    setUnsaved(false);
+    try {
+      for (const id of [...unsentRemovalsRef.current]) {
+        await queue.call(() => updateDashboard("remove", siteDefault, [], "", id), true);
+        unsentRemovalsRef.current.delete(id);
+      }
+      await queue.saveLayout(canonicalRef.current);
+    } catch (caught) {
+      handleSyncFailure(caught);
+    }
+  }, [handleSyncFailure, queue, siteDefault]);
+  useEffect(() => {
+    if (!unsaved) {
+      return void 0;
+    }
+    const online = /* @__PURE__ */ __name(() => void retryUnsaved(), "online");
+    window.addEventListener("online", online);
+    return () => window.removeEventListener("online", online);
+  }, [retryUnsaved, unsaved]);
+  useEffect(() => {
+    if (saveStatus === "idle" && !unsaved) {
+      return void 0;
+    }
+    const beforeUnload = /* @__PURE__ */ __name((event) => {
+      if (!reloadingRef.current) {
+        event.preventDefault();
+      }
+    }, "beforeUnload");
+    window.addEventListener("beforeunload", beforeUnload);
+    return () => window.removeEventListener("beforeunload", beforeUnload);
+  }, [saveStatus, unsaved]);
   useEffect(() => {
     void load();
   }, [load]);
@@ -252,10 +326,17 @@ const Dashboard = /* @__PURE__ */ __name(({ loadingLabel = "", initialLayout = [
     setCanonical(next);
     canonicalRef.current = next;
     if (current.ownlayout && current.canedit && !siteDefault) {
-      void updateDashboard("save", false, next).catch(() => null);
+      void queue.saveLayout(next).catch(() => null);
     }
-  }, [siteDefault]);
-  useCollectedBlockJavascript(data, gridRef, fitAutoHeights);
+  }, [queue, siteDefault]);
+  useCollectedBlockJavascript(loadedScript, gridRef, fitAutoHeights);
+  useEffect(() => {
+    if (!addedScripts.length) {
+      return;
+    }
+    addedScripts.forEach((script) => runCollectedJavascript(script, gridRef.current, fitAutoHeights));
+    setAddedScripts([]);
+  }, [addedScripts, fitAutoHeights]);
   const [columnCount, columnCountRef] = useResponsiveColumnCount(gridRef, data);
   const displayLayout = useMemo(() => packLayout(canonical, columnCount), [canonical, columnCount]);
   displayLayoutRef.current = displayLayout;
@@ -275,6 +356,7 @@ const Dashboard = /* @__PURE__ */ __name(({ loadingLabel = "", initialLayout = [
       return item.id !== interaction.id && original && (item.column !== original.column || item.row !== original.row);
     }).map((item) => item.id));
   }, [displayLayout, interaction, previewLayout]);
+  const previewById = useMemo(() => new Map(previewLayout.map((item) => [item.id, item])), [previewLayout]);
   const blocksById = useMemo(() => new Map((data?.blocks ?? []).map((block) => [block.id, block])), [data]);
   const announce = useCallback(async (key, value) => {
     setAnnouncement(await getString(key, "my", value));
@@ -327,28 +409,24 @@ const Dashboard = /* @__PURE__ */ __name(({ loadingLabel = "", initialLayout = [
     const minimum = minimumSize(current.id);
     const derived = packWithPinned(currentDisplay, currentColumns, current.draft, fitMinimum(minimum, currentColumns));
     const disturbed = disturbedCount(current.before, derived, current.id);
-    const next = writeBack(currentCanonical, derived, current.id, minimum).map((item) => current.mode === "resize" && item.id === current.id ? { ...item, autorows: false } : item);
-    setSaving(true);
+    const next = writeBack(currentCanonical, derived, current.id, minimum).map((item2) => current.mode === "resize" && item2.id === current.id ? { ...item2, autorows: false } : item2);
+    const item = derived.find((candidate) => candidate.id === current.id);
+    updateCanonical(next);
+    interactionRef.current = null;
+    setInteraction(null);
+    void announce(current.mode === "move" ? "dashboardmovecommitted" : "dashboardresizecommitted", {
+      row: item.row + 1,
+      column: item.column + 1,
+      columns: item.columns,
+      rows: item.rows,
+      disturbed
+    });
     try {
-      await updateDashboard("save", siteDefault, next);
-      setCanonical(next);
-      canonicalRef.current = next;
-      const item = derived.find((candidate) => candidate.id === current.id);
-      await announce(current.mode === "move" ? "dashboardmovecommitted" : "dashboardresizecommitted", {
-        row: item.row + 1,
-        column: item.column + 1,
-        columns: item.columns,
-        rows: item.rows,
-        disturbed
-      });
-      interactionRef.current = null;
-      setInteraction(null);
+      await queue.saveLayout(next);
     } catch (caught) {
-      setError(errorMessage(caught));
-    } finally {
-      setSaving(false);
+      handleSyncFailure(caught);
     }
-  }, [announce, siteDefault]);
+  }, [announce, handleSyncFailure, queue, updateCanonical]);
   const cancel = useCallback(() => {
     if (interaction) {
       void announce("dashboardoperationdiscarded");
@@ -479,114 +557,150 @@ const Dashboard = /* @__PURE__ */ __name(({ loadingLabel = "", initialLayout = [
     window.addEventListener("pointercancel", abort);
   }, [cancel, columnCount, commit, displayLayout, start]);
   const remove = useCallback(async (id) => {
-    if (!data) {
+    const current = dataRef.current;
+    if (!current) {
       return;
     }
-    setSaving(true);
+    patchData({ blocks: current.blocks.filter((block) => block.id !== id) });
+    updateCanonical(canonicalRef.current.filter((item) => item.id !== id));
+    void announce("dashboardblockremoved");
+    unsentRemovalsRef.current.add(id);
     try {
-      await updateDashboard("remove", siteDefault, [], "", id);
-      await load();
-      await announce("dashboardblockremoved");
-    } catch (caught) {
-      setError(errorMessage(caught));
-    } finally {
-      setSaving(false);
-    }
-  }, [announce, data, load, siteDefault]);
-  const add = useCallback(async (block) => {
-    if (!data) {
-      return;
-    }
-    setSaving(true);
-    try {
-      const result = await updateDashboard("add", siteDefault, [], block.name);
-      const response = await load();
-      if (response && palette && result.blockid) {
-        const item = response.layout.find((candidate) => candidate.id === result.blockid);
-        if (item && palette.column !== void 0 && palette.row !== void 0) {
-          const pinned = {
-            ...item,
-            column: Math.min(palette.column, columnCount - Math.min(item.columns, columnCount)),
-            row: palette.row,
-            columns: Math.min(item.columns, columnCount)
-          };
-          const minimum = response.blocks.find((block2) => block2.id === item.id)?.minsize ?? response.grid.minsize;
-          const next = writeBack(
-            response.layout,
-            packWithPinned(
-              packLayout(response.layout, columnCount),
-              columnCount,
-              pinned,
-              fitMinimum(minimum, columnCount)
-            ),
-            item.id,
-            minimum
-          );
-          await updateDashboard("save", siteDefault, next);
-          setCanonical(next);
-          canonicalRef.current = next;
-        } else if (item && palette.position === "start") {
-          const minimum = response.blocks.find((block2) => block2.id === item.id)?.minsize ?? response.grid.minsize;
-          const next = writeBack(
-            response.layout,
-            packWithPinned(
-              packLayout(response.layout, columnCount),
-              columnCount,
-              { ...item, column: 0, row: 0 },
-              fitMinimum(minimum, columnCount)
-            ),
-            item.id,
-            minimum
-          );
-          await updateDashboard("save", siteDefault, next);
-          setCanonical(next);
-          canonicalRef.current = next;
-        }
+      const result = await queue.call(() => updateDashboard("remove", siteDefault, [], "", id), true);
+      unsentRemovalsRef.current.delete(id);
+      if (result.availableblocks) {
+        patchData({ availableblocks: result.availableblocks });
       }
-      setPalette(null);
-      await announce("dashboardblockadded", block.title);
+    } catch (caught) {
+      handleSyncFailure(caught);
+    }
+  }, [announce, handleSyncFailure, patchData, queue, siteDefault, updateCanonical]);
+  const add = useCallback(async (block) => {
+    const target = palette;
+    setPalette(null);
+    let result;
+    try {
+      result = await queue.call(() => updateDashboard("add", siteDefault, [], block.name), false);
     } catch (caught) {
       setError(errorMessage(caught));
-    } finally {
-      setSaving(false);
+      return;
     }
-  }, [announce, columnCount, data, load, palette, siteDefault]);
+    const current = dataRef.current;
+    if (!current || !result.block || !result.layoutitem) {
+      await load();
+      return;
+    }
+    const added = result.block;
+    const item = result.layoutitem;
+    patchData({
+      blocks: [...current.blocks.filter((existing) => existing.id !== added.id), added],
+      availableblocks: result.availableblocks ?? current.availableblocks
+    });
+    const appended = [...canonicalRef.current.filter((existing) => existing.id !== item.id), item];
+    updateCanonical(appended);
+    setAddedScripts((scripts) => [...scripts, {
+      source: result.javascript ?? "",
+      asyncBlocks: added.asynccontent ? [added.id] : []
+    }]);
+    void announce("dashboardblockadded", block.title);
+    const columns = columnCountRef.current;
+    let pinned = null;
+    if (target?.column !== void 0 && target.row !== void 0) {
+      pinned = {
+        ...item,
+        column: Math.min(target.column, columns - Math.min(item.columns, columns)),
+        row: target.row,
+        columns: Math.min(item.columns, columns)
+      };
+    } else if (target?.position === "start") {
+      pinned = { ...item, column: 0, row: 0 };
+    }
+    if (!pinned) {
+      return;
+    }
+    const minimum = added.minsize ?? current.grid.minsize;
+    const next = writeBack(
+      appended,
+      packWithPinned(packLayout(appended, columns), columns, pinned, fitMinimum(minimum, columns)),
+      item.id,
+      minimum
+    );
+    updateCanonical(next);
+    try {
+      await queue.saveLayout(next);
+    } catch (caught) {
+      handleSyncFailure(caught);
+    }
+  }, [announce, handleSyncFailure, load, palette, patchData, queue, siteDefault, updateCanonical]);
   const reset = useCallback(async () => {
     if (!data) {
       return;
     }
-    setSaving(true);
     try {
-      await updateDashboard("reset", false);
+      await queue.call(() => updateDashboard("reset", false), false);
+      reloadingRef.current = true;
       window.location.reload();
     } catch (caught) {
       setError(errorMessage(caught));
-    } finally {
-      setSaving(false);
     }
-  }, [data]);
+  }, [data, queue]);
   if (!data) {
     return error ? /* @__PURE__ */ jsxDEV("div", { className: "core-my-dashboard-status alert alert-danger", role: "alert", children: error }, void 0, false, {
       fileName: "public/my/js/esm/src/index.tsx",
-      lineNumber: 772,
+      lineNumber: 937,
       columnNumber: 15
     }) : /* @__PURE__ */ jsxDEV(DashboardLoading, { label: loadingLabel, layout: initialLayout }, void 0, false, {
       fileName: "public/my/js/esm/src/index.tsx",
-      lineNumber: 773,
+      lineNumber: 938,
       columnNumber: 15
     });
   }
   const rows = Math.max(1, maxRow(previewLayout));
   const prospective = interaction && (layoutChanged(interaction.original, interaction.draft) || interaction.origin === "pointer" && interaction.mode === "resize" && interaction.drag?.shrinking) ? interaction.draft : void 0;
-  return /* @__PURE__ */ jsxDEV("div", { className: "core-my-dashboard-app", "aria-busy": saving, children: [
+  const statusMessages = {
+    idle: "",
+    saving: "",
+    offline: data.labels.saveoffline,
+    retrying: data.labels.saveretrying
+  };
+  return /* @__PURE__ */ jsxDEV("div", { className: "core-my-dashboard-app", "aria-busy": saveStatus !== "idle", children: [
     error && /* @__PURE__ */ jsxDEV("div", { className: "alert alert-danger", role: "alert", children: error }, void 0, false, {
       fileName: "public/my/js/esm/src/index.tsx",
-      lineNumber: 781,
+      lineNumber: 952,
       columnNumber: 19
+    }),
+    unsaved && /* @__PURE__ */ jsxDEV("div", { className: "alert alert-warning core-my-dashboard-unsaved", role: "alert", children: [
+      data.labels.savefailed,
+      /* @__PURE__ */ jsxDEV(
+        Button,
+        {
+          className: "ms-2",
+          variant: "secondary",
+          size: "sm",
+          label: data.labels.retry,
+          onClick: () => void retryUnsaved()
+        },
+        void 0,
+        false,
+        {
+          fileName: "public/my/js/esm/src/index.tsx",
+          lineNumber: 955,
+          columnNumber: 13
+        }
+      )
+    ] }, void 0, true, {
+      fileName: "public/my/js/esm/src/index.tsx",
+      lineNumber: 953,
+      columnNumber: 21
+    }),
+    /* @__PURE__ */ jsxDEV("div", { className: "core-my-dashboard-savestatus", role: "status", children: statusMessages[saveStatus] }, void 0, false, {
+      fileName: "public/my/js/esm/src/index.tsx",
+      lineNumber: 963,
+      columnNumber: 9
     }),
     /* @__PURE__ */ jsxDEV("div", { className: "visually-hidden", "aria-live": "polite", "aria-atomic": "true", children: announcement }, void 0, false, {
       fileName: "public/my/js/esm/src/index.tsx",
-      lineNumber: 782,
+      lineNumber: 964,
       columnNumber: 9
     }),
     data.editing && /* @__PURE__ */ jsxDEV(
@@ -601,14 +715,14 @@ const Dashboard = /* @__PURE__ */ __name(({ loadingLabel = "", initialLayout = [
       false,
       {
         fileName: "public/my/js/esm/src/index.tsx",
-        lineNumber: 783,
+        lineNumber: 965,
         columnNumber: 26
       }
     ),
     data.editing && /* @__PURE__ */ jsxDEV("div", { className: "core-my-dashboard-toolbar", children: [
       /* @__PURE__ */ jsxDEV(Button, { variant: "secondary", label: data.labels.addblocktop, onClick: () => setPalette({ position: "start" }) }, void 0, false, {
         fileName: "public/my/js/esm/src/index.tsx",
-        lineNumber: 790,
+        lineNumber: 972,
         columnNumber: 13
       }),
       !siteDefault && /* @__PURE__ */ jsxDEV(
@@ -622,13 +736,13 @@ const Dashboard = /* @__PURE__ */ __name(({ loadingLabel = "", initialLayout = [
         false,
         {
           fileName: "public/my/js/esm/src/index.tsx",
-          lineNumber: 791,
+          lineNumber: 973,
           columnNumber: 30
         }
       )
     ] }, void 0, true, {
       fileName: "public/my/js/esm/src/index.tsx",
-      lineNumber: 789,
+      lineNumber: 971,
       columnNumber: 26
     }),
     /* @__PURE__ */ jsxDEV(
@@ -664,13 +778,14 @@ const Dashboard = /* @__PURE__ */ __name(({ loadingLabel = "", initialLayout = [
                 false,
                 {
                   fileName: "public/my/js/esm/src/index.tsx",
-                  lineNumber: 815,
+                  lineNumber: 997,
                   columnNumber: 59
                 }
               ) : null;
             })
           ),
-          previewLayout.map((item) => {
+          displayLayout.map((committed) => {
+            const item = previewById.get(committed.id) ?? committed;
             const block = blocksById.get(item.id);
             if (!block) {
               return null;
@@ -699,7 +814,7 @@ const Dashboard = /* @__PURE__ */ __name(({ loadingLabel = "", initialLayout = [
               false,
               {
                 fileName: "public/my/js/esm/src/index.tsx",
-                lineNumber: 832,
+                lineNumber: 1020,
                 columnNumber: 24
               }
             );
@@ -710,17 +825,17 @@ const Dashboard = /* @__PURE__ */ __name(({ loadingLabel = "", initialLayout = [
       true,
       {
         fileName: "public/my/js/esm/src/index.tsx",
-        lineNumber: 797,
+        lineNumber: 979,
         columnNumber: 9
       }
     ),
     data.editing && /* @__PURE__ */ jsxDEV("div", { className: "core-my-dashboard-toolbar core-my-dashboard-toolbar--bottom", children: /* @__PURE__ */ jsxDEV(Button, { variant: "secondary", label: data.labels.addblockbottom, onClick: () => setPalette({ position: "end" }) }, void 0, false, {
       fileName: "public/my/js/esm/src/index.tsx",
-      lineNumber: 854,
+      lineNumber: 1042,
       columnNumber: 13
     }) }, void 0, false, {
       fileName: "public/my/js/esm/src/index.tsx",
-      lineNumber: 853,
+      lineNumber: 1041,
       columnNumber: 26
     }),
     palette && /* @__PURE__ */ jsxDEV(
@@ -736,7 +851,7 @@ const Dashboard = /* @__PURE__ */ __name(({ loadingLabel = "", initialLayout = [
       false,
       {
         fileName: "public/my/js/esm/src/index.tsx",
-        lineNumber: 856,
+        lineNumber: 1044,
         columnNumber: 21
       }
     ),
@@ -762,13 +877,13 @@ const Dashboard = /* @__PURE__ */ __name(({ loadingLabel = "", initialLayout = [
       false,
       {
         fileName: "public/my/js/esm/src/index.tsx",
-        lineNumber: 863,
+        lineNumber: 1051,
         columnNumber: 27
       }
     )
   ] }, void 0, true, {
     fileName: "public/my/js/esm/src/index.tsx",
-    lineNumber: 780,
+    lineNumber: 951,
     columnNumber: 12
   });
 }, "Dashboard");

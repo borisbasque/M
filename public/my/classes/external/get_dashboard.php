@@ -78,51 +78,9 @@ final class get_dashboard extends external_api {
      */
     public static function execute_returns(): external_single_structure {
         return new external_single_structure([
-            'blocks' => new external_multiple_structure(new external_single_structure([
-                'id' => new external_value(PARAM_INT, 'Block instance id.'),
-                'name' => new external_value(PARAM_PLUGIN, 'Block plugin name.'),
-                'title' => new external_value(PARAM_RAW, 'Rendered block title.'),
-                'content' => new external_value(PARAM_RAW, 'Rendered block content.'),
-                'footer' => new external_value(PARAM_RAW, 'Rendered block footer.'),
-                'region' => new external_value(PARAM_ALPHANUMEXT, 'Legacy block region.'),
-                'weight' => new external_value(PARAM_INT, 'Legacy block weight.'),
-                'actions' => new external_multiple_structure(new external_single_structure([
-                    'id' => new external_value(PARAM_ALPHANUMEXT, 'Stable action identifier, e.g. edit or permissions.'),
-                    'label' => new external_value(PARAM_RAW, 'Action label.'),
-                    'url' => new external_value(PARAM_URL, 'Action URL.'),
-                    'modalform' => new external_value(
-                        PARAM_RAW,
-                        'Modal form class to open in place of navigating, or an empty string.'
-                    ),
-                ]), 'The block\'s remaining editing-controls-menu actions.'),
-                'asynccontent' => new external_value(
-                    PARAM_BOOL,
-                    'Whether the block reports when its asynchronously loaded content is in place.'
-                ),
-                'minsize' => new external_single_structure([
-                    'columns' => new external_value(PARAM_INT, 'Minimum column span.'),
-                    'rows' => new external_value(PARAM_INT, 'Minimum row span.'),
-                ], 'The smallest size this block may be resized to: its own declaration, or the default.'),
-                'preferredrows' => new external_value(
-                    PARAM_INT,
-                    'The row span the block declares it prefers, or null to follow its content.',
-                    VALUE_REQUIRED,
-                    null,
-                    NULL_ALLOWED,
-                ),
-            ])),
-            'layout' => new external_multiple_structure(new external_single_structure([
-                'id' => new external_value(PARAM_INT, 'Block instance id.'),
-                'column' => new external_value(PARAM_INT, 'Zero-based column.'),
-                'row' => new external_value(PARAM_INT, 'Zero-based row.'),
-                'columns' => new external_value(PARAM_INT, 'Column span.'),
-                'rows' => new external_value(PARAM_INT, 'Row span.'),
-                'autorows' => new external_value(PARAM_BOOL, 'Whether the row span follows the block\'s content.'),
-            ])),
-            'availableblocks' => new external_multiple_structure(new external_single_structure([
-                'name' => new external_value(PARAM_PLUGIN, 'Block plugin name.'),
-                'title' => new external_value(PARAM_RAW, 'Block title.'),
-            ])),
+            'blocks' => new external_multiple_structure(self::block_structure()),
+            'layout' => new external_multiple_structure(self::layout_item_structure()),
+            'availableblocks' => new external_multiple_structure(self::available_block_structure()),
             'grid' => new external_single_structure([
                 'minsize' => new external_single_structure([
                     'columns' => new external_value(PARAM_INT, 'Minimum column span of a block.'),
@@ -170,6 +128,10 @@ final class get_dashboard extends external_api {
                 'resizecontrols' => new external_value(PARAM_RAW, 'Resize controls label.'),
                 'resizeinstructions' => new external_value(PARAM_RAW, 'Resize handle instructions.'),
                 'right' => new external_value(PARAM_RAW, 'Right label.'),
+                'retry' => new external_value(PARAM_RAW, 'Retry saving label.'),
+                'savefailed' => new external_value(PARAM_RAW, 'Message shown when changes could not be saved.'),
+                'saveoffline' => new external_value(PARAM_RAW, 'Message shown while offline with unsaved changes.'),
+                'saveretrying' => new external_value(PARAM_RAW, 'Message shown while retrying a save.'),
                 'scopeown' => new external_value(PARAM_RAW, 'Own-dashboard scope indicator label.'),
                 'scopesitedefault' => new external_value(PARAM_RAW, 'Site-default scope indicator label.'),
                 'switchtoown' => new external_value(PARAM_RAW, 'Switch-to-own-dashboard CTA label.'),
@@ -177,6 +139,77 @@ final class get_dashboard extends external_api {
                 'tile' => new external_value(PARAM_RAW, 'Dashboard tile label.'),
                 'up' => new external_value(PARAM_RAW, 'Up label.'),
             ]),
+        ]);
+    }
+
+    /**
+     * Structure of one rendered dashboard block, shared with {@see update_dashboard}.
+     *
+     * @param int $required VALUE_REQUIRED or VALUE_OPTIONAL.
+     * @return external_single_structure
+     */
+    public static function block_structure(int $required = VALUE_REQUIRED): external_single_structure {
+        return new external_single_structure([
+            'id' => new external_value(PARAM_INT, 'Block instance id.'),
+            'name' => new external_value(PARAM_PLUGIN, 'Block plugin name.'),
+            'title' => new external_value(PARAM_RAW, 'Rendered block title.'),
+            'content' => new external_value(PARAM_RAW, 'Rendered block content.'),
+            'footer' => new external_value(PARAM_RAW, 'Rendered block footer.'),
+            'region' => new external_value(PARAM_ALPHANUMEXT, 'Legacy block region.'),
+            'weight' => new external_value(PARAM_INT, 'Legacy block weight.'),
+            'actions' => new external_multiple_structure(new external_single_structure([
+                'id' => new external_value(PARAM_ALPHANUMEXT, 'Stable action identifier, e.g. edit or permissions.'),
+                'label' => new external_value(PARAM_RAW, 'Action label.'),
+                'url' => new external_value(PARAM_URL, 'Action URL.'),
+                'modalform' => new external_value(
+                    PARAM_RAW,
+                    'Modal form class to open in place of navigating, or an empty string.'
+                ),
+            ]), 'The block\'s remaining editing-controls-menu actions.'),
+            'asynccontent' => new external_value(
+                PARAM_BOOL,
+                'Whether the block reports when its asynchronously loaded content is in place.'
+            ),
+            'minsize' => new external_single_structure([
+                'columns' => new external_value(PARAM_INT, 'Minimum column span.'),
+                'rows' => new external_value(PARAM_INT, 'Minimum row span.'),
+            ], 'The smallest size this block may be resized to: its own declaration, or the default.'),
+            'preferredrows' => new external_value(
+                PARAM_INT,
+                'The row span the block declares it prefers, or null to follow its content.',
+                VALUE_REQUIRED,
+                null,
+                NULL_ALLOWED,
+            ),
+        ], 'A rendered dashboard block.', $required);
+    }
+
+    /**
+     * Structure of one dashboard layout item, shared with {@see update_dashboard}.
+     *
+     * @param int $required VALUE_REQUIRED or VALUE_OPTIONAL.
+     * @return external_single_structure
+     */
+    public static function layout_item_structure(int $required = VALUE_REQUIRED): external_single_structure {
+        return new external_single_structure([
+            'id' => new external_value(PARAM_INT, 'Block instance id.'),
+            'column' => new external_value(PARAM_INT, 'Zero-based column.'),
+            'row' => new external_value(PARAM_INT, 'Zero-based row.'),
+            'columns' => new external_value(PARAM_INT, 'Column span.'),
+            'rows' => new external_value(PARAM_INT, 'Row span.'),
+            'autorows' => new external_value(PARAM_BOOL, 'Whether the row span follows the block\'s content.'),
+        ], 'A block\'s grid rectangle.', $required);
+    }
+
+    /**
+     * Structure of one addable block, shared with {@see update_dashboard}.
+     *
+     * @return external_single_structure
+     */
+    public static function available_block_structure(): external_single_structure {
+        return new external_single_structure([
+            'name' => new external_value(PARAM_PLUGIN, 'Block plugin name.'),
+            'title' => new external_value(PARAM_RAW, 'Block title.'),
         ]);
     }
 }

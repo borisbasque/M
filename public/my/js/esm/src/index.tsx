@@ -46,6 +46,7 @@ import {
     type DashboardLabels,
     type DashboardUrls,
 } from './repository';
+import {SaveQueue, isTransientError, type SaveStatus} from './saveQueue';
 
 /**
  * Turn a rejection into readable text.
@@ -132,8 +133,22 @@ const layoutChanged = (original: LayoutItem, draft: LayoutItem): boolean =>
     original.columns !== draft.columns || original.rows !== draft.rows;
 
 /**
- * Run a freshly loaded dashboard's collected block JavaScript, and report the dashboard as
- * pending (via core/pending) until any resulting DOM churn settles.
+ * A batch of collected block JavaScript to run, as its own object so each batch runs once.
+ *
+ * `asyncBlocks` lists the blocks in the batch that report when their content is in place
+ * (block_base::has_async_content(), MDL-89736), so the dashboard waits for exactly those. `blocks`
+ * limits the batch to some tiles, such as a block just added, so other blocks are left alone.
+ */
+interface CollectedScript {
+    source: string;
+    asyncBlocks: number[];
+    // The blocks whose tiles the script belongs to, or undefined for every tile on the grid.
+    blocks?: number[];
+}
+
+/**
+ * Run collected block JavaScript, and report the dashboard as pending (via core/pending) until the
+ * blocks it initialises have settled.
  *
  * A block's own async fetch-and-replace of its rendered content (e.g. Course overview, Recently
  * accessed items) is invisible to anything watching M.util.pending_js - Behat's
@@ -148,97 +163,86 @@ const layoutChanged = (original: LayoutItem, draft: LayoutItem): boolean =>
  * childList is watched (not attributes/characterData), so unrelated noise - drag positioning,
  * resize-driven style changes - never resets the quiet window.
  *
- * @param data The current dashboard payload, or null before the first load resolves.
- * @param gridRef The grid element to watch for mutations under.
- * @param onSettled Called once this payload's blocks have settled, unless a newer load superseded it.
+ * @param script The collected JavaScript, and which of its blocks report their own loading.
+ * @param grid The grid element to watch for mutations under.
+ * @param onSettled Called once the batch has settled, unless it was stopped first.
+ * @return A function that stops the batch: it will not run if it has not started yet.
  */
-const useCollectedBlockJavascript = (
-    data: DashboardData | null,
-    gridRef: React.RefObject<HTMLDivElement>,
-    onSettled: () => void,
-): void => {
-    // Read through a ref so a new callback never re-runs the effect (and so the blocks' JavaScript).
-    const onSettledRef = useRef(onSettled);
-    onSettledRef.current = onSettled;
-    useEffect(() => {
-        if (!data?.javascript) {
-            if (data) {
-                onSettledRef.current();
-            }
-            return undefined;
+const runCollectedJavascript = (
+    script: CollectedScript,
+    grid: HTMLDivElement | null,
+    onSettled?: () => void,
+): () => void => {
+    let superseded = false;
+    let settled = false;
+    let quiet = false;
+    let quietTimer: ReturnType<typeof setTimeout> | undefined;
+    let observer: MutationObserver | undefined;
+    const pending = new Pending(`core_my/dashboard:settling:${dashboardSettleCounter++}`);
+
+    // The DOM must also go quiet, not only the declaring blocks report: that covers blocks that
+    // declare nothing, and late touches by declaring blocks after their main content lands (Course
+    // overview, for one, updates its paging bar after its first page is shown).
+    const awaiting = new Set(script.asyncBlocks);
+    const onContentLoaded = (event: Event) => {
+        awaiting.delete(Number((event as CustomEvent<{instanceId: number | null}>).detail?.instanceId));
+        settleIfDone();
+    };
+    const settle = () => {
+        if (settled) {
+            return;
         }
-        // Each dashboard reload re-renders blocks with fresh DOM ids and JS initialisers.
-        // Guard against a superseded reload's async script running after a newer one has
-        // already replaced the tile content it was written to target.
-        let superseded = false;
-
-        let settled = false;
-        let quiet = false;
-        let quietTimer: ReturnType<typeof setTimeout> | undefined;
-        let hardTimer: ReturnType<typeof setTimeout> | undefined;
-        let observer: MutationObserver | undefined;
-        const grid = gridRef.current;
-        const pending = new Pending(`core_my/dashboard:settling:${dashboardSettleCounter++}`);
-
-        // Blocks that declare asynchronous content (MDL-89736) say exactly when it is in place, so
-        // wait for every one of them. The DOM must also go quiet: that covers blocks that declare
-        // nothing, and late touches by declaring blocks after their main content lands (Course
-        // overview, for one, updates its paging bar after its first page is shown).
-        const awaiting = new Set(data.blocks.filter(block => block.asynccontent).map(block => block.id));
-        const onContentLoaded = (event: Event) => {
-            awaiting.delete(Number((event as CustomEvent<{instanceId: number | null}>).detail?.instanceId));
+        settled = true;
+        clearTimeout(quietTimer);
+        clearTimeout(hardTimer);
+        observer?.disconnect();
+        grid?.removeEventListener(BLOCK_CONTENT_LOADED, onContentLoaded);
+        pending.resolve();
+        if (!superseded) {
+            onSettled?.();
+        }
+    };
+    const settleIfDone = () => {
+        if (awaiting.size === 0 && quiet) {
+            settle();
+        }
+    };
+    const startQuietWindow = () => {
+        quiet = false;
+        clearTimeout(quietTimer);
+        quietTimer = setTimeout(() => {
+            quiet = true;
             settleIfDone();
-        };
-        const settle = () => {
-            if (settled) {
-                return;
-            }
-            settled = true;
-            clearTimeout(quietTimer);
-            clearTimeout(hardTimer);
-            observer?.disconnect();
-            grid?.removeEventListener(BLOCK_CONTENT_LOADED, onContentLoaded);
-            pending.resolve();
-            if (!superseded) {
-                onSettledRef.current();
-            }
-        };
-        const settleIfDone = () => {
-            if (awaiting.size === 0 && quiet) {
-                settle();
-            }
-        };
-        const startQuietWindow = () => {
-            quiet = false;
-            clearTimeout(quietTimer);
-            quietTimer = setTimeout(() => {
-                quiet = true;
-                settleIfDone();
-            }, DASHBOARD_SETTLE_QUIET_MS);
-        };
-        hardTimer = setTimeout(settle, DASHBOARD_SETTLE_TIMEOUT_MS);
-        if (grid) {
-            grid.addEventListener(BLOCK_CONTENT_LOADED, onContentLoaded);
-            observer = new MutationObserver(startQuietWindow);
-            observer.observe(grid, {childList: true, subtree: true});
-        }
-        // Nothing may ever mutate at all (every block already rendered its final content
-        // server-side) - start the quiet window immediately too, not only on the observer's
-        // first callback.
-        startQuietWindow();
+        }, DASHBOARD_SETTLE_QUIET_MS);
+    };
+    const hardTimer = setTimeout(settle, DASHBOARD_SETTLE_TIMEOUT_MS);
+    if (grid) {
+        grid.addEventListener(BLOCK_CONTENT_LOADED, onContentLoaded);
+        observer = new MutationObserver(startQuietWindow);
+        observer.observe(grid, {childList: true, subtree: true});
+    }
+    // Nothing may ever mutate at all (every block already rendered its final content
+    // server-side) - start the quiet window immediately too, not only on the observer's
+    // first callback.
+    startQuietWindow();
 
+    if (script.source) {
         void requireManyAsync(['core/fragment', 'core/templates', 'core_filters/events']).then(
             ([fragment, templates, filterEvents]) => {
                 if (superseded) {
                     return undefined;
                 }
                 const processed = (fragment as {processCollectedJavascript: (source: string) => string})
-                    .processCollectedJavascript(data.javascript);
+                    .processCollectedJavascript(script.source);
                 (templates as {runTemplateJS: (source: string) => void}).runTemplateJS(processed);
                 // Tile content is injected by React rather than Templates.replaceNodeContents(), so
                 // tell the filter system about it the same way that would have: without this,
                 // filter-driven content in a block (MathJax, media players) never initialises.
-                const tiles = gridRef.current?.querySelectorAll('.core-my-dashboard-tile__content');
+                const selector = script.blocks
+                    ? script.blocks.map(id =>
+                        `.core-my-dashboard-tile[data-instance-id="${id}"] .core-my-dashboard-tile__content`).join(', ')
+                    : '.core-my-dashboard-tile__content';
+                const tiles = selector ? grid?.querySelectorAll(selector) : undefined;
                 if (tiles?.length) {
                     (filterEvents as {notifyFilterContentUpdated: (nodes: NodeListOf<Element>) => void})
                         .notifyFilterContentUpdated(tiles);
@@ -246,11 +250,39 @@ const useCollectedBlockJavascript = (
                 return undefined;
             },
         );
-        return () => {
-            superseded = true;
-            settle();
-        };
-    }, [data]);
+    }
+    return () => {
+        superseded = true;
+        settle();
+    };
+};
+
+/**
+ * Run a full dashboard load's collected block JavaScript.
+ *
+ * Keyed on the script object, not on the dashboard data: the data also changes when a block is
+ * removed or added in place, and re-running every block's initialiser then would re-fetch the
+ * content of blocks that did not change. A newer full load supersedes an older one whose script
+ * has not started yet, since it replaced the tile content that script was written to target.
+ *
+ * @param script The latest full load's collected JavaScript, or null before the first load.
+ * @param gridRef The grid element to watch for mutations under.
+ * @param onSettled Called once this load's blocks have settled, unless a newer load superseded it.
+ */
+const useCollectedBlockJavascript = (
+    script: CollectedScript | null,
+    gridRef: React.RefObject<HTMLDivElement>,
+    onSettled: () => void,
+): void => {
+    // Read through a ref so a new callback never re-runs the effect (and so the blocks' JavaScript).
+    const onSettledRef = useRef(onSettled);
+    onSettledRef.current = onSettled;
+    useEffect(() => {
+        if (!script) {
+            return undefined;
+        }
+        return runCollectedJavascript(script, gridRef.current, () => onSettledRef.current());
+    }, [script]);
 };
 
 /**
@@ -307,14 +339,29 @@ const Dashboard = ({loadingLabel = '', initialLayout = []}: DashboardProps) => {
     const [error, setError] = useState('');
     const [palette, setPalette] = useState<PaletteTarget | null>(null);
     const [confirmAction, setConfirmAction] = useState<ConfirmAction | null>(null);
-    const [saving, setSaving] = useState(false);
+    const [saveStatus, setSaveStatus] = useState<SaveStatus>('idle');
+    // Set when changes could not be sent even after retrying; the banner offers to try again.
+    const [unsaved, setUnsaved] = useState(false);
+    const [loadedScript, setLoadedScript] = useState<CollectedScript | null>(null);
+    const [addedScripts, setAddedScripts] = useState<CollectedScript[]>([]);
     const gridRef = useRef<HTMLDivElement>(null);
     const pointerRef = useRef<{x: number; y: number; moved: boolean} | null>(null);
     const interactionRef = useRef<Interaction | null>(null);
     const canonicalRef = useRef<LayoutItem[]>([]);
     const displayLayoutRef = useRef<LayoutItem[]>([]);
     const dataRef = useRef<DashboardData | null>(null);
+    // Blocks removed on screen whose removal has not reached the server yet (see retryUnsaved).
+    const unsentRemovalsRef = useRef<Set<number>>(new Set());
+    // Set just before the dashboard reloads itself on purpose, so that is not mistaken for the user
+    // leaving with changes unsent.
+    const reloadingRef = useRef(false);
     const siteDefault = isSiteDefault();
+    // Every change to the dashboard goes through this one queue: in order, merged, and retried
+    // across dropped connections (see saveQueue.ts).
+    const [queue] = useState(() => new SaveQueue({
+        sendLayout: layout => updateDashboard('save', siteDefault, layout),
+        onStatus: setSaveStatus,
+    }));
 
     // The server resolves each block's minimum size (its own Block API declaration, or the default)
     // and sends it with the payload, so the editor and the server's own validation can never
@@ -328,8 +375,9 @@ const Dashboard = ({loadingLabel = '', initialLayout = []}: DashboardProps) => {
     /**
      * Fetch a full dashboard payload and reset the canonical layout to match it.
      *
-     * Called on mount and after any server-side mutation the client cannot safely predict the
-     * result of (adding a block, removing one, resetting to the site default) - see get_dashboard.
+     * Called on mount, and to resynchronise with the server after it definitively rejected a
+     * change (so what is on screen may no longer match what is saved). Moves, resizes, additions
+     * and removals otherwise update the dashboard in place, without a reload.
      */
     const load = useCallback(async() => {
         try {
@@ -338,6 +386,12 @@ const Dashboard = ({loadingLabel = '', initialLayout = []}: DashboardProps) => {
             dataRef.current = response;
             setCanonical(response.layout);
             canonicalRef.current = response.layout;
+            unsentRemovalsRef.current = new Set();
+            setUnsaved(false);
+            setLoadedScript({
+                source: response.javascript,
+                asyncBlocks: response.blocks.filter(block => block.asynccontent).map(block => block.id),
+            });
             setError('');
             return response;
         } catch (caught) {
@@ -345,6 +399,87 @@ const Dashboard = ({loadingLabel = '', initialLayout = []}: DashboardProps) => {
             return null;
         }
     }, [siteDefault]);
+
+    /** Replace fields of the current dashboard payload without reloading it. */
+    const patchData = useCallback((patch: Partial<DashboardData>) => {
+        const current = dataRef.current;
+        if (!current) {
+            return;
+        }
+        const next = {...current, ...patch};
+        dataRef.current = next;
+        setData(next);
+    }, []);
+
+    /** Replace the canonical layout, in state and in the ref callbacks read it from. */
+    const updateCanonical = useCallback((next: LayoutItem[]) => {
+        canonicalRef.current = next;
+        setCanonical(next);
+    }, []);
+
+    /**
+     * React to a change the server did not accept.
+     *
+     * If the request never got through, even after the queue's retries, keep what is on screen and
+     * let the user try again (see retryUnsaved) rather than throwing their work away. If the server
+     * refused it, what is on screen is wrong: say why, and reload what is actually saved.
+     */
+    const handleSyncFailure = useCallback((caught: unknown) => {
+        if (isTransientError(caught)) {
+            setUnsaved(true);
+            return;
+        }
+        const message = errorMessage(caught);
+        // Show the reason once the reload is in (a successful load clears errors); if the reload
+        // itself fails, its own error is the more useful one to show.
+        void load().then(response => {
+            if (response) {
+                setError(message);
+            }
+            return undefined;
+        });
+    }, [load]);
+
+    /**
+     * Send again whatever did not get through: removals first (the layout no longer includes those
+     * blocks, so the server must lose them before it will accept it), then the current layout.
+     */
+    const retryUnsaved = useCallback(async() => {
+        setUnsaved(false);
+        try {
+            for (const id of [...unsentRemovalsRef.current]) {
+                await queue.call(() => updateDashboard('remove', siteDefault, [], '', id), true);
+                unsentRemovalsRef.current.delete(id);
+            }
+            await queue.saveLayout(canonicalRef.current);
+        } catch (caught) {
+            handleSyncFailure(caught);
+        }
+    }, [handleSyncFailure, queue, siteDefault]);
+
+    // If changes are waiting when the connection comes back, send them without being asked.
+    useEffect(() => {
+        if (!unsaved) {
+            return undefined;
+        }
+        const online = () => void retryUnsaved();
+        window.addEventListener('online', online);
+        return () => window.removeEventListener('online', online);
+    }, [retryUnsaved, unsaved]);
+
+    // Leaving the page with changes still unsent would lose them: ask first.
+    useEffect(() => {
+        if (saveStatus === 'idle' && !unsaved) {
+            return undefined;
+        }
+        const beforeUnload = (event: BeforeUnloadEvent) => {
+            if (!reloadingRef.current) {
+                event.preventDefault();
+            }
+        };
+        window.addEventListener('beforeunload', beforeUnload);
+        return () => window.removeEventListener('beforeunload', beforeUnload);
+    }, [saveStatus, unsaved]);
 
     useEffect(() => {
         void load();
@@ -383,10 +518,21 @@ const Dashboard = ({loadingLabel = '', initialLayout = []}: DashboardProps) => {
         canonicalRef.current = next;
         if (current.ownlayout && current.canedit && !siteDefault) {
             // Only so the loading skeleton matches next time; a failure here costs nothing more.
-            void updateDashboard('save', false, next).catch(() => null);
+            // Through the queue, so it can never overtake (or be overtaken by) an edit.
+            void queue.saveLayout(next).catch(() => null);
         }
-    }, [siteDefault]);
-    useCollectedBlockJavascript(data, gridRef, fitAutoHeights);
+    }, [queue, siteDefault]);
+    useCollectedBlockJavascript(loadedScript, gridRef, fitAutoHeights);
+    // A newly added block's own JavaScript runs once its tile is in the DOM, after this render.
+    // Each runs to completion: unlike a full reload, adding one block never invalidates another's.
+    // Once it settles, auto heights are fitted again, which measures the new block too.
+    useEffect(() => {
+        if (!addedScripts.length) {
+            return;
+        }
+        addedScripts.forEach(script => runCollectedJavascript(script, gridRef.current, fitAutoHeights));
+        setAddedScripts([]);
+    }, [addedScripts, fitAutoHeights]);
     const [columnCount, columnCountRef] = useResponsiveColumnCount(gridRef, data);
 
     const displayLayout = useMemo(() => packLayout(canonical, columnCount), [canonical, columnCount]);
@@ -407,6 +553,7 @@ const Dashboard = ({loadingLabel = '', initialLayout = []}: DashboardProps) => {
             );
         }).map(item => item.id));
     }, [displayLayout, interaction, previewLayout]);
+    const previewById = useMemo(() => new Map(previewLayout.map(item => [item.id, item])), [previewLayout]);
     const blocksById = useMemo(() => new Map((data?.blocks ?? []).map(block => [block.id, block])), [data]);
 
     /** Set the live region's text so screen readers announce a move/resize outcome. */
@@ -497,27 +644,27 @@ const Dashboard = ({loadingLabel = '', initialLayout = []}: DashboardProps) => {
         // Resizing a block fixes its height: it no longer follows its content.
         const next = writeBack(currentCanonical, derived, current.id, minimum).map(item =>
             current.mode === 'resize' && item.id === current.id ? {...item, autorows: false} : item);
-        setSaving(true);
+        const item = derived.find(candidate => candidate.id === current.id)!;
+
+        // Optimistic: settle the tile where it was dropped straight away, and save in the
+        // background. The layout is fully known client-side, so there is nothing to wait for.
+        updateCanonical(next);
+        interactionRef.current = null;
+        setInteraction(null);
+        void announce(current.mode === 'move' ? 'dashboardmovecommitted' : 'dashboardresizecommitted', {
+            row: item.row + 1,
+            column: item.column + 1,
+            columns: item.columns,
+            rows: item.rows,
+            disturbed,
+        });
+
         try {
-            await updateDashboard('save', siteDefault, next);
-            setCanonical(next);
-            canonicalRef.current = next;
-            const item = derived.find(candidate => candidate.id === current.id)!;
-            await announce(current.mode === 'move' ? 'dashboardmovecommitted' : 'dashboardresizecommitted', {
-                row: item.row + 1,
-                column: item.column + 1,
-                columns: item.columns,
-                rows: item.rows,
-                disturbed,
-            });
-            interactionRef.current = null;
-            setInteraction(null);
+            await queue.saveLayout(next);
         } catch (caught) {
-            setError(errorMessage(caught));
-        } finally {
-            setSaving(false);
+            handleSyncFailure(caught);
         }
-    }, [announce, siteDefault]);
+    }, [announce, handleSyncFailure, queue, updateCanonical]);
 
     /** Abandon the in-progress interaction, discarding its draft rectangle unsaved. */
     const cancel = useCallback(() => {
@@ -673,78 +820,105 @@ const Dashboard = ({loadingLabel = '', initialLayout = []}: DashboardProps) => {
         window.addEventListener('pointercancel', abort);
     }, [cancel, columnCount, commit, displayLayout, start]);
 
-    /** Delete a block instance (after the caller has already confirmed) and reload the dashboard. */
+    /**
+     * Delete a block instance, after the caller has already confirmed.
+     *
+     * Optimistic, like a move: the tile goes straight away and nothing else on the dashboard is
+     * reloaded or re-rendered. The server's reply only refreshes the palette, since removing a
+     * block that allows one instance per page makes it addable again.
+     */
     const remove = useCallback(async(id: number) => {
-        if (!data) {
+        const current = dataRef.current;
+        if (!current) {
             return;
         }
-        setSaving(true);
+        patchData({blocks: current.blocks.filter(block => block.id !== id)});
+        updateCanonical(canonicalRef.current.filter(item => item.id !== id));
+        void announce('dashboardblockremoved');
+
+        unsentRemovalsRef.current.add(id);
         try {
-            await updateDashboard('remove', siteDefault, [], '', id);
-            await load();
-            await announce('dashboardblockremoved');
+            const result = await queue.call(() => updateDashboard('remove', siteDefault, [], '', id), true);
+            unsentRemovalsRef.current.delete(id);
+            if (result.availableblocks) {
+                patchData({availableblocks: result.availableblocks});
+            }
         } catch (caught) {
-            setError(errorMessage(caught));
-        } finally {
-            setSaving(false);
+            handleSyncFailure(caught);
         }
-    }, [announce, data, load, siteDefault]);
+    }, [announce, handleSyncFailure, patchData, queue, siteDefault, updateCanonical]);
 
     /**
      * Add a new block instance, then, if the palette was opened from a specific empty cell or
-     * from the top/bottom toolbar buttons, immediately place it there instead of leaving it
-     * wherever the server appended it.
+     * from the top toolbar button, place it there instead of wherever the server appended it.
      *
-     * A newly-added block's id and default size are only known once the server responds, so this
-     * cannot be done optimistically: it reloads via load() first, finds the new block in the
-     * fresh layout, then - only if the user targeted a specific empty cell (palette.column/row) or
-     * the start of the grid (palette.position === 'start') - repacks around a pinned rectangle at
-     * that position and saves again. Opening the palette from the bottom toolbar button needs no
-     * second save: the block already lands at the bottom, which is where dashboard::add() (server
-     * side) puts it by default.
+     * A new block's id, default size and rendered content are only known once the server
+     * responds, so this cannot be drawn optimistically. But the same response carries everything
+     * needed to insert just that block (see dashboard::get_added_block()), so nothing else on the
+     * dashboard is reloaded, re-rendered or has its JavaScript run again. Opening the palette
+     * from the bottom toolbar button needs no second save: the block already lands at the
+     * bottom, which is where dashboard::add() (server side) puts it by default.
+     *
+     * Adding is the one change that is never retried automatically: if the connection drops after
+     * the server added the block but before the reply arrives, a retry would add a second one.
      */
     const add = useCallback(async(block: AvailableBlock) => {
-        if (!data) {
-            return;
-        }
-        setSaving(true);
+        const target = palette;
+        setPalette(null);
+        let result;
         try {
-            const result = await updateDashboard('add', siteDefault, [], block.name);
-            const response = await load();
-            if (response && palette && result.blockid) {
-                const item = response.layout.find(candidate => candidate.id === result.blockid);
-                if (item && palette.column !== undefined && palette.row !== undefined) {
-                    const pinned = {
-                        ...item,
-                        column: Math.min(palette.column, columnCount - Math.min(item.columns, columnCount)),
-                        row: palette.row,
-                        columns: Math.min(item.columns, columnCount),
-                    };
-                    const minimum = response.blocks.find(block => block.id === item.id)?.minsize ?? response.grid.minsize;
-                    const next = writeBack(response.layout,
-                        packWithPinned(packLayout(response.layout, columnCount), columnCount, pinned,
-                            fitMinimum(minimum, columnCount)), item.id, minimum);
-                    await updateDashboard('save', siteDefault, next);
-                    setCanonical(next);
-                    canonicalRef.current = next;
-                } else if (item && palette.position === 'start') {
-                    const minimum = response.blocks.find(block => block.id === item.id)?.minsize ?? response.grid.minsize;
-                    const next = writeBack(response.layout,
-                        packWithPinned(packLayout(response.layout, columnCount), columnCount,
-                            {...item, column: 0, row: 0}, fitMinimum(minimum, columnCount)), item.id, minimum);
-                    await updateDashboard('save', siteDefault, next);
-                    setCanonical(next);
-                    canonicalRef.current = next;
-                }
-            }
-            setPalette(null);
-            await announce('dashboardblockadded', block.title);
+            result = await queue.call(() => updateDashboard('add', siteDefault, [], block.name), false);
         } catch (caught) {
             setError(errorMessage(caught));
-        } finally {
-            setSaving(false);
+            return;
         }
-    }, [announce, columnCount, data, load, palette, siteDefault]);
+        const current = dataRef.current;
+        if (!current || !result.block || !result.layoutitem) {
+            // An older server that does not return the new block: fall back to a full reload.
+            await load();
+            return;
+        }
+        const added = result.block;
+        const item = result.layoutitem;
+        patchData({
+            blocks: [...current.blocks.filter(existing => existing.id !== added.id), added],
+            availableblocks: result.availableblocks ?? current.availableblocks,
+        });
+        const appended = [...canonicalRef.current.filter(existing => existing.id !== item.id), item];
+        updateCanonical(appended);
+        // Always queued, even with no JavaScript, so the new block is measured once it settles.
+        setAddedScripts(scripts => [...scripts, {
+            source: result.javascript ?? '',
+            asyncBlocks: added.asynccontent ? [added.id] : [],
+            blocks: [added.id],
+        }]);
+        void announce('dashboardblockadded', block.title);
+
+        const columns = columnCountRef.current;
+        let pinned: LayoutItem | null = null;
+        if (target?.column !== undefined && target.row !== undefined) {
+            pinned = {
+                ...item,
+                column: Math.min(target.column, columns - Math.min(item.columns, columns)),
+                row: target.row,
+                columns: Math.min(item.columns, columns),
+            };
+        } else if (target?.position === 'start') {
+            pinned = {...item, column: 0, row: 0};
+        }
+        if (!pinned) {
+            return;
+        }
+        const minimum = added.minsize ?? current.grid.minsize;
+        const next = writeBack(appended,
+            packWithPinned(packLayout(appended, columns), columns, pinned, fitMinimum(minimum, columns)), item.id, minimum);
+        updateCanonical(next);
+        try {
+            await queue.saveLayout(next);
+        } catch (caught) {
+            handleSyncFailure(caught);
+        }
+    }, [announce, handleSyncFailure, load, palette, patchData, queue, siteDefault, updateCanonical]);
 
     /**
      * Discard the user's own dashboard customisation and revert to the site default.
@@ -754,18 +928,17 @@ const Dashboard = ({loadingLabel = '', initialLayout = []}: DashboardProps) => {
         if (!data) {
             return;
         }
-        setSaving(true);
         try {
-            await updateDashboard('reset', false);
+            // Through the queue, so anything still being sent lands first.
+            await queue.call(() => updateDashboard('reset', false), false);
             // Reset restores the system dashboard, which also ends Moodle edit mode.
             // Reload the document to keep the server-rendered edit switch in sync.
+            reloadingRef.current = true;
             window.location.reload();
         } catch (caught) {
             setError(errorMessage(caught));
-        } finally {
-            setSaving(false);
         }
-    }, [data]);
+    }, [data, queue]);
 
     if (!data) {
         return error
@@ -777,8 +950,25 @@ const Dashboard = ({loadingLabel = '', initialLayout = []}: DashboardProps) => {
     const prospective = interaction && (layoutChanged(interaction.original, interaction.draft) ||
         (interaction.origin === 'pointer' && interaction.mode === 'resize' && interaction.drag?.shrinking))
         ? interaction.draft : undefined;
-    return <div className="core-my-dashboard-app" aria-busy={saving}>
+    const statusMessages: Record<SaveStatus, string> = {
+        idle: '',
+        saving: '',
+        offline: data.labels.saveoffline,
+        retrying: data.labels.saveretrying,
+    };
+    return <div className="core-my-dashboard-app" aria-busy={saveStatus !== 'idle'}>
         {error && <div className="alert alert-danger" role="alert">{error}</div>}
+        {unsaved && <div className="alert alert-warning core-my-dashboard-unsaved" role="alert">
+            {data.labels.savefailed}
+            <Button
+                className="ms-2"
+                variant="secondary"
+                size="sm"
+                label={data.labels.retry}
+                onClick={() => void retryUnsaved()}
+            />
+        </div>}
+        <div className="core-my-dashboard-savestatus" role="status">{statusMessages[saveStatus]}</div>
         <div className="visually-hidden" aria-live="polite" aria-atomic="true">{announcement}</div>
         {data.editing && <DashboardScopeBanner
             siteDefault={siteDefault}
@@ -824,7 +1014,13 @@ const Dashboard = ({loadingLabel = '', initialLayout = []}: DashboardProps) => {
                     /> : null;
                 })
             )}
-            {previewLayout.map(item => {
+            {/* Tiles stay in committed (reading) order while a drag previews other positions: grid
+                placement comes from each tile's own style, so DOM order need not follow the
+                preview. Reordering the DOM on every pointer move would detach and reattach tiles,
+                which restarts anything inside them that cannot survive a move (iframes, media)
+                and would make react_autoinit tear down and remount React blocks. */}
+            {displayLayout.map(committed => {
+                const item = previewById.get(committed.id) ?? committed;
                 const block = blocksById.get(item.id);
                 if (!block) {
                     return null;

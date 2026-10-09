@@ -102,12 +102,29 @@ final class update_dashboard_test extends \advanced_testcase {
         $_POST['sesskey'] = sesskey();
 
         $result = update_dashboard::execute('add', false, [], 'online_users');
+        $result = external_api::clean_returnvalue(update_dashboard::execute_returns(), $result);
         $this->assertGreaterThan(0, $result['blockid']);
         $this->assertTrue($DB->record_exists('block_instances', ['id' => $result['blockid']]));
 
+        // The new block comes back rendered, with its grid position, so the client can insert it
+        // without reloading the whole dashboard.
+        $this->assertSame($result['blockid'], $result['block']['id']);
+        $this->assertSame('online_users', $result['block']['name']);
+        $this->assertNotEmpty($result['block']['title']);
+        $this->assertSame($result['blockid'], $result['layoutitem']['id']);
+        $position = $DB->get_record('block_positions', ['blockinstanceid' => $result['blockid']], '*', MUST_EXIST);
+        $this->assertSame((int) $position->gridrow, $result['layoutitem']['row']);
+        $this->assertArrayHasKey('javascript', $result);
+        // Online users allows only one instance per page, so it is no longer offered.
+        $this->assertNotContains('online_users', array_column($result['availableblocks'], 'name'));
+
         $PAGE = new \moodle_page();
-        update_dashboard::execute('remove', false, [], '', $result['blockid']);
+        $removed = update_dashboard::execute('remove', false, [], '', $result['blockid']);
+        $removed = external_api::clean_returnvalue(update_dashboard::execute_returns(), $removed);
         $this->assertFalse($DB->record_exists('block_instances', ['id' => $result['blockid']]));
+        // ...and once removed, it is offered again.
+        $this->assertContains('online_users', array_column($removed['availableblocks'], 'name'));
+        $this->assertArrayNotHasKey('block', $removed);
     }
 
     /**

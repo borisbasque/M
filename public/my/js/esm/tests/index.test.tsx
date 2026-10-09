@@ -121,6 +121,10 @@ const labels: DashboardLabels = {
     resizecontrols: 'Resize block controls',
     resizeinstructions: 'Use the arrow keys to resize',
     right: 'Right',
+    retry: 'Retry',
+    savefailed: 'Your changes could not be saved.',
+    saveoffline: 'You are offline.',
+    saveretrying: 'Trying again.',
     scopeown: 'Editing your dashboard',
     scopesitedefault: 'Editing the default dashboard for all users',
     switchtoown: 'Switch to editing your dashboard',
@@ -203,6 +207,30 @@ const mockDashboardApi = (options: {
     return fetchOneSpy;
 };
 
+/** A rejection the server itself sent: a Moodle exception, which is never retried. */
+const serverError = (message: string) => ({message, errorcode: 'invalidparameter'});
+
+const newBlock = {
+    id: 103, name: 'calendar_month', title: 'Calendar', content: '<p>Cal</p>',
+    footer: '', region: 'content', weight: 2, actions: [], minsize: {columns: 1, rows: 2}, asynccontent: false,
+    preferredrows: null,
+};
+
+/** The server's reply to 'add': the new block, rendered, wherever it chose to put it. */
+const addResult = (layoutitem: LayoutItem, javascript = '') => ({
+    status: true,
+    blockid: 103,
+    block: newBlock,
+    layoutitem,
+    javascript,
+    availableblocks: [],
+});
+
+const updateCalls = (spy: jest.SpyInstance) => spy.mock.calls.filter(([request]) =>
+    (request as {methodname: string}).methodname === 'core_my_update_dashboard');
+const getCalls = (spy: jest.SpyInstance) => spy.mock.calls.filter(([request]) =>
+    (request as {methodname: string}).methodname === 'core_my_get_dashboard');
+
 describe('core_my Dashboard application', () => {
     it('loads and renders the dashboard from the server', async() => {
         mockDashboardApi({getResponses: [buildData()]});
@@ -246,6 +274,100 @@ describe('core_my Dashboard application', () => {
         expect(args.action).toBe('save');
         const moved = args.layout.find(item => item.id === 101);
         expect(moved).toMatchObject({column: 1, row: 0});
+    });
+
+    it('settles a committed move immediately, before the save responds', async() => {
+        let resolveSave: (value: {status: boolean; blockid: number}) => void = () => undefined;
+        mockDashboardApi({
+            getResponses: [buildData()],
+            updateImpl: () => new Promise(resolve => {
+                resolveSave = resolve;
+            }),
+        });
+
+        render(<Dashboard />);
+        await screen.findByText('First block');
+
+        const moveHandle = screen.getByRole('button', {name: 'Move First block block'});
+        fireEvent.keyDown(moveHandle, {key: ' '});
+        fireEvent.keyDown(moveHandle, {key: 'ArrowRight'});
+        await act(async() => {
+            fireEvent.keyDown(moveHandle, {key: ' '});
+        });
+
+        // The save is still pending, yet the tile already sits in its new column and the
+        // interaction has ended (the keyboard move controls are gone).
+        const firstTile = screen.getByRole('region', {name: 'First block block'});
+        expect(firstTile.style.gridColumn).toBe('2 / span 2');
+        expect(screen.queryByRole('group', {name: 'Move block controls'})).not.toBeInTheDocument();
+
+        await act(async() => {
+            resolveSave({status: true, blockid: 0});
+        });
+        expect(firstTile.style.gridColumn).toBe('2 / span 2');
+    });
+
+    it('reloads what is saved when the server rejects a committed move', async() => {
+        const fetchOneSpy = mockDashboardApi({
+            getResponses: [buildData()],
+            updateImpl: () => Promise.reject(serverError('Invalid layout')),
+        });
+
+        render(<Dashboard />);
+        await screen.findByText('First block');
+
+        const moveHandle = screen.getByRole('button', {name: 'Move First block block'});
+        fireEvent.keyDown(moveHandle, {key: ' '});
+        fireEvent.keyDown(moveHandle, {key: 'ArrowRight'});
+        await act(async() => {
+            fireEvent.keyDown(moveHandle, {key: ' '});
+        });
+
+        expect(await screen.findByText('Invalid layout')).toBeInTheDocument();
+        await waitFor(() => expect(getCalls(fetchOneSpy)).toHaveLength(2));
+        const firstTile = screen.getByRole('region', {name: 'First block block'});
+        await waitFor(() => expect(firstTile.style.gridColumn).toBe('1 / span 2'));
+        // A refusal is final: it is not retried.
+        expect(updateCalls(fetchOneSpy)).toHaveLength(1);
+    });
+
+    it('keeps a committed move on screen while offline, and sends it on reconnecting', async() => {
+        const onLine = jest.spyOn(window.navigator, 'onLine', 'get').mockReturnValue(false);
+        let attempts = 0;
+        const fetchOneSpy = mockDashboardApi({
+            getResponses: [buildData()],
+            updateImpl: () => {
+                attempts += 1;
+                return attempts === 1
+                    ? Promise.reject(new TypeError('Failed to fetch'))
+                    : Promise.resolve({status: true, blockid: 0});
+            },
+        });
+
+        render(<Dashboard />);
+        await screen.findByText('First block');
+
+        const moveHandle = screen.getByRole('button', {name: 'Move First block block'});
+        fireEvent.keyDown(moveHandle, {key: ' '});
+        fireEvent.keyDown(moveHandle, {key: 'ArrowRight'});
+        await act(async() => {
+            fireEvent.keyDown(moveHandle, {key: ' '});
+        });
+
+        expect(await screen.findByText('You are offline.')).toBeInTheDocument();
+        const firstTile = screen.getByRole('region', {name: 'First block block'});
+        expect(firstTile.style.gridColumn).toBe('2 / span 2');
+
+        onLine.mockReturnValue(true);
+        await act(async() => {
+            window.dispatchEvent(new Event('online'));
+        });
+
+        await waitFor(() => expect(updateCalls(fetchOneSpy)).toHaveLength(2));
+        await waitFor(() => expect(screen.queryByText('You are offline.')).not.toBeInTheDocument());
+        expect(firstTile.style.gridColumn).toBe('2 / span 2');
+        expect(getCalls(fetchOneSpy)).toHaveLength(1);
+        onLine.mockRestore();
     });
 
     it('discards a keyboard interaction on Escape without saving', async() => {
@@ -355,20 +477,13 @@ describe('core_my Dashboard application', () => {
     });
 
     it('places a newly added block into the specific empty cell that was clicked', async() => {
-        const newBlock = {
-            id: 103, name: 'calendar_month', title: 'Calendar', content: '<p>Cal</p>',
-            footer: '', region: 'content', weight: 2, actions: [], minsize: {columns: 1, rows: 2}, asynccontent: false,
-            preferredrows: null,
-        };
         // The server appends the new block wherever it likes (here, far from where the user
         // clicked) - the client is expected to notice and immediately re-save it into the cell.
-        const afterAdd = buildData({
-            blocks: [...buildData().blocks, newBlock],
-            layout: [...baseLayout, {id: 103, column: 0, row: 6, columns: 2, rows: 2}],
-        });
         const fetchOneSpy = mockDashboardApi({
-            getResponses: [buildData(), afterAdd],
-            updateImpl: (action) => Promise.resolve({status: true, blockid: action === 'add' ? 103 : 0}),
+            getResponses: [buildData()],
+            updateImpl: (action) => Promise.resolve(action === 'add'
+                ? addResult({id: 103, column: 0, row: 6, columns: 2, rows: 2})
+                : {status: true, blockid: 0}),
         });
 
         const {container} = render(<Dashboard />);
@@ -383,15 +498,9 @@ describe('core_my Dashboard application', () => {
         fireEvent.click(emptyCell);
         fireEvent.click(await screen.findByRole('button', {name: 'Calendar'}));
 
-        await waitFor(() => {
-            const calls = fetchOneSpy.mock.calls.filter(([request]) =>
-                (request as {methodname: string}).methodname === 'core_my_update_dashboard');
-            // Add, re-save into the clicked cell, then the new block is sized to its content.
-            expect(calls).toHaveLength(3);
-        });
-        const calls = fetchOneSpy.mock.calls.filter(([request]) =>
-            (request as {methodname: string}).methodname === 'core_my_update_dashboard');
-        const [, secondCall, thirdCall] = calls;
+        // Add, re-save into the clicked cell, then the new block is sized to its content.
+        await waitFor(() => expect(updateCalls(fetchOneSpy)).toHaveLength(3));
+        const [, secondCall, thirdCall] = updateCalls(fetchOneSpy);
         const args = (secondCall[0] as {args: {action: string; layout: LayoutItem[]}}).args;
         expect(args.action).toBe('save');
         const placed = args.layout.find(item => item.id === 103);
@@ -399,6 +508,8 @@ describe('core_my Dashboard application', () => {
         // This file stubs every element as 800px tall, so the new block measures past the cap.
         const fitted = (thirdCall[0] as {args: {layout: LayoutItem[]}}).args.layout.find(item => item.id === 103);
         expect(fitted).toMatchObject({column: 2, row: 0, rows: 8, autorows: true});
+        // Inserted from the add reply: the dashboard itself is never reloaded.
+        expect(getCalls(fetchOneSpy)).toHaveLength(1);
     });
 
     describe('content-fit sizing', () => {
@@ -477,12 +588,14 @@ describe('core_my Dashboard application', () => {
         });
     });
 
-    it('removes a block after confirmation and reloads the dashboard', async() => {
-        const afterRemoval = buildData({
-            blocks: secondBlockOnly,
-            layout: [{id: 102, column: 3, row: 0, columns: 2, rows: 2}],
+    it('removes a block straight away, without reloading the dashboard', async() => {
+        let resolveRemove: (value: unknown) => void = () => undefined;
+        const fetchOneSpy = mockDashboardApi({
+            getResponses: [buildData({availableblocks: []})],
+            updateImpl: () => new Promise(resolve => {
+                resolveRemove = resolve;
+            }) as Promise<{status: boolean; blockid: number}>,
         });
-        const fetchOneSpy = mockDashboardApi({getResponses: [buildData(), afterRemoval]});
 
         render(<Dashboard />);
         await screen.findByText('First block');
@@ -490,44 +603,58 @@ describe('core_my Dashboard application', () => {
         fireEvent.click(screen.getByRole('button', {name: 'Delete First block block'}));
         fireEvent.click(await screen.findByRole('button', {name: 'Confirm'}));
 
+        // Gone before the server has even answered.
         await waitFor(() => expect(screen.queryByText('First block')).not.toBeInTheDocument());
-
-        const removeCall = fetchOneSpy.mock.calls.find(([request]) =>
-            (request as {methodname: string}).methodname === 'core_my_update_dashboard');
-        expect((removeCall![0] as {args: {action: string; blockid: number}}).args).toMatchObject({
+        expect(screen.getByText('Second block')).toBeInTheDocument();
+        expect((updateCalls(fetchOneSpy)[0][0] as {args: {action: string; blockid: number}}).args).toMatchObject({
             action: 'remove',
             blockid: 101,
         });
-        expect(fetchOneSpy.mock.calls.filter(([request]) =>
-            (request as {methodname: string}).methodname === 'core_my_get_dashboard')).toHaveLength(2);
+
+        // The reply refreshes the palette: the removed block type can be added again.
+        await act(async() => {
+            resolveRemove({status: true, blockid: 0, availableblocks: [{name: 'html', title: 'Text'}]});
+        });
+        fireEvent.click(screen.getByRole('button', {name: labels.addblocktop}));
+        expect(await screen.findByRole('button', {name: 'Text'})).toBeInTheDocument();
+        expect(getCalls(fetchOneSpy)).toHaveLength(1);
     });
 
-    it('adds a block from the palette and reloads the dashboard', async() => {
-        const newBlock = {
-            id: 103, name: 'calendar_month', title: 'Calendar', content: '<p>Cal</p>',
-            footer: '', region: 'content', weight: 2, actions: [], minsize: {columns: 1, rows: 2}, asynccontent: false,
-            preferredrows: null,
-        };
-        const afterAdd = buildData({
-            blocks: [...buildData().blocks, newBlock],
-            layout: [...baseLayout, {id: 103, column: 0, row: 2, columns: 2, rows: 2}],
+    it('adds a block from the palette without reloading or re-running other blocks', async() => {
+        const runTemplateJS = jest.fn();
+        const notifyFilterContentUpdated = jest.fn();
+        (requireManyAsync as jest.Mock).mockImplementation(() => Promise.resolve([
+            {processCollectedJavascript: (source: string) => source},
+            {runTemplateJS},
+            {notifyFilterContentUpdated},
+        ]));
+        const fetchOneSpy = mockDashboardApi({
+            getResponses: [buildData({javascript: 'window.__ran = "initial";'})],
+            updateImpl: (action) => Promise.resolve(action === 'add'
+                ? addResult({id: 103, column: 0, row: 2, columns: 2, rows: 2}, 'window.__ran = "added";')
+                : {status: true, blockid: 0}),
         });
-        const fetchOneSpy = mockDashboardApi({getResponses: [buildData(), afterAdd]});
 
         render(<Dashboard />);
         await screen.findByText('First block');
+        await waitFor(() => expect(runTemplateJS).toHaveBeenCalledWith('window.__ran = "initial";'));
 
         fireEvent.click(screen.getByRole('button', {name: labels.addblocktop}));
         fireEvent.click(await screen.findByRole('button', {name: 'Calendar'}));
 
         expect(await screen.findByText('Calendar')).toBeInTheDocument();
-
-        const addCall = fetchOneSpy.mock.calls.find(([request]) =>
-            (request as {methodname: string}).methodname === 'core_my_update_dashboard');
-        expect((addCall![0] as {args: {action: string; blockname: string}}).args).toMatchObject({
+        expect((updateCalls(fetchOneSpy)[0][0] as {args: {action: string; blockname: string}}).args).toMatchObject({
             action: 'add',
             blockname: 'calendar_month',
         });
+        // Only the new block's own JavaScript runs; the existing blocks' does not run again.
+        await waitFor(() => expect(runTemplateJS).toHaveBeenCalledWith('window.__ran = "added";'));
+        expect(runTemplateJS).toHaveBeenCalledTimes(2);
+        expect(getCalls(fetchOneSpy)).toHaveLength(1);
+        // The filters are told about the new block's content only.
+        const lastNotified = notifyFilterContentUpdated.mock.calls.at(-1)![0] as NodeListOf<Element>;
+        expect(Array.from(lastNotified).map(node => node.closest('[data-instance-id]')?.getAttribute('data-instance-id')))
+            .toEqual(['103']);
     });
 
     it('runs only the latest reload\'s collected block JS, not a superseded one', async() => {
@@ -537,7 +664,10 @@ describe('core_my Dashboard application', () => {
             blocks: secondBlockOnly,
             layout: [{id: 102, column: 3, row: 0, columns: 2, rows: 2}],
         });
-        mockDashboardApi({getResponses: [firstData, secondData]});
+        mockDashboardApi({
+            getResponses: [firstData, secondData],
+            updateImpl: () => Promise.reject(serverError('Invalid layout')),
+        });
 
         const runTemplateJS = jest.fn();
         const processCollectedJavascript = jest.fn((source: string) => source);
@@ -557,10 +687,15 @@ describe('core_my Dashboard application', () => {
         render(<Dashboard />);
         await screen.findByText('First block');
 
-        // Trigger a second load (remove-block flow) while the first reload's collected-JS
-        // promise is still unresolved, simulating a slow first response overtaken by a second.
-        fireEvent.click(screen.getByRole('button', {name: 'Delete First block block'}));
-        fireEvent.click(await screen.findByRole('button', {name: 'Confirm'}));
+        // Trigger a second load (the server refusing a move makes the dashboard reload what is
+        // saved) while the first load's collected-JS promise is still unresolved, simulating a
+        // slow first response overtaken by a second.
+        const moveHandle = screen.getByRole('button', {name: 'Move First block block'});
+        fireEvent.keyDown(moveHandle, {key: ' '});
+        fireEvent.keyDown(moveHandle, {key: 'ArrowRight'});
+        await act(async() => {
+            fireEvent.keyDown(moveHandle, {key: ' '});
+        });
         await waitFor(() => expect(screen.queryByText('First block')).not.toBeInTheDocument());
 
         // Now let the superseded first reload's collected-JS resolve.

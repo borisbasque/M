@@ -8,6 +8,7 @@ var __name = (target, value) => __defProp(target, "name", { value, configurable:
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
 import { fetchOne } from "@moodle/lms/core/ajax";
+const UPDATE_TIMEOUT_MS = 3e4;
 const getDashboard = /* @__PURE__ */ __name((siteDefault) => fetchOne({
   methodname: "core_my_get_dashboard",
   args: { sitedefault: siteDefault }
@@ -21,8 +22,9 @@ const updateDashboard = /* @__PURE__ */ __name((action, siteDefault, layout = []
     blockname,
     blockid
   }
-}), "updateDashboard");
+}, { timeout: UPDATE_TIMEOUT_MS }), "updateDashboard");
 export {
+  UPDATE_TIMEOUT_MS,
   getDashboard,
   updateDashboard
 };

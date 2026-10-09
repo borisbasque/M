@@ -98,18 +98,24 @@ final class update_dashboard extends external_api {
         require_sesskey();
 
         $newblockid = 0;
+        $result = [];
         switch ($params['action']) {
             case 'save':
                 // Persist a full drag/resize layout, e.g. after the user releases a drag handle.
                 dashboard::save($params['sitedefault'], $params['layout']);
                 break;
             case 'add':
-                // A new block's position and rendered content are both server-assigned, so the
-                // client cannot draw it optimistically; it reloads via get_dashboard afterwards.
+                // A new block's position and rendered content are both server-assigned, so return
+                // them from this same request: the client inserts just this one block, instead of
+                // reloading (and re-running the JavaScript of) the whole dashboard.
                 $newblockid = dashboard::add($params['sitedefault'], $params['blockname']);
+                $result = dashboard::get_added_block($params['sitedefault'], $newblockid);
                 break;
             case 'remove':
+                // The client drops the tile itself; it only needs the refreshed palette, since
+                // removing a single-instance block makes it addable again.
                 dashboard::remove($params['sitedefault'], $params['blockid']);
+                $result = ['availableblocks' => dashboard::get_available_blocks_after_change($params['sitedefault'])];
                 break;
             case 'reset':
                 // Resetting a user's own dashboard means "discard my customisation and revert to
@@ -127,7 +133,7 @@ final class update_dashboard extends external_api {
                 throw new \invalid_parameter_exception('Unknown dashboard update action.');
         }
 
-        return ['status' => true, 'blockid' => $newblockid];
+        return ['status' => true, 'blockid' => $newblockid] + $result;
     }
 
     /**
@@ -139,6 +145,18 @@ final class update_dashboard extends external_api {
         return new external_single_structure([
             'status' => new external_value(PARAM_BOOL, 'Whether the action succeeded.'),
             'blockid' => new external_value(PARAM_INT, 'New block instance id, or zero.'),
+            'block' => get_dashboard::block_structure(VALUE_OPTIONAL),
+            'layoutitem' => get_dashboard::layout_item_structure(VALUE_OPTIONAL),
+            'javascript' => new external_value(
+                PARAM_RAW,
+                'Collected JavaScript requirements of the added block.',
+                VALUE_OPTIONAL,
+            ),
+            'availableblocks' => new external_multiple_structure(
+                get_dashboard::available_block_structure(),
+                'Blocks that can now be added, after an add or remove.',
+                VALUE_OPTIONAL,
+            ),
         ]);
     }
 }

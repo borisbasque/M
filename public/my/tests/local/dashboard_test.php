@@ -33,12 +33,12 @@ use PHPUnit\Framework\Attributes\CoversMethod;
 #[CoversMethod(dashboard::class, 'get')]
 final class dashboard_test extends \advanced_testcase {
     /**
-     * A user's own dashboard response is cached after the first read, and a mutation (here,
-     * saving the layout) purges it - the point of the cache is to skip re-rendering every block
-     * on every load, not to serve stale content once the dashboard actually changes.
+     * A user's own rendered blocks are cached after the first read. Saving a layout keeps that
+     * cache - layout is read fresh on every get() - so the next load still shows the new layout
+     * without re-rendering any block. Changing which blocks exist (here, adding one) purges it.
      */
-    public function test_get_caches_own_dashboard_and_save_purges_it(): void {
-        global $PAGE;
+    public function test_get_caches_blocks_but_always_reads_layout_fresh(): void {
+        global $PAGE, $USER;
 
         $this->resetAfterTest();
         $this->setAdminUser();
@@ -48,12 +48,62 @@ final class dashboard_test extends \advanced_testcase {
 
         $result = get_dashboard::execute(false);
         $result = external_api::clean_returnvalue(get_dashboard::execute_returns(), $result);
-        $this->assertNotFalse($cache->get('view'));
+        $cached = $cache->get('view');
+        $this->assertNotFalse($cached);
+        $this->assertArrayNotHasKey('layout', $cached);
+
+        // Move the first block down one row and save.
+        $layout = $result['layout'];
+        $bottom = max(array_map(static fn(array $item): int => $item['row'] + $item['rows'], $layout));
+        $moved = $layout[0]['id'];
+        $layout[0]['row'] = $bottom;
+        $PAGE = new \moodle_page();
+        dashboard::save(false, $layout);
+
+        // The rendered blocks are still cached...
+        $this->assertSame($cached, $cache->get('view'));
+
+        // ...and the next load serves them, with the saved layout.
+        $PAGE = new \moodle_page();
+        $reloaded = dashboard::get(false);
+        $this->assertSame($result['blocks'], $reloaded['blocks']);
+        $reloadeditem = array_values(array_filter($reloaded['layout'], static fn(array $item): bool => $item['id'] === $moved));
+        $this->assertSame($bottom, $reloadeditem[0]['row']);
+        $this->assertArrayNotHasKey('pageid', $reloaded);
+        $this->assertArrayNotHasKey('layoutinstances', $reloaded);
+
+        // Adding a block changes what is rendered, so it purges the cache.
+        $USER->editing = 1;
+        $PAGE = new \moodle_page();
+        dashboard::add(false, 'online_users');
+        $this->assertFalse($cache->get('view'));
+    }
+
+    /**
+     * A load served from the cache still grows a block stored below its declared minimum: the
+     * cache keeps each block's resolved minimum alongside it, since no block object is built then.
+     */
+    public function test_get_from_the_cache_still_enforces_minimum_sizes(): void {
+        global $DB, $PAGE;
+
+        $this->resetAfterTest();
+        $this->setAdminUser();
+
+        $result = get_dashboard::execute(false);
+        $calendar = array_values(array_filter($result['blocks'],
+            static fn(array $block): bool => $block['name'] === 'calendar_month'))[0];
+        $this->assertSame(4, $calendar['minsize']['rows']);
+        $this->assertNotFalse(\cache::make('core', 'my_dashboard')->get('view'));
+
+        // Store the calendar shorter than its minimum, as a layout saved before it declared one would be.
+        $DB->set_field('block_positions', 'gridrows', 2, ['blockinstanceid' => $calendar['id']]);
 
         $PAGE = new \moodle_page();
-        dashboard::save(false, $result['layout']);
-
-        $this->assertFalse($cache->get('view'));
+        $reloaded = dashboard::get(false);
+        $item = array_values(array_filter($reloaded['layout'],
+            static fn(array $item): bool => $item['id'] === $calendar['id']))[0];
+        $this->assertSame(4, $item['rows']);
+        $this->assertDebuggingNotCalled();
     }
 
     /**

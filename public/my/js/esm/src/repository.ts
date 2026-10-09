@@ -81,6 +81,10 @@ export interface DashboardLabels {
     resizecontrols: string;
     resizeinstructions: string;
     right: string;
+    retry: string;
+    savefailed: string;
+    saveoffline: string;
+    saveretrying: string;
     scopeown: string;
     scopesitedefault: string;
     switchtoown: string;
@@ -117,10 +121,26 @@ export interface DashboardData {
     labels: DashboardLabels;
 }
 
-interface UpdateResult {
+export interface UpdateResult {
     status: boolean;
     blockid: number;
+    /** After 'add': the new block, rendered. */
+    block?: DashboardBlock;
+    /** After 'add': the new block's grid rectangle. */
+    layoutitem?: LayoutItem;
+    /** After 'add': the JavaScript the new block needs to run. */
+    javascript?: string;
+    /** After 'add' or 'remove': the blocks that can now be added. */
+    availableblocks?: AvailableBlock[];
 }
+
+/**
+ * How long to wait for a dashboard change before treating it as failed, in milliseconds.
+ *
+ * Without a limit a request on a stalled connection never settles, and every change queued behind
+ * it (see saveQueue.ts) waits forever. Generous, because a slow connection is not a dead one.
+ */
+export const UPDATE_TIMEOUT_MS = 30000;
 
 export const getDashboard = (siteDefault: boolean): Promise<DashboardData> => fetchOne<DashboardData>({
     methodname: 'core_my_get_dashboard',
@@ -142,4 +162,4 @@ export const updateDashboard = (
         blockname,
         blockid,
     },
-});
+}, {timeout: UPDATE_TIMEOUT_MS});
