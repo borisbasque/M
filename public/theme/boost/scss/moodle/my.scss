@@ -1,6 +1,15 @@
 // Responsive React dashboard using Moodle Design System tokens.
+// The grid is never wider than the width at which it reaches six columns (SIX_COLUMN_THRESHOLD in
+// my/js/esm/src/layout.ts): wider still, columns only stretch, so on a very wide monitor the
+// dashboard stops there and is centred. It is a workspace rather than a reading page, so it is
+// otherwise free of Boost's limited width.
+$core-my-dashboard-grid-max-width: 1921px !default;
+
+// The page column is capped to match, so the page heading stays aligned with the grid: the grid's
+// width plus the padding Boost puts around it (layout.scss: .main-inner 0.5rem and
+// div[role="main"] 15px on each side).
 .core-my-dashboard-page #page.drawers .main-inner {
-    max-width: none;
+    max-width: calc(#{$core-my-dashboard-grid-max-width} + 1rem + 30px);
 }
 
 // core/welcome (public/lib/templates/welcome.mustache) is a shared template rendered by
@@ -20,7 +29,10 @@
 .core-my-dashboard-mount,
 .core-my-dashboard-app {
     width: 100%;
+    // Whatever the theme's padding, the grid itself never grows past six columns' width.
+    max-width: $core-my-dashboard-grid-max-width;
     min-width: 0;
+    margin-inline: auto;
 }
 
 .core-my-dashboard-loading {

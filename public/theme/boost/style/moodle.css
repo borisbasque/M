@@ -36807,7 +36807,7 @@ body.editing#page-course-learningoutcomes .activity-item:hover:not(:has(.activit
 }
 
 .core-my-dashboard-page #page.drawers .main-inner {
-  max-width: none;
+  max-width: calc(1921px + 1rem + 30px);
 }
 
 .pagelayout-mydashboard .core-welcome-message {
@@ -36823,7 +36823,9 @@ body.editing#page-course-learningoutcomes .activity-item:hover:not(:has(.activit
 .core-my-dashboard-mount,
 .core-my-dashboard-app {
   width: 100%;
+  max-width: 1921px;
   min-width: 0;
+  margin-inline: auto;
 }
 
 .core-my-dashboard-loading {
