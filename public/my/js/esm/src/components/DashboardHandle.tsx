@@ -72,7 +72,7 @@ const DashboardHandle = ({
         title={label}
         startIcon={<i
             className={`fa fa-${mode === 'move'
-                ? 'arrows-up-down-left-right'
+                ? 'grip-vertical'
                 : 'up-right-and-down-left-from-center fa-flip-horizontal'}`}
             aria-hidden="true"
         />}

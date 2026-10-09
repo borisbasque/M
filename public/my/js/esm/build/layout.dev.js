@@ -232,6 +232,30 @@ const firstFreeSpace = /* @__PURE__ */ __name((items, columnCount, columns, rows
     }
   }
 }, "firstFreeSpace");
+const emptyRegions = /* @__PURE__ */ __name((items, columnCount, rowCount) => {
+  const taken = /* @__PURE__ */ new Set();
+  items.forEach((item) => occupy(taken, item));
+  const regions = [];
+  for (let row = 0; row < rowCount; row++) {
+    for (let column = 0; column < columnCount; column++) {
+      if (taken.has(`${column}:${row}`)) {
+        continue;
+      }
+      let columns = 1;
+      while (column + columns < columnCount && !taken.has(`${column + columns}:${row}`)) {
+        columns++;
+      }
+      let rows = 1;
+      while (row + rows < rowCount && fits(taken, column, row + rows, columns, 1)) {
+        rows++;
+      }
+      const region = { column, row, columns, rows };
+      occupy(taken, { id: -1, ...region });
+      regions.push(region);
+    }
+  }
+  return regions;
+}, "emptyRegions");
 const disturbedCount = /* @__PURE__ */ __name((before, after, activeId) => {
   const positions = new Map(before.map((item) => [item.id, `${item.column}:${item.row}`]));
   return after.filter((item) => item.id !== activeId && positions.get(item.id) !== `${item.column}:${item.row}`).length;
@@ -287,6 +311,7 @@ export {
   collapseEmptyRows,
   columnsForWidth,
   disturbedCount,
+  emptyRegions,
   firstFreeSpace,
   fitMinimum,
   maxRow,

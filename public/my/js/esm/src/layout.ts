@@ -236,7 +236,7 @@ export const packLayout = (items: LayoutItem[], columnCount: number): LayoutItem
         });
 };
 
-interface GridRect {
+export interface GridRect {
     column: number;
     row: number;
     columns: number;
@@ -438,6 +438,42 @@ export const firstFreeSpace = (
             }
         }
     }
+};
+
+/**
+ * Group the grid's empty cells into rectangles, so each empty region is one target, not one per cell.
+ *
+ * Scans in reading order: each empty cell not yet in a region starts one, which grows right while
+ * the cells are empty, then down while the whole width of the next row is.
+ *
+ * @param items The layout.
+ * @param columnCount The grid's column count.
+ * @param rowCount How many rows the grid shows.
+ * @return The regions, in reading order.
+ */
+export const emptyRegions = (items: LayoutItem[], columnCount: number, rowCount: number): GridRect[] => {
+    const taken = new Set<string>();
+    items.forEach(item => occupy(taken, item));
+    const regions: GridRect[] = [];
+    for (let row = 0; row < rowCount; row++) {
+        for (let column = 0; column < columnCount; column++) {
+            if (taken.has(`${column}:${row}`)) {
+                continue;
+            }
+            let columns = 1;
+            while (column + columns < columnCount && !taken.has(`${column + columns}:${row}`)) {
+                columns++;
+            }
+            let rows = 1;
+            while (row + rows < rowCount && fits(taken, column, row + rows, columns, 1)) {
+                rows++;
+            }
+            const region = {column, row, columns, rows};
+            occupy(taken, {id: -1, ...region});
+            regions.push(region);
+        }
+    }
+    return regions;
 };
 
 export const disturbedCount = (before: LayoutItem[], after: LayoutItem[], activeId: number): number => {

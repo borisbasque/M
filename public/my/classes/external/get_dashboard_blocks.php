@@ -59,7 +59,7 @@ final class get_dashboard_blocks extends external_api {
      * @return array
      */
     public static function execute(): array {
-        global $USER;
+        global $PAGE, $USER;
 
         self::validate_parameters(self::execute_parameters(), []);
         $context = \context_user::instance($USER->id);
@@ -72,7 +72,9 @@ final class get_dashboard_blocks extends external_api {
             $layoutbyid[$item['id']] = $item;
         }
 
-        $blocks = $dashboard['blocks'];
+        // The web dashboard loads each block's content on its own; the app gets them all at once.
+        $PAGE = new \moodle_page();
+        $blocks = dashboard::get_rendered_blocks();
         usort($blocks, static function (array $left, array $right) use ($layoutbyid): int {
             $leftposition = $layoutbyid[$left['id']] ?? ['row' => 0, 'column' => 0];
             $rightposition = $layoutbyid[$right['id']] ?? ['row' => 0, 'column' => 0];

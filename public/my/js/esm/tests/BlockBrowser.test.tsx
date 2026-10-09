@@ -20,7 +20,7 @@
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
 
-import {fireEvent, render, screen, within} from '@testing-library/react';
+import {act, fireEvent, render, screen, within} from '@testing-library/react';
 import type React from 'react';
 import BlockBrowser, {initialsFor} from '../src/components/BlockBrowser';
 import type {AvailableBlock, DashboardLabels} from '../src/repository';
@@ -43,7 +43,9 @@ jest.mock('@moodlehq/design-system', () => {
             return <div className="mds-choicebox-wrapper">
                 <input type="radio" className="mds-choicebox-input" id={id} aria-describedby={`${id}-text`} {...props} />
                 <label className="mds-choicebox" htmlFor={id}>
-                    <span className="mds-choicebox-icon" aria-hidden="true">{icon}</span>
+                    {/* As the real Choicebox: only an <i> or <svg> element is used as the icon. */}
+                    {icon && (icon.type === 'i' || icon.type === 'svg')
+                        && <span className="mds-choicebox-icon" aria-hidden="true">{icon}</span>}
                     <span className="mds-choicebox-label">{label}</span>
                     <span id={`${id}-text`} className="mds-choicebox-supporting-text">{supportingText}</span>
                 </label>
@@ -121,6 +123,24 @@ describe('core_my block browser', () => {
         expect(within(group).queryByRole('radio', {name: /^Timeline/})).not.toBeInTheDocument();
         expect(screen.getByRole('status')).toHaveTextContent(
             '3 blocks you can add. Blocks already on your dashboard aren\'t listed.');
+    });
+
+    it('shows a block\'s own icon in the card\'s icon slot', () => {
+        renderBrowser();
+
+        const radio = screen.getByRole('radio', {name: /^Calendar/});
+        expect(radio.closest('.mds-choicebox-wrapper')!.querySelector('.mds-choicebox-icon .fa-star')).toBeInTheDocument();
+    });
+
+    it('falls back to initials when a block\'s image icon cannot load', () => {
+        renderBrowser({blocks: [block('progress', 'Completion progress', {iconhtml: '<img src="https://example.invalid/x.png" alt="">'})]});
+
+        const slot = screen.getByRole('radio', {name: /^Completion progress/}).closest('.mds-choicebox-wrapper')!
+            .querySelector('.mds-choicebox-icon')!;
+        act(() => {
+            slot.querySelector('img')!.dispatchEvent(new Event('error'));
+        });
+        expect(slot).toHaveTextContent('CP');
     });
 
     it('falls back to initials and a generic description for a block that declares neither', () => {

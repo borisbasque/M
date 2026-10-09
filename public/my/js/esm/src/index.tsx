@@ -18,6 +18,7 @@ import {Badge, Button, Link} from '@moodlehq/design-system';
 import {getString} from '@moodle/lms/core/stringUtils';
 import {requireManyAsync} from '@moodle/lms/core/amd';
 import Pending from '@moodle/lms/core/pending';
+import {redirect} from '@moodle/lms/core/location';
 import Toast, {type ToastAction, type ToastMessage} from '@moodle/lms/core/Toast';
 import DashboardTile from './components/DashboardTile';
 import ConfirmationDialog from './components/ConfirmationDialog';
@@ -26,6 +27,7 @@ import GridCell from './components/GridCell';
 import DashboardLoading from './components/DashboardLoading';
 import {
     columnsForWidth,
+    emptyRegions,
     applyRowSpans,
     firstFreeSpace,
     collapseEmptyRows,
@@ -44,14 +46,17 @@ import {
 import {
     beaconRemoval,
     getDashboard,
+    getDashboardBlock,
     updateDashboard,
     type AvailableBlock,
+    type DashboardBlockContent,
     type DashboardData,
     type DashboardLabels,
     type DashboardUrls,
     type UpdateResult,
 } from './repository';
 import {SaveQueue, isTransientError, type SaveStatus} from './saveQueue';
+import {BlockLoader} from './blockLoader';
 
 /**
  * Turn a rejection into readable text.
@@ -120,6 +125,9 @@ interface PointerDrag {
 interface PaletteTarget {
     column?: number;
     row?: number;
+    // The empty region picked, which a block added there fills.
+    columns?: number;
+    rows?: number;
 }
 
 // Removing a block can be undone, so only resetting the dashboard still asks first.
@@ -169,6 +177,9 @@ interface CollectedScript {
     asyncBlocks: number[];
     // The blocks whose tiles the script belongs to, or undefined for every tile on the grid.
     blocks?: number[];
+    // Held since the block's content was requested, and released once its script has started
+    // (which holds its own until the block settles), so nothing waiting on the page sees a gap.
+    pending?: Pending;
 }
 
 /**
@@ -356,9 +367,11 @@ interface DashboardProps {
     initialLayout?: LayoutItem[];
     // Open the block browser once loaded: Edit mode was turned on to add a block (see my/index.php).
     openBrowser?: boolean;
+    // The dashboard, sent with the page so the first view needs no request for it (see my/index.php).
+    initialData?: DashboardData | null;
 }
 
-const Dashboard = ({loadingLabel = '', initialLayout = [], openBrowser = false}: DashboardProps) => {
+const Dashboard = ({loadingLabel = '', initialLayout = [], openBrowser = false, initialData = null}: DashboardProps) => {
     const [data, setData] = useState<DashboardData | null>(null);
     const [canonical, setCanonical] = useState<LayoutItem[]>([]);
     const [interaction, setInteraction] = useState<Interaction | null>(null);
@@ -440,22 +453,29 @@ const Dashboard = ({loadingLabel = '', initialLayout = [], openBrowser = false}:
      * change (so what is on screen may no longer match what is saved). Moves, resizes, additions
      * and removals otherwise update the dashboard in place, without a reload.
      */
+    // Used once, for the first view; every later reload (after a reset, a conflict with another
+    // window or a refused change) asks the server again.
+    const initialDataRef = useRef(initialData);
     const load = useCallback(async() => {
         try {
-            const response = await getDashboard(siteDefault);
+            const response = initialDataRef.current ?? await getDashboard(siteDefault);
+            initialDataRef.current = null;
             setData(response);
             dataRef.current = response;
             setCanonical(response.layout);
             canonicalRef.current = response.layout;
             revisionRef.current = response.revision;
+            settledRef.current = new Set();
+            measuredRef.current = new Set();
             unsentRemovalsRef.current = new Set();
             pendingRemovalRef.current = null;
             setHiddenIds(new Set());
             setUnsaved(false);
             setLoadedScript({
                 source: response.javascript,
-                asyncBlocks: response.blocks.filter(block => block.asynccontent).map(block => block.id),
+                asyncBlocks: response.blocks.filter(block => block.asynccontent && block.loaded).map(block => block.id),
             });
+            startLoadingBlocks(response);
             setError('');
             return response;
         } catch (caught) {
@@ -463,6 +483,55 @@ const Dashboard = ({loadingLabel = '', initialLayout = [], openBrowser = false}:
             return null;
         }
     }, [siteDefault]);
+
+    /**
+     * Load each block's content on its own, after the layout, a few at a time, visible blocks first
+     * (see blockLoader.ts). A newer full load stops an older one's loading.
+     */
+    const loaderRef = useRef<BlockLoader<DashboardBlockContent & {pending: Pending}> | null>(null);
+    const startLoadingBlocks = (response: DashboardData) => {
+        loaderRef.current?.stop();
+        const loader = new BlockLoader<DashboardBlockContent & {pending: Pending}>({
+            fetch: id => {
+                const pending = new Pending(`core_my/dashboard:block:${id}`);
+                return getDashboardBlock(siteDefault, id).then(
+                    result => ({...result, pending}),
+                    error => {
+                        pending.resolve();
+                        throw error;
+                    },
+                );
+            },
+            onLoaded: (id, {block, javascript, pending}) => {
+                const current = dataRef.current;
+                if (!current) {
+                    pending.resolve();
+                    return;
+                }
+                // A block with nothing to show the viewer has no tile, as on the classic dashboard.
+                patchDataRef.current({blocks: block
+                    ? current.blocks.map(existing => existing.id === id ? {...existing, ...block, loaded: true} : existing)
+                    : current.blocks.filter(existing => existing.id !== id)});
+                setAddedScripts(scripts => [...scripts, {
+                    source: block ? javascript : '',
+                    asyncBlocks: block?.asynccontent ? [id] : [],
+                    blocks: [id],
+                    pending,
+                }]);
+            },
+            onFailed: id => {
+                const current = dataRef.current;
+                if (current) {
+                    patchDataRef.current({blocks: current.blocks.map(existing => existing.id === id
+                        ? {...existing, content: '', footer: '', loaded: true, failed: true} : existing)});
+                }
+            },
+        });
+        loaderRef.current = loader;
+        // Reading order, which is the layout's own order: the top of the page loads first.
+        const waiting = new Set(response.blocks.filter(block => !block.loaded).map(block => block.id));
+        loader.enqueue(response.layout.map(item => item.id).filter(id => waiting.has(id)));
+    };
 
     /** Replace fields of the current dashboard payload without reloading it. */
     const patchData = useCallback((patch: Partial<DashboardData>) => {
@@ -474,6 +543,20 @@ const Dashboard = ({loadingLabel = '', initialLayout = [], openBrowser = false}:
         dataRef.current = next;
         setData(next);
     }, []);
+    const patchDataRef = useRef(patchData);
+
+    // A block scrolled into view jumps the queue of blocks waiting for their content.
+    useEffect(() => {
+        const grid = gridRef.current;
+        if (!grid || typeof IntersectionObserver === 'undefined') {
+            return undefined;
+        }
+        const observer = new IntersectionObserver(entries => entries
+            .filter(entry => entry.isIntersecting)
+            .forEach(entry => loaderRef.current?.prioritise(Number((entry.target as HTMLElement).dataset.instanceId))));
+        grid.querySelectorAll('.core-my-dashboard-tile[aria-busy="true"]').forEach(tile => observer.observe(tile));
+        return () => observer.disconnect();
+    }, [data]);
 
     /** Replace the canonical layout, in state and in the ref callbacks read it from. */
     const updateCanonical = useCallback((next: LayoutItem[]) => {
@@ -653,23 +736,33 @@ const Dashboard = ({loadingLabel = '', initialLayout = [], openBrowser = false}:
     // content is in place: at its current width, rounded up to whole rows, between its minimum and
     // the cap. A declared preferred height wins over measuring. Only blocks in the way move, and only
     // down. The result is saved only to the viewer's own stored dashboard, and only when it changed.
-    const fittedFor = useRef<DashboardData | null>(null);
-    const fitAutoHeights = useCallback(() => {
+    // Blocks whose content has settled, and blocks already measured, since the last full load: each
+    // block is measured once, after its own content is in place, whichever order blocks load in.
+    const settledRef = useRef(new Set<number>());
+    const measuredRef = useRef(new Set<number>());
+    const fitAutoHeights = useCallback((settled?: number[]) => {
         const current = dataRef.current;
         const grid = gridRef.current;
-        if (!current || !grid || fittedFor.current === current || interactionRef.current) {
+        if (!current || !grid) {
             return;
         }
-        fittedFor.current = current;
+        (settled ?? current.blocks.filter(block => block.loaded).map(block => block.id))
+            .forEach(id => settledRef.current.add(id));
+        if (interactionRef.current) {
+            return;
+        }
         const metrics = readGridMetrics(grid);
         const blocks = new Map(current.blocks.map(block => [block.id, block]));
         const rows = new Map<number, number>();
         canonicalRef.current.forEach(item => {
             const block = blocks.get(item.id);
             const tile = grid.querySelector<HTMLElement>(`.core-my-dashboard-tile[data-instance-id="${item.id}"]`);
-            if (item.autorows === false || !block || !tile) {
+            // A block is measured once its own content has settled, and only once per load.
+            if (item.autorows === false || !block || !block.loaded || !tile
+                    || !settledRef.current.has(item.id) || measuredRef.current.has(item.id)) {
                 return;
             }
+            measuredRef.current.add(item.id);
             rows.set(item.id, block.preferredrows ?? rowsForHeight(
                 measureNaturalHeight(tile), metrics, block.minsize.rows, current.grid.autorowscap,
             ));
@@ -694,7 +787,10 @@ const Dashboard = ({loadingLabel = '', initialLayout = [], openBrowser = false}:
         if (!addedScripts.length) {
             return;
         }
-        addedScripts.forEach(script => runCollectedJavascript(script, gridRef.current, fitAutoHeights));
+        addedScripts.forEach(script => {
+            runCollectedJavascript(script, gridRef.current, () => fitAutoHeights(script.blocks));
+            script.pending?.resolve();
+        });
         setAddedScripts([]);
     }, [addedScripts, fitAutoHeights]);
     const [columnCount, columnCountRef] = useResponsiveColumnCount(gridRef, data);
@@ -1363,13 +1459,16 @@ const Dashboard = ({loadingLabel = '', initialLayout = [], openBrowser = false}:
 
         const columns = columnCountRef.current ?? 1;
         const others = canonicalRef.current.filter(existing => existing.id !== item.id);
-        const width = Math.min(item.columns, columns);
+        const minimum = added.minsize ?? current.grid.minsize;
         const targeted = target?.column !== undefined && target.row !== undefined;
+        // A block added to an empty region fills its width, but never goes below its own minimum.
+        const width = Math.min(columns, targeted && target.columns
+            ? Math.max(target.columns, minimum.columns)
+            : item.columns);
         const place = targeted
             ? {column: Math.min(target.column!, columns - width), row: target.row!}
             : firstFreeSpace(packLayout(others, columns), columns, width, item.rows);
         const pinned: LayoutItem = {...item, ...place, columns: width};
-        const minimum = added.minsize ?? current.grid.minsize;
         const appended = [...others, item];
         const next = writeBack(appended,
             packWithPinned(packLayout(appended, columns), columns, pinned, fitMinimum(minimum, columns)), item.id, minimum);
@@ -1448,10 +1547,55 @@ const Dashboard = ({loadingLabel = '', initialLayout = [], openBrowser = false}:
     const prospective = interaction && (layoutChanged(interaction.original, interaction.draft) ||
         (interaction.origin === 'pointer' && interaction.mode === 'resize' && interaction.drag?.shrinking))
         ? interaction.draft : undefined;
+    const renderTile = (committed: LayoutItem, hidden: boolean) => {
+        const item = previewById.get(committed.id) ?? committed;
+        const block = blocksById.get(item.id);
+        if (!block) {
+            return null;
+        }
+        return <DashboardTile
+            key={item.id}
+            block={block}
+            item={item}
+            labels={data.labels}
+            editing={data.editing}
+            hidden={hidden}
+            tapping={interaction?.id === item.id && interaction.origin === 'mouseclick'}
+            activeMode={interaction?.id === item.id ? interaction.mode : undefined}
+            showControls={interaction?.id === item.id && interaction.origin === 'keyboard'}
+            drag={interaction?.id === item.id ? interaction.drag : undefined}
+            dragOrigin={interaction?.id === item.id ? interaction.original : undefined}
+            shouldAnimatePosition={interaction?.origin === 'pointer' && interaction.id !== item.id}
+            isBumped={bumpedBlockIds.has(item.id)}
+            highlighted={highlightId === item.id}
+            onStart={start}
+            onKeyDown={keyDown}
+            onPointerDown={pointerDown}
+            onDirection={shift}
+            onCommit={() => void commit()}
+            onRemove={id => void remove(id)}
+        />;
+    };
+    const regions = data.editing && !interaction ? emptyRegions(displayLayout, columnCount, rows) : [];
+    const gridChildren = [
+        ...displayLayout.map(committed => ({row: committed.row, column: committed.column, node: renderTile(committed, false)})),
+        ...regions.map(region => ({row: region.row, column: region.column, node: <GridCell
+            key={`region:${region.column}:${region.row}`}
+            {...region}
+            label={data.labels.emptyregion}
+            addLabel={data.labels.addblockhere}
+            onActivate={(column, row, columns, regionRows) => setPalette({column, row, columns, rows: regionRows})}
+        />})),
+    ].sort((left, right) => left.row - right.row || left.column - right.column).map(child => child.node);
+    // Tiles stay in the page while their removal can still be undone, hidden, after everything else.
+    hiddenIds.forEach(id => gridChildren.push(renderTile({id, column: 0, row: 0, columns: 1, rows: 1}, true)));
+
     // With no blocks, the grid gives way to a message and a clear way forward. Adding a block from
     // view mode turns Edit mode on first, and opens the browser once there.
     const empty = displayLayout.length === 0;
     const addBlockUrl = `${siteDefault ? data.urls.sitedefault : data.urls.ownpage}?edit=1&addblock=1`;
+    // Done leaves Edit mode the way the page's own Edit mode switch does.
+    const doneUrl = `${siteDefault ? data.urls.sitedefault : data.urls.ownpage}?edit=0`;
     // Being offline is said by a toast (see the saveStatus effect); only retrying is said here.
     const statusMessages: Record<SaveStatus, string> = {
         idle: '',
@@ -1459,11 +1603,6 @@ const Dashboard = ({loadingLabel = '', initialLayout = [], openBrowser = false}:
         offline: '',
         retrying: data.labels.saveretrying,
     };
-    // Tiles stay in the page while their removal can still be undone, hidden, after the visible ones.
-    const tiles: Array<{committed: LayoutItem; hidden: boolean}> = [
-        ...displayLayout.map(committed => ({committed, hidden: false})),
-        ...[...hiddenIds].map(id => ({committed: {id, column: 0, row: 0, columns: 1, rows: 1}, hidden: true})),
-    ];
     return <div className="core-my-dashboard-app" aria-busy={saveStatus !== 'idle'}>
         {error && <div className="alert alert-danger" role="alert">{error}</div>}
         {unsaved && <div className="alert alert-warning core-my-dashboard-unsaved" role="alert">
@@ -1485,24 +1624,33 @@ const Dashboard = ({loadingLabel = '', initialLayout = [], openBrowser = false}:
             labels={data.labels}
         />}
         {data.editing && <div className="core-my-dashboard-toolbar">
-            <Button
-                ref={addButtonRef}
-                variant="primary"
-                label={data.labels.addblock}
-                onClick={() => setPalette({})}
-            />
-            <Button
-                variant="ghost"
-                label={data.labels.undo}
-                startIcon={<i className="fa fa-rotate-left" aria-hidden="true" />}
-                disabled={historySize === 0}
-                onClick={() => void undo()}
-            />
-            {!siteDefault && <Button
-                variant="outline-danger"
-                label={data.labels.reset}
-                onClick={() => setConfirmAction({type: 'reset'})}
-            />}
+            <p className="core-my-dashboard-toolbar__notice">{data.labels.editingnotice}</p>
+            <div className="core-my-dashboard-toolbar__actions">
+                {!siteDefault && <Button
+                    variant="ghost"
+                    label={data.labels.reset}
+                    onClick={() => setConfirmAction({type: 'reset'})}
+                />}
+                <Button
+                    variant="ghost"
+                    label={data.labels.undo}
+                    startIcon={<i className="fa fa-rotate-left" aria-hidden="true" />}
+                    disabled={historySize === 0}
+                    onClick={() => void undo()}
+                />
+                <Button
+                    variant="secondary"
+                    label={data.labels.done}
+                    onClick={() => redirect(doneUrl)}
+                />
+                <Button
+                    ref={addButtonRef}
+                    variant="primary"
+                    label={data.labels.addblock}
+                    startIcon={<i className="fa fa-plus" aria-hidden="true" />}
+                    onClick={() => setPalette({})}
+                />
+            </div>
         </div>}
         {empty && data.canedit && <div className="core-my-dashboard-empty">
             <p>{data.labels.empty}</p>
@@ -1521,67 +1669,33 @@ const Dashboard = ({loadingLabel = '', initialLayout = [], openBrowser = false}:
             ref={gridRef}
             hidden={empty || undefined}
             className="core-my-dashboard-grid"
+            role="group"
+            aria-label={data.labels.dashboardblocks}
             style={{
                 gridTemplateColumns: `repeat(${columnCount}, minmax(0, 1fr))`,
                 gridTemplateRows: `repeat(${rows}, var(--core-my-dashboard-row-height))`,
             }}
             data-columns={columnCount}
         >
-            {data.editing && Array.from({length: rows}, (_, row) =>
-                Array.from({length: columnCount}, (__, column) => {
-                    const isProspective = Boolean(prospective
-                        && column >= prospective.column && column < prospective.column + prospective.columns
-                        && row >= prospective.row && row < prospective.row + prospective.rows);
-                    const isOccupied = previewLayout.some(item =>
-                        column >= item.column && column < item.column + item.columns
-                        && row >= item.row && row < item.row + item.rows
-                    );
-                    return !isOccupied || isProspective ? <GridCell
-                        key={`${column}:${row}`}
-                        column={column}
-                        row={row}
-                        label={data.labels.emptycell}
-                        positionLabel={data.labels.gridcell}
-                        addLabel={data.labels.addblock}
-                        prospective={isProspective}
-                        onActivate={(targetColumn, targetRow) => setPalette({column: targetColumn, row: targetRow})}
-                    /> : null;
-                })
-            )}
-            {/* Tiles stay in committed (reading) order while a drag previews other positions: grid
-                placement comes from each tile's own style, so DOM order need not follow the
-                preview. Reordering the DOM on every pointer move would detach and reattach tiles,
-                which restarts anything inside them that cannot survive a move (iframes, media)
-                and would make react_autoinit tear down and remount React blocks. */}
-            {tiles.map(({committed, hidden}) => {
-                const item = previewById.get(committed.id) ?? committed;
-                const block = blocksById.get(item.id);
-                if (!block) {
-                    return null;
-                }
-                return <DashboardTile
-                    key={item.id}
-                    block={block}
-                    item={item}
-                    labels={data.labels}
-                    editing={data.editing}
-                    hidden={hidden}
-                    tapping={interaction?.id === item.id && interaction.origin === 'mouseclick'}
-                    activeMode={interaction?.id === item.id ? interaction.mode : undefined}
-                    showControls={interaction?.id === item.id && interaction.origin === 'keyboard'}
-                    drag={interaction?.id === item.id ? interaction.drag : undefined}
-                    dragOrigin={interaction?.id === item.id ? interaction.original : undefined}
-                    shouldAnimatePosition={interaction?.origin === 'pointer' && interaction.id !== item.id}
-                    isBumped={bumpedBlockIds.has(item.id)}
-                    highlighted={highlightId === item.id}
-                    onStart={start}
-                    onKeyDown={keyDown}
-                    onPointerDown={pointerDown}
-                    onDirection={shift}
-                    onCommit={() => void commit()}
-                    onRemove={id => void remove(id)}
-                />;
-            })}
+            {/* Tiles and empty regions in reading order, so Tab order and screen reader order match
+                what is on screen. Tiles stay in committed order while a drag previews other
+                positions: grid placement comes from each tile's own style, so DOM order need not
+                follow the preview. Reordering the DOM on every pointer move would detach and
+                reattach tiles, which restarts anything inside them that cannot survive a move
+                (iframes, media) and would make react_autoinit tear down and remount React blocks.
+                Empty regions are left out while a block is picked up for the same reason; the
+                cells it would take are shown instead. */}
+            {gridChildren}
+            {prospective && <GridCell
+                key="prospective"
+                column={prospective.column}
+                row={prospective.row}
+                columns={prospective.columns}
+                rows={prospective.rows}
+                label=""
+                addLabel=""
+                prospective
+            />}
         </div>
         {data.editing && !empty && <div className="core-my-dashboard-toolbar core-my-dashboard-toolbar--bottom">
             <Button
@@ -1595,7 +1709,7 @@ const Dashboard = ({loadingLabel = '', initialLayout = [], openBrowser = false}:
             labels={data.labels}
             blocks={data.availableblocks}
             targeted={palette.column !== undefined}
-            discoverUrl={null}
+            discoverUrl={data.discoverurl}
             onInsert={block => void add(block)}
             onClose={() => setPalette(null)}
         />}

@@ -67,8 +67,11 @@ final class get_dashboard_test extends \advanced_testcase {
         foreach ($result['blocks'] as $block) {
             $this->assertNull($block['preferredrows'], "{$block['name']} declares no preferred height.");
         }
-        $this->assertArrayHasKey('javascript', $result);
-        $this->assertStringContainsString('block_recentlyaccesseditems/main', $result['javascript']);
+        // No block is rendered here: each block, and its JavaScript, loads on its own.
+        $this->assertSame('', $result['javascript']);
+        foreach ($result['blocks'] as $block) {
+            $this->assertFalse($block['loaded']);
+        }
         $this->assertSame('Add a block', $result['labels']['addblock']);
         $this->assertStringContainsString('arrow keys', $result['labels']['moveinstructions']);
         $this->assertStringContainsString('arrow keys', $result['labels']['resizeinstructions']);
@@ -138,8 +141,6 @@ final class get_dashboard_test extends \advanced_testcase {
             ]);
         }
 
-        // The positions were written behind the dashboard's back, so drop its cached response.
-        \cache::make('core', 'my_dashboard')->purge();
         $PAGE = new \moodle_page();
         $result = external_api::clean_returnvalue(get_dashboard::execute_returns(), get_dashboard::execute(false));
         $layout = array_column($result['layout'], null, 'id');

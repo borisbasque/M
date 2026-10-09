@@ -13,6 +13,7 @@ import { Badge, Button, Link } from "@moodlehq/design-system";
 import { getString } from "@moodle/lms/core/stringUtils";
 import { requireManyAsync } from "@moodle/lms/core/amd";
 import Pending from "@moodle/lms/core/pending";
+import { redirect } from "@moodle/lms/core/location";
 import Toast from "@moodle/lms/core/Toast";
 import DashboardTile from "./components/DashboardTile";
 import ConfirmationDialog from "./components/ConfirmationDialog";
@@ -21,6 +22,7 @@ import GridCell from "./components/GridCell";
 import DashboardLoading from "./components/DashboardLoading";
 import {
   columnsForWidth,
+  emptyRegions,
   applyRowSpans,
   firstFreeSpace,
   collapseEmptyRows,
@@ -37,9 +39,11 @@ import {
 import {
   beaconRemoval,
   getDashboard,
+  getDashboardBlock,
   updateDashboard
 } from "./repository";
 import { SaveQueue, isTransientError } from "./saveQueue";
+import { BlockLoader } from "./blockLoader";
 const errorMessage = /* @__PURE__ */ __name((caught) => {
   if (caught instanceof Error) {
     return caught.message;
@@ -62,7 +66,7 @@ const DashboardScopeBanner = /* @__PURE__ */ __name(({ siteDefault, caneditother
     false,
     {
       fileName: "public/my/js/esm/src/index.tsx",
-      lineNumber: 88,
+      lineNumber: 93,
       columnNumber: 9
     }
   ),
@@ -77,13 +81,13 @@ const DashboardScopeBanner = /* @__PURE__ */ __name(({ siteDefault, caneditother
     false,
     {
       fileName: "public/my/js/esm/src/index.tsx",
-      lineNumber: 94,
+      lineNumber: 99,
       columnNumber: 31
     }
   )
 ] }, void 0, true, {
   fileName: "public/my/js/esm/src/index.tsx",
-  lineNumber: 87,
+  lineNumber: 92,
   columnNumber: 5
 }), "DashboardScopeBanner");
 const HISTORY_LIMIT = 50;
@@ -196,7 +200,7 @@ const useResponsiveColumnCount = /* @__PURE__ */ __name((gridRef, data) => {
   }, [data]);
   return [columnCount, columnCountRef];
 }, "useResponsiveColumnCount");
-const Dashboard = /* @__PURE__ */ __name(({ loadingLabel = "", initialLayout = [], openBrowser = false }) => {
+const Dashboard = /* @__PURE__ */ __name(({ loadingLabel = "", initialLayout = [], openBrowser = false, initialData = null }) => {
   const [data, setData] = useState(null);
   const [canonical, setCanonical] = useState([]);
   const [interaction, setInteraction] = useState(null);
@@ -246,22 +250,27 @@ const Dashboard = /* @__PURE__ */ __name(({ loadingLabel = "", initialLayout = [
     const current = dataRef.current;
     return current?.blocks.find((block) => block.id === id)?.minsize ?? current?.grid.minsize ?? { columns: 1, rows: 1 };
   }, []);
+  const initialDataRef = useRef(initialData);
   const load = useCallback(async () => {
     try {
-      const response = await getDashboard(siteDefault);
+      const response = initialDataRef.current ?? await getDashboard(siteDefault);
+      initialDataRef.current = null;
       setData(response);
       dataRef.current = response;
       setCanonical(response.layout);
       canonicalRef.current = response.layout;
       revisionRef.current = response.revision;
+      settledRef.current = /* @__PURE__ */ new Set();
+      measuredRef.current = /* @__PURE__ */ new Set();
       unsentRemovalsRef.current = /* @__PURE__ */ new Set();
       pendingRemovalRef.current = null;
       setHiddenIds(/* @__PURE__ */ new Set());
       setUnsaved(false);
       setLoadedScript({
         source: response.javascript,
-        asyncBlocks: response.blocks.filter((block) => block.asynccontent).map((block) => block.id)
+        asyncBlocks: response.blocks.filter((block) => block.asynccontent && block.loaded).map((block) => block.id)
       });
+      startLoadingBlocks(response);
       setError("");
       return response;
     } catch (caught) {
@@ -269,6 +278,45 @@ const Dashboard = /* @__PURE__ */ __name(({ loadingLabel = "", initialLayout = [
       return null;
     }
   }, [siteDefault]);
+  const loaderRef = useRef(null);
+  const startLoadingBlocks = /* @__PURE__ */ __name((response) => {
+    loaderRef.current?.stop();
+    const loader = new BlockLoader({
+      fetch: /* @__PURE__ */ __name((id) => {
+        const pending = new Pending(`core_my/dashboard:block:${id}`);
+        return getDashboardBlock(siteDefault, id).then(
+          (result) => ({ ...result, pending }),
+          (error2) => {
+            pending.resolve();
+            throw error2;
+          }
+        );
+      }, "fetch"),
+      onLoaded: /* @__PURE__ */ __name((id, { block, javascript, pending }) => {
+        const current = dataRef.current;
+        if (!current) {
+          pending.resolve();
+          return;
+        }
+        patchDataRef.current({ blocks: block ? current.blocks.map((existing) => existing.id === id ? { ...existing, ...block, loaded: true } : existing) : current.blocks.filter((existing) => existing.id !== id) });
+        setAddedScripts((scripts) => [...scripts, {
+          source: block ? javascript : "",
+          asyncBlocks: block?.asynccontent ? [id] : [],
+          blocks: [id],
+          pending
+        }]);
+      }, "onLoaded"),
+      onFailed: /* @__PURE__ */ __name((id) => {
+        const current = dataRef.current;
+        if (current) {
+          patchDataRef.current({ blocks: current.blocks.map((existing) => existing.id === id ? { ...existing, content: "", footer: "", loaded: true, failed: true } : existing) });
+        }
+      }, "onFailed")
+    });
+    loaderRef.current = loader;
+    const waiting = new Set(response.blocks.filter((block) => !block.loaded).map((block) => block.id));
+    loader.enqueue(response.layout.map((item) => item.id).filter((id) => waiting.has(id)));
+  }, "startLoadingBlocks");
   const patchData = useCallback((patch) => {
     const current = dataRef.current;
     if (!current) {
@@ -278,6 +326,16 @@ const Dashboard = /* @__PURE__ */ __name(({ loadingLabel = "", initialLayout = [
     dataRef.current = next;
     setData(next);
   }, []);
+  const patchDataRef = useRef(patchData);
+  useEffect(() => {
+    const grid = gridRef.current;
+    if (!grid || typeof IntersectionObserver === "undefined") {
+      return void 0;
+    }
+    const observer = new IntersectionObserver((entries) => entries.filter((entry) => entry.isIntersecting).forEach((entry) => loaderRef.current?.prioritise(Number(entry.target.dataset.instanceId))));
+    grid.querySelectorAll('.core-my-dashboard-tile[aria-busy="true"]').forEach((tile) => observer.observe(tile));
+    return () => observer.disconnect();
+  }, [data]);
   const updateCanonical = useCallback((next) => {
     canonicalRef.current = next;
     setCanonical(next);
@@ -394,23 +452,28 @@ const Dashboard = /* @__PURE__ */ __name(({ loadingLabel = "", initialLayout = [
       void toastString("dashboardsavedonline");
     }
   }, [saveStatus, showToast, toastString]);
-  const fittedFor = useRef(null);
-  const fitAutoHeights = useCallback(() => {
+  const settledRef = useRef(/* @__PURE__ */ new Set());
+  const measuredRef = useRef(/* @__PURE__ */ new Set());
+  const fitAutoHeights = useCallback((settled) => {
     const current = dataRef.current;
     const grid = gridRef.current;
-    if (!current || !grid || fittedFor.current === current || interactionRef.current) {
+    if (!current || !grid) {
       return;
     }
-    fittedFor.current = current;
+    (settled ?? current.blocks.filter((block) => block.loaded).map((block) => block.id)).forEach((id) => settledRef.current.add(id));
+    if (interactionRef.current) {
+      return;
+    }
     const metrics = readGridMetrics(grid);
     const blocks = new Map(current.blocks.map((block) => [block.id, block]));
     const rows2 = /* @__PURE__ */ new Map();
     canonicalRef.current.forEach((item) => {
       const block = blocks.get(item.id);
       const tile = grid.querySelector(`.core-my-dashboard-tile[data-instance-id="${item.id}"]`);
-      if (item.autorows === false || !block || !tile) {
+      if (item.autorows === false || !block || !block.loaded || !tile || !settledRef.current.has(item.id) || measuredRef.current.has(item.id)) {
         return;
       }
+      measuredRef.current.add(item.id);
       rows2.set(item.id, block.preferredrows ?? rowsForHeight(
         measureNaturalHeight(tile),
         metrics,
@@ -433,7 +496,10 @@ const Dashboard = /* @__PURE__ */ __name(({ loadingLabel = "", initialLayout = [
     if (!addedScripts.length) {
       return;
     }
-    addedScripts.forEach((script) => runCollectedJavascript(script, gridRef.current, fitAutoHeights));
+    addedScripts.forEach((script) => {
+      runCollectedJavascript(script, gridRef.current, () => fitAutoHeights(script.blocks));
+      script.pending?.resolve();
+    });
     setAddedScripts([]);
   }, [addedScripts, fitAutoHeights]);
   const [columnCount, columnCountRef] = useResponsiveColumnCount(gridRef, data);
@@ -940,11 +1006,11 @@ const Dashboard = /* @__PURE__ */ __name(({ loadingLabel = "", initialLayout = [
     }]);
     const columns = columnCountRef.current ?? 1;
     const others = canonicalRef.current.filter((existing) => existing.id !== item.id);
-    const width = Math.min(item.columns, columns);
+    const minimum = added.minsize ?? current.grid.minsize;
     const targeted = target?.column !== void 0 && target.row !== void 0;
+    const width = Math.min(columns, targeted && target.columns ? Math.max(target.columns, minimum.columns) : item.columns);
     const place = targeted ? { column: Math.min(target.column, columns - width), row: target.row } : firstFreeSpace(packLayout(others, columns), columns, width, item.rows);
     const pinned = { ...item, ...place, columns: width };
-    const minimum = added.minsize ?? current.grid.minsize;
     const appended = [...others, item];
     const next = writeBack(
       appended,
@@ -1006,32 +1072,88 @@ const Dashboard = /* @__PURE__ */ __name(({ loadingLabel = "", initialLayout = [
   if (!data) {
     return error ? /* @__PURE__ */ jsxDEV("div", { className: "core-my-dashboard-status alert alert-danger", role: "alert", children: error }, void 0, false, {
       fileName: "public/my/js/esm/src/index.tsx",
-      lineNumber: 1443,
+      lineNumber: 1542,
       columnNumber: 15
     }) : /* @__PURE__ */ jsxDEV(DashboardLoading, { label: loadingLabel, layout: initialLayout }, void 0, false, {
       fileName: "public/my/js/esm/src/index.tsx",
-      lineNumber: 1444,
+      lineNumber: 1543,
       columnNumber: 15
     });
   }
   const rows = Math.max(1, maxRow(previewLayout));
   const prospective = interaction && (layoutChanged(interaction.original, interaction.draft) || interaction.origin === "pointer" && interaction.mode === "resize" && interaction.drag?.shrinking) ? interaction.draft : void 0;
+  const renderTile = /* @__PURE__ */ __name((committed, hidden) => {
+    const item = previewById.get(committed.id) ?? committed;
+    const block = blocksById.get(item.id);
+    if (!block) {
+      return null;
+    }
+    return /* @__PURE__ */ jsxDEV(
+      DashboardTile,
+      {
+        block,
+        item,
+        labels: data.labels,
+        editing: data.editing,
+        hidden,
+        tapping: interaction?.id === item.id && interaction.origin === "mouseclick",
+        activeMode: interaction?.id === item.id ? interaction.mode : void 0,
+        showControls: interaction?.id === item.id && interaction.origin === "keyboard",
+        drag: interaction?.id === item.id ? interaction.drag : void 0,
+        dragOrigin: interaction?.id === item.id ? interaction.original : void 0,
+        shouldAnimatePosition: interaction?.origin === "pointer" && interaction.id !== item.id,
+        isBumped: bumpedBlockIds.has(item.id),
+        highlighted: highlightId === item.id,
+        onStart: start,
+        onKeyDown: keyDown,
+        onPointerDown: pointerDown,
+        onDirection: shift,
+        onCommit: () => void commit(),
+        onRemove: (id) => void remove(id)
+      },
+      item.id,
+      false,
+      {
+        fileName: "public/my/js/esm/src/index.tsx",
+        lineNumber: 1556,
+        columnNumber: 16
+      }
+    );
+  }, "renderTile");
+  const regions = data.editing && !interaction ? emptyRegions(displayLayout, columnCount, rows) : [];
+  const gridChildren = [
+    ...displayLayout.map((committed) => ({ row: committed.row, column: committed.column, node: renderTile(committed, false) })),
+    ...regions.map((region) => ({ row: region.row, column: region.column, node: /* @__PURE__ */ jsxDEV(
+      GridCell,
+      {
+        ...region,
+        label: data.labels.emptyregion,
+        addLabel: data.labels.addblockhere,
+        onActivate: (column, row, columns, regionRows) => setPalette({ column, row, columns, rows: regionRows })
+      },
+      `region:${region.column}:${region.row}`,
+      false,
+      {
+        fileName: "public/my/js/esm/src/index.tsx",
+        lineNumber: 1582,
+        columnNumber: 82
+      }
+    ) }))
+  ].sort((left, right) => left.row - right.row || left.column - right.column).map((child) => child.node);
+  hiddenIds.forEach((id) => gridChildren.push(renderTile({ id, column: 0, row: 0, columns: 1, rows: 1 }, true)));
   const empty = displayLayout.length === 0;
   const addBlockUrl = `${siteDefault ? data.urls.sitedefault : data.urls.ownpage}?edit=1&addblock=1`;
+  const doneUrl = `${siteDefault ? data.urls.sitedefault : data.urls.ownpage}?edit=0`;
   const statusMessages = {
     idle: "",
     saving: "",
     offline: "",
     retrying: data.labels.saveretrying
   };
-  const tiles = [
-    ...displayLayout.map((committed) => ({ committed, hidden: false })),
-    ...[...hiddenIds].map((id) => ({ committed: { id, column: 0, row: 0, columns: 1, rows: 1 }, hidden: true }))
-  ];
   return /* @__PURE__ */ jsxDEV("div", { className: "core-my-dashboard-app", "aria-busy": saveStatus !== "idle", children: [
     error && /* @__PURE__ */ jsxDEV("div", { className: "alert alert-danger", role: "alert", children: error }, void 0, false, {
       fileName: "public/my/js/esm/src/index.tsx",
-      lineNumber: 1468,
+      lineNumber: 1607,
       columnNumber: 19
     }),
     unsaved && /* @__PURE__ */ jsxDEV("div", { className: "alert alert-warning core-my-dashboard-unsaved", role: "alert", children: [
@@ -1049,23 +1171,23 @@ const Dashboard = /* @__PURE__ */ __name(({ loadingLabel = "", initialLayout = [
         false,
         {
           fileName: "public/my/js/esm/src/index.tsx",
-          lineNumber: 1471,
+          lineNumber: 1610,
           columnNumber: 13
         }
       )
     ] }, void 0, true, {
       fileName: "public/my/js/esm/src/index.tsx",
-      lineNumber: 1469,
+      lineNumber: 1608,
       columnNumber: 21
     }),
     /* @__PURE__ */ jsxDEV("div", { className: "core-my-dashboard-savestatus", role: "status", children: statusMessages[saveStatus] }, void 0, false, {
       fileName: "public/my/js/esm/src/index.tsx",
-      lineNumber: 1479,
+      lineNumber: 1618,
       columnNumber: 9
     }),
     /* @__PURE__ */ jsxDEV("div", { className: "visually-hidden", "aria-live": "polite", "aria-atomic": "true", children: announcement }, void 0, false, {
       fileName: "public/my/js/esm/src/index.tsx",
-      lineNumber: 1480,
+      lineNumber: 1619,
       columnNumber: 9
     }),
     data.editing && /* @__PURE__ */ jsxDEV(
@@ -1080,82 +1202,113 @@ const Dashboard = /* @__PURE__ */ __name(({ loadingLabel = "", initialLayout = [
       false,
       {
         fileName: "public/my/js/esm/src/index.tsx",
-        lineNumber: 1481,
+        lineNumber: 1620,
         columnNumber: 26
       }
     ),
     data.editing && /* @__PURE__ */ jsxDEV("div", { className: "core-my-dashboard-toolbar", children: [
-      /* @__PURE__ */ jsxDEV(
-        Button,
-        {
-          ref: addButtonRef,
-          variant: "primary",
-          label: data.labels.addblock,
-          onClick: () => setPalette({})
-        },
-        void 0,
-        false,
-        {
-          fileName: "public/my/js/esm/src/index.tsx",
-          lineNumber: 1488,
-          columnNumber: 13
-        }
-      ),
-      /* @__PURE__ */ jsxDEV(
-        Button,
-        {
-          variant: "ghost",
-          label: data.labels.undo,
-          startIcon: /* @__PURE__ */ jsxDEV("i", { className: "fa fa-rotate-left", "aria-hidden": "true" }, void 0, false, {
+      /* @__PURE__ */ jsxDEV("p", { className: "core-my-dashboard-toolbar__notice", children: data.labels.editingnotice }, void 0, false, {
+        fileName: "public/my/js/esm/src/index.tsx",
+        lineNumber: 1627,
+        columnNumber: 13
+      }),
+      /* @__PURE__ */ jsxDEV("div", { className: "core-my-dashboard-toolbar__actions", children: [
+        !siteDefault && /* @__PURE__ */ jsxDEV(
+          Button,
+          {
+            variant: "ghost",
+            label: data.labels.reset,
+            onClick: () => setConfirmAction({ type: "reset" })
+          },
+          void 0,
+          false,
+          {
             fileName: "public/my/js/esm/src/index.tsx",
-            lineNumber: 1497,
-            columnNumber: 28
-          }),
-          disabled: historySize === 0,
-          onClick: () => void undo()
-        },
-        void 0,
-        false,
-        {
-          fileName: "public/my/js/esm/src/index.tsx",
-          lineNumber: 1494,
-          columnNumber: 13
-        }
-      ),
-      !siteDefault && /* @__PURE__ */ jsxDEV(
-        Button,
-        {
-          variant: "outline-danger",
-          label: data.labels.reset,
-          onClick: () => setConfirmAction({ type: "reset" })
-        },
-        void 0,
-        false,
-        {
-          fileName: "public/my/js/esm/src/index.tsx",
-          lineNumber: 1501,
-          columnNumber: 30
-        }
-      )
+            lineNumber: 1629,
+            columnNumber: 34
+          }
+        ),
+        /* @__PURE__ */ jsxDEV(
+          Button,
+          {
+            variant: "ghost",
+            label: data.labels.undo,
+            startIcon: /* @__PURE__ */ jsxDEV("i", { className: "fa fa-rotate-left", "aria-hidden": "true" }, void 0, false, {
+              fileName: "public/my/js/esm/src/index.tsx",
+              lineNumber: 1637,
+              columnNumber: 32
+            }),
+            disabled: historySize === 0,
+            onClick: () => void undo()
+          },
+          void 0,
+          false,
+          {
+            fileName: "public/my/js/esm/src/index.tsx",
+            lineNumber: 1634,
+            columnNumber: 17
+          }
+        ),
+        /* @__PURE__ */ jsxDEV(
+          Button,
+          {
+            variant: "secondary",
+            label: data.labels.done,
+            onClick: () => redirect(doneUrl)
+          },
+          void 0,
+          false,
+          {
+            fileName: "public/my/js/esm/src/index.tsx",
+            lineNumber: 1641,
+            columnNumber: 17
+          }
+        ),
+        /* @__PURE__ */ jsxDEV(
+          Button,
+          {
+            ref: addButtonRef,
+            variant: "primary",
+            label: data.labels.addblock,
+            startIcon: /* @__PURE__ */ jsxDEV("i", { className: "fa fa-plus", "aria-hidden": "true" }, void 0, false, {
+              fileName: "public/my/js/esm/src/index.tsx",
+              lineNumber: 1650,
+              columnNumber: 32
+            }),
+            onClick: () => setPalette({})
+          },
+          void 0,
+          false,
+          {
+            fileName: "public/my/js/esm/src/index.tsx",
+            lineNumber: 1646,
+            columnNumber: 17
+          }
+        )
+      ] }, void 0, true, {
+        fileName: "public/my/js/esm/src/index.tsx",
+        lineNumber: 1628,
+        columnNumber: 13
+      })
     ] }, void 0, true, {
       fileName: "public/my/js/esm/src/index.tsx",
-      lineNumber: 1487,
+      lineNumber: 1626,
       columnNumber: 26
     }),
     empty && data.canedit && /* @__PURE__ */ jsxDEV("div", { className: "core-my-dashboard-empty", children: [
       /* @__PURE__ */ jsxDEV("p", { children: data.labels.empty }, void 0, false, {
         fileName: "public/my/js/esm/src/index.tsx",
-        lineNumber: 1508,
+        lineNumber: 1656,
         columnNumber: 13
       }),
       /* @__PURE__ */ jsxDEV("div", { className: "core-my-dashboard-empty__actions", children: [
         data.editing ? /* @__PURE__ */ jsxDEV(Button, { variant: "primary", label: data.labels.addblock, onClick: () => setPalette({}) }, void 0, false, {
           fileName: "public/my/js/esm/src/index.tsx",
-          lineNumber: 1511,
+          lineNumber: 1659,
           columnNumber: 23
         }) : /* @__PURE__ */ jsxDEV("a", { className: "btn btn-primary", href: addBlockUrl, children: data.labels.addblock }, void 0, false, {
           fileName: "public/my/js/esm/src/index.tsx",
-          lineNumber: 1512,
+          lineNumber: 1660,
           columnNumber: 23
         }),
         !siteDefault && /* @__PURE__ */ jsxDEV(
@@ -1169,18 +1322,18 @@ const Dashboard = /* @__PURE__ */ __name(({ loadingLabel = "", initialLayout = [
           false,
           {
             fileName: "public/my/js/esm/src/index.tsx",
-            lineNumber: 1513,
+            lineNumber: 1661,
             columnNumber: 34
           }
         )
       ] }, void 0, true, {
         fileName: "public/my/js/esm/src/index.tsx",
-        lineNumber: 1509,
+        lineNumber: 1657,
         columnNumber: 13
       })
     ] }, void 0, true, {
       fileName: "public/my/js/esm/src/index.tsx",
-      lineNumber: 1507,
+      lineNumber: 1655,
       columnNumber: 35
     }),
     /* @__PURE__ */ jsxDEV(
@@ -1189,85 +1342,41 @@ const Dashboard = /* @__PURE__ */ __name(({ loadingLabel = "", initialLayout = [
         ref: gridRef,
         hidden: empty || void 0,
         className: "core-my-dashboard-grid",
+        role: "group",
+        "aria-label": data.labels.dashboardblocks,
         style: {
           gridTemplateColumns: `repeat(${columnCount}, minmax(0, 1fr))`,
           gridTemplateRows: `repeat(${rows}, var(--core-my-dashboard-row-height))`
         },
         "data-columns": columnCount,
         children: [
-          data.editing && Array.from(
-            { length: rows },
-            (_, row) => Array.from({ length: columnCount }, (__, column) => {
-              const isProspective = Boolean(prospective && column >= prospective.column && column < prospective.column + prospective.columns && row >= prospective.row && row < prospective.row + prospective.rows);
-              const isOccupied = previewLayout.some(
-                (item) => column >= item.column && column < item.column + item.columns && row >= item.row && row < item.row + item.rows
-              );
-              return !isOccupied || isProspective ? /* @__PURE__ */ jsxDEV(
-                GridCell,
-                {
-                  column,
-                  row,
-                  label: data.labels.emptycell,
-                  positionLabel: data.labels.gridcell,
-                  addLabel: data.labels.addblock,
-                  prospective: isProspective,
-                  onActivate: (targetColumn, targetRow) => setPalette({ column: targetColumn, row: targetRow })
-                },
-                `${column}:${row}`,
-                false,
-                {
-                  fileName: "public/my/js/esm/src/index.tsx",
-                  lineNumber: 1539,
-                  columnNumber: 59
-                }
-              ) : null;
-            })
-          ),
-          tiles.map(({ committed, hidden }) => {
-            const item = previewById.get(committed.id) ?? committed;
-            const block = blocksById.get(item.id);
-            if (!block) {
-              return null;
+          gridChildren,
+          prospective && /* @__PURE__ */ jsxDEV(
+            GridCell,
+            {
+              column: prospective.column,
+              row: prospective.row,
+              columns: prospective.columns,
+              rows: prospective.rows,
+              label: "",
+              addLabel: "",
+              prospective: true
+            },
+            "prospective",
+            false,
+            {
+              fileName: "public/my/js/esm/src/index.tsx",
+              lineNumber: 1689,
+              columnNumber: 29
             }
-            return /* @__PURE__ */ jsxDEV(
-              DashboardTile,
-              {
-                block,
-                item,
-                labels: data.labels,
-                editing: data.editing,
-                hidden,
-                tapping: interaction?.id === item.id && interaction.origin === "mouseclick",
-                activeMode: interaction?.id === item.id ? interaction.mode : void 0,
-                showControls: interaction?.id === item.id && interaction.origin === "keyboard",
-                drag: interaction?.id === item.id ? interaction.drag : void 0,
-                dragOrigin: interaction?.id === item.id ? interaction.original : void 0,
-                shouldAnimatePosition: interaction?.origin === "pointer" && interaction.id !== item.id,
-                isBumped: bumpedBlockIds.has(item.id),
-                highlighted: highlightId === item.id,
-                onStart: start,
-                onKeyDown: keyDown,
-                onPointerDown: pointerDown,
-                onDirection: shift,
-                onCommit: () => void commit(),
-                onRemove: (id) => void remove(id)
-              },
-              item.id,
-              false,
-              {
-                fileName: "public/my/js/esm/src/index.tsx",
-                lineNumber: 1562,
-                columnNumber: 24
-              }
-            );
-          })
+          )
         ]
       },
       void 0,
       true,
       {
         fileName: "public/my/js/esm/src/index.tsx",
-        lineNumber: 1520,
+        lineNumber: 1668,
         columnNumber: 9
       }
     ),
@@ -1278,7 +1387,7 @@ const Dashboard = /* @__PURE__ */ __name(({ loadingLabel = "", initialLayout = [
         label: data.labels.addblock,
         startIcon: /* @__PURE__ */ jsxDEV("i", { className: "fa fa-plus", "aria-hidden": "true" }, void 0, false, {
           fileName: "public/my/js/esm/src/index.tsx",
-          lineNumber: 1590,
+          lineNumber: 1704,
           columnNumber: 28
         }),
         onClick: () => setPalette({})
@@ -1287,12 +1396,12 @@ const Dashboard = /* @__PURE__ */ __name(({ loadingLabel = "", initialLayout = [
       false,
       {
         fileName: "public/my/js/esm/src/index.tsx",
-        lineNumber: 1587,
+        lineNumber: 1701,
         columnNumber: 13
       }
     ) }, void 0, false, {
       fileName: "public/my/js/esm/src/index.tsx",
-      lineNumber: 1586,
+      lineNumber: 1700,
       columnNumber: 36
     }),
     palette && /* @__PURE__ */ jsxDEV(
@@ -1301,7 +1410,7 @@ const Dashboard = /* @__PURE__ */ __name(({ loadingLabel = "", initialLayout = [
         labels: data.labels,
         blocks: data.availableblocks,
         targeted: palette.column !== void 0,
-        discoverUrl: null,
+        discoverUrl: data.discoverurl,
         onInsert: (block) => void add(block),
         onClose: () => setPalette(null)
       },
@@ -1309,7 +1418,7 @@ const Dashboard = /* @__PURE__ */ __name(({ loadingLabel = "", initialLayout = [
       false,
       {
         fileName: "public/my/js/esm/src/index.tsx",
-        lineNumber: 1594,
+        lineNumber: 1708,
         columnNumber: 21
       }
     ),
@@ -1330,18 +1439,18 @@ const Dashboard = /* @__PURE__ */ __name(({ loadingLabel = "", initialLayout = [
       false,
       {
         fileName: "public/my/js/esm/src/index.tsx",
-        lineNumber: 1602,
+        lineNumber: 1716,
         columnNumber: 27
       }
     ),
     /* @__PURE__ */ jsxDEV(Toast, { message: toast, closeLabel: data.labels.close, onClose: hideToast }, void 0, false, {
       fileName: "public/my/js/esm/src/index.tsx",
-      lineNumber: 1613,
+      lineNumber: 1727,
       columnNumber: 9
     })
   ] }, void 0, true, {
     fileName: "public/my/js/esm/src/index.tsx",
-    lineNumber: 1467,
+    lineNumber: 1606,
     columnNumber: 12
   });
 }, "Dashboard");

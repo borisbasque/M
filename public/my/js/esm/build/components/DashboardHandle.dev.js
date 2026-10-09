@@ -55,7 +55,7 @@ const DashboardHandle = /* @__PURE__ */ __name(({
           startIcon: /* @__PURE__ */ jsxDEV(
             "i",
             {
-              className: `fa fa-${mode === "move" ? "arrows-up-down-left-right" : "up-right-and-down-left-from-center fa-flip-horizontal"}`,
+              className: `fa fa-${mode === "move" ? "grip-vertical" : "up-right-and-down-left-from-center fa-flip-horizontal"}`,
               "aria-hidden": "true"
             },
             void 0,

@@ -53,37 +53,6 @@ export const initialsFor = (title: string): string => title
     .join('')
     .toLocaleUpperCase();
 
-interface BlockIconProps {
-    block: AvailableBlock;
-}
-
-/**
- * The block's own icon, as the server rendered it, in the <i> element Choicebox's icon slot
- * requires. Initials stand in when there is none, or when an image icon fails to load.
- */
-const BlockIcon = ({block}: BlockIconProps) => {
-    const [failed, setFailed] = useState(false);
-    const iconRef = useRef<HTMLElement>(null);
-    const html = useMemo(() => ({__html: block.iconhtml}), [block.iconhtml]);
-
-    // An image's error event does not bubble, so listen for it on the way down instead.
-    useEffect(() => {
-        const icon = iconRef.current;
-        if (!icon) {
-            return undefined;
-        }
-        const fail = () => setFailed(true);
-        icon.addEventListener('error', fail, true);
-        return () => icon.removeEventListener('error', fail, true);
-    }, [html]);
-
-    if (!block.iconhtml || failed) {
-        return <i className="core-my-block-browser__initials">{initialsFor(block.title)}</i>;
-    }
-    // Rendered by the server's own icon system (see dashboard::get_available_blocks()).
-    return <i ref={iconRef} className="core-my-block-browser__icon" dangerouslySetInnerHTML={html} />;
-};
-
 const BlockBrowser = ({labels, blocks, targeted, discoverUrl, onInsert, onClose}: BlockBrowserProps) => {
     const dialogRef = useRef<HTMLDialogElement>(null);
     const searchRef = useRef<HTMLInputElement>(null);
@@ -91,6 +60,30 @@ const BlockBrowser = ({labels, blocks, targeted, discoverUrl, onInsert, onClose}
     const openerRef = useRef<Element | null>(null);
     const [search, setSearch] = useState('');
     const [selected, setSelected] = useState<string | null>(null);
+    // Blocks whose image icon could not load, which show their initials instead.
+    const [failedIcons, setFailedIcons] = useState<ReadonlySet<string>>(new Set());
+    // One object per block, so React never rewrites an icon that has not changed.
+    const iconHtml = useMemo(() => new Map(blocks.map(block => [block.name, {__html: block.iconhtml}])), [blocks]);
+
+    /**
+     * The block's icon, in the <i> element Choicebox's icon slot requires (it ignores anything else):
+     * its own icon as the server rendered it, or its initials when it has none or the image fails.
+     */
+    const iconFor = (block: AvailableBlock) => {
+        if (!block.iconhtml || failedIcons.has(block.name)) {
+            return <i className="core-my-block-browser__initials">{initialsFor(block.title)}</i>;
+        }
+        return <i
+            className="core-my-block-browser__icon"
+            dangerouslySetInnerHTML={iconHtml.get(block.name)}
+            // An image's error event does not bubble, so listen for it on the way down.
+            ref={element => {
+                const fail = () => setFailedIcons(failed => new Set([...failed, block.name]));
+                element?.addEventListener('error', fail, {capture: true, once: true});
+                return () => element?.removeEventListener('error', fail, {capture: true});
+            }}
+        />;
+    };
 
     useEffect(() => {
         openerRef.current = document.activeElement;
@@ -192,7 +185,7 @@ const BlockBrowser = ({labels, blocks, targeted, discoverUrl, onInsert, onClose}
                     value={block.name}
                     label={block.title}
                     supportingText={block.description || labels.browserfallbackdescription}
-                    icon={<BlockIcon block={block} />}
+                    icon={iconFor(block)}
                     checked={current?.name === block.name}
                     onChange={() => setSelected(block.name)}
                     onKeyDown={event => {

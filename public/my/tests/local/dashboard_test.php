@@ -31,98 +31,154 @@ use PHPUnit\Framework\Attributes\CoversMethod;
 #[CoversMethod(dashboard::class, 'get_skeleton_layout')]
 #[CoversMethod(dashboard::class, 'get_loading_placeholder')]
 #[CoversMethod(dashboard::class, 'get')]
+#[CoversMethod(dashboard::class, 'get_block')]
+#[CoversMethod(dashboard::class, 'get_initial_data')]
 final class dashboard_test extends \advanced_testcase {
     /**
-     * A user's own rendered blocks are cached after the first read. Saving a layout keeps that
-     * cache - layout is read fresh on every get() - so the next load still shows the new layout
-     * without re-rendering any block. Changing which blocks exist (here, adding one) purges it.
+     * The dashboard arrives without any block's content: each block then loads on its own, so a
+     * slow block never holds up the others. Nothing is kept in the session.
      */
-    public function test_get_caches_blocks_but_always_reads_layout_fresh(): void {
-        global $PAGE, $USER;
-
+    public function test_get_sends_every_block_without_its_content(): void {
         $this->resetAfterTest();
         $this->setAdminUser();
 
-        $cache = \cache::make('core', 'my_dashboard');
-        $this->assertFalse($cache->get('view'));
+        $payload = dashboard::get(false);
 
-        $result = get_dashboard::execute(false);
-        $result = external_api::clean_returnvalue(get_dashboard::execute_returns(), $result);
-        $cached = $cache->get('view');
-        $this->assertNotFalse($cached);
-        $this->assertArrayNotHasKey('layout', $cached);
-
-        // Move the first block down one row and save.
-        $layout = $result['layout'];
-        $bottom = max(array_map(static fn(array $item): int => $item['row'] + $item['rows'], $layout));
-        $moved = $layout[0]['id'];
-        $layout[0]['row'] = $bottom;
-        $PAGE = new \moodle_page();
-        dashboard::save(false, $layout);
-
-        // The rendered blocks are still cached...
-        $this->assertSame($cached, $cache->get('view'));
-
-        // ...and the next load serves them, with the saved layout.
-        $PAGE = new \moodle_page();
-        $reloaded = dashboard::get(false);
-        $this->assertSame($result['blocks'], $reloaded['blocks']);
-        $reloadeditem = array_values(array_filter($reloaded['layout'], static fn(array $item): bool => $item['id'] === $moved));
-        $this->assertSame($bottom, $reloadeditem[0]['row']);
-        $this->assertArrayNotHasKey('pageid', $reloaded);
-        $this->assertArrayNotHasKey('layoutinstances', $reloaded);
-
-        // Adding a block changes what is rendered, so it purges the cache.
-        $USER->editing = 1;
-        $PAGE = new \moodle_page();
-        dashboard::add(false, 'online_users');
-        $this->assertFalse($cache->get('view'));
+        $this->assertNotEmpty($payload['blocks']);
+        foreach ($payload['blocks'] as $block) {
+            $this->assertFalse($block['loaded']);
+            $this->assertSame('', $block['content']);
+            $this->assertNotEmpty($block['minsize']);
+        }
+        $this->assertSame('', $payload['javascript']);
+        $this->assertSame(count($payload['blocks']), count($payload['layout']));
     }
 
     /**
-     * A load served from the cache still grows a block stored below its declared minimum: the
-     * cache keeps each block's resolved minimum alongside it, since no block object is built then.
+     * One block is rendered on its own, with the JavaScript it needs.
      */
-    public function test_get_from_the_cache_still_enforces_minimum_sizes(): void {
+    public function test_get_block_renders_one_block(): void {
+        global $PAGE;
+
+        $this->resetAfterTest();
+        $this->setAdminUser();
+        $calendar = array_values(array_filter(dashboard::get(false)['blocks'],
+            static fn(array $block): bool => $block['name'] === 'calendar_month'))[0];
+
+        $PAGE = new \moodle_page();
+        $result = dashboard::get_block(false, $calendar['id']);
+
+        $this->assertTrue($result['block']['loaded']);
+        $this->assertSame($calendar['id'], $result['block']['id']);
+        $this->assertNotSame('', $result['block']['content']);
+        $this->assertIsString($result['javascript']);
+    }
+
+    /**
+     * Each block comes with its own JavaScript only: rendering one block never collects another's,
+     * which would start that block a second time, against content that is not on the page.
+     */
+    public function test_get_block_returns_only_that_blocks_javascript(): void {
+        global $PAGE;
+
+        $this->resetAfterTest();
+        $user = $this->getDataGenerator()->create_user();
+        // Course overview only starts its JavaScript when there are courses to show.
+        $this->getDataGenerator()->enrol_user($user->id, $this->getDataGenerator()->create_course()->id);
+        $this->setUser($user);
+        $byname = array_column(dashboard::get(false)['blocks'], null, 'name');
+
+        $PAGE = new \moodle_page();
+        $overview = dashboard::get_block(false, $byname['myoverview']['id']);
+        $PAGE = new \moodle_page();
+        $calendar = dashboard::get_block(false, $byname['calendar_month']['id']);
+
+        $this->assertStringContainsString('block_myoverview/main', $overview['javascript']);
+        $this->assertStringNotContainsString('block_myoverview/main', $calendar['javascript']);
+    }
+
+    /**
+     * A block on someone else's dashboard cannot be rendered.
+     */
+    public function test_get_block_refuses_a_block_not_on_the_viewers_dashboard(): void {
+        global $PAGE;
+
+        $this->resetAfterTest();
+        $other = $this->getDataGenerator()->create_user();
+        $this->setUser($other);
+        // The other user's own copy of the dashboard, with blocks of their own.
+        $PAGE = new \moodle_page();
+        $GLOBALS['USER']->editing = 1;
+        $theirs = dashboard::get(false)['blocks'][0]['id'];
+
+        $this->setAdminUser();
+        $PAGE = new \moodle_page();
+        $this->expectException(\moodle_exception::class);
+        dashboard::get_block(false, $theirs);
+    }
+
+    /**
+     * The dashboard sent with the page is exactly what core_my_get_dashboard returns, and building
+     * it leaves the page being output as it was.
+     */
+    public function test_get_initial_data_matches_the_web_service_and_leaves_the_page_alone(): void {
+        global $OUTPUT, $PAGE;
+
+        $this->resetAfterTest();
+        $this->setUser($this->getDataGenerator()->create_user());
+        $page = $PAGE;
+        $output = $PAGE->get_renderer('core');
+        $OUTPUT = $output;
+
+        $initial = dashboard::get_initial_data(false);
+
+        $this->assertSame($page, $PAGE);
+        $this->assertSame($output, $OUTPUT);
+        $PAGE = new \moodle_page();
+        $fromservice = \core_external\external_api::clean_returnvalue(
+            \core_my\external\get_dashboard::execute_returns(),
+            \core_my\external\get_dashboard::execute(false),
+        );
+        $this->assertEquals($fromservice, $initial);
+    }
+
+    /**
+     * Someone who may not see the site default gets nothing sent with the page, not an error.
+     */
+    public function test_get_initial_data_checks_the_same_permissions(): void {
+        $this->resetAfterTest();
+        $this->setUser($this->getDataGenerator()->create_user());
+
+        $this->assertNull(dashboard::get_initial_data(true));
+        $this->assertDebuggingCalled();
+    }
+
+    /**
+     * A block stored below a minimum it declared since is grown when the dashboard is loaded.
+     */
+    public function test_get_enforces_minimum_sizes(): void {
         global $DB, $PAGE;
 
         $this->resetAfterTest();
         $this->setAdminUser();
 
-        $result = get_dashboard::execute(false);
+        $result = dashboard::get(false);
         $calendar = array_values(array_filter($result['blocks'],
             static fn(array $block): bool => $block['name'] === 'calendar_month'))[0];
         $this->assertSame(4, $calendar['minsize']['rows']);
-        $this->assertNotFalse(\cache::make('core', 'my_dashboard')->get('view'));
 
         // Store the calendar shorter than its minimum, as a layout saved before it declared one would be.
         $PAGE = new \moodle_page();
         dashboard::save(false, $result['layout']);
-        $this->assertTrue($DB->record_exists('block_positions', ['blockinstanceid' => $calendar['id']]));
         $DB->set_field('block_positions', 'gridrows', 2, ['blockinstanceid' => $calendar['id']]);
 
         $PAGE = new \moodle_page();
-        $reloaded = dashboard::get(false);
-        $item = array_values(array_filter($reloaded['layout'],
+        $item = array_values(array_filter(dashboard::get(false)['layout'],
             static fn(array $item): bool => $item['id'] === $calendar['id']))[0];
         $this->assertSame(4, $item['rows']);
         $this->assertDebuggingNotCalled();
     }
 
-    /**
-     * The site default is never cached: it is read rarely (only by admins with
-     * moodle/my:configsyspages), and caching it would risk masking a capability revoked mid-ttl.
-     */
-    public function test_get_never_caches_the_site_default(): void {
-        $this->resetAfterTest();
-        $this->setAdminUser();
-
-        $cache = \cache::make('core', 'my_dashboard');
-        get_dashboard::execute(true);
-
-        $this->assertFalse($cache->get('view'));
-        $this->assertFalse($cache->get('edit'));
-    }
     /**
      * Once a dashboard's grid has been saved, its shape can be read back cheaply, without
      * instantiating or rendering any block, and matches the layout the full read returns.

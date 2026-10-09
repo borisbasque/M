@@ -16,13 +16,15 @@ Feature: Restrict which blocks can be added to Dashboard
       | user | course | role |
       | student1 | C1 | student |
 
+  @javascript
   Scenario: The comments block can be added to Dashboard by default
     And I log in as "student1"
     And I turn editing mode on
-    Then the add block selector should contain "Comments" block
-    And the add block selector should contain "Text" block
-    And the add block selector should contain "Tags" block
+    Then the dashboard block browser should offer the "Comments" block
+    And the dashboard block browser should offer the "Text" block
+    And the dashboard block browser should offer the "Tags" block
 
+  @javascript
   Scenario: Remove the ability to add the comments block to Dashboard
     Given the following "role capability" exists:
       | role                            | user     |
@@ -31,7 +33,7 @@ Feature: Restrict which blocks can be added to Dashboard
       | block/html:myaddinstance        | prohibit |
     When I log in as "student1"
     And I turn editing mode on
-    Then the add block selector should not contain "Comments" block
-    And the add block selector should not contain "Courses" block
-    And the add block selector should not contain "Text" block
-    And the add block selector should contain "Tags" block
+    Then the dashboard block browser should not offer the "Comments" block
+    And the dashboard block browser should not offer the "Courses" block
+    And the dashboard block browser should not offer the "Text" block
+    And the dashboard block browser should offer the "Tags" block

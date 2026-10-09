@@ -1682,9 +1682,17 @@ $functions = array(
     ],
     'core_my_get_dashboard' => [
         'classname' => '\core_my\external\get_dashboard',
-        'description' => 'Fetch the responsive dashboard grid, rendered blocks and available block types.',
+        'description' => 'Fetch the responsive dashboard grid, its blocks without their content, and available block types.',
         'type' => 'read',
         'ajax' => true,
+        'readonlysession' => true,
+    ],
+    'core_my_get_dashboard_block' => [
+        'classname' => '\core_my\external\get_dashboard_block',
+        'description' => 'Render one block on the current user\'s dashboard, with the JavaScript it needs.',
+        'type' => 'read',
+        'ajax' => true,
+        'readonlysession' => true,
     ],
     'core_my_update_dashboard' => [
         'classname' => '\core_my\external\update_dashboard',

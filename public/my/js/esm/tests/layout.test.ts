@@ -25,6 +25,7 @@ import {
     rowsForHeight,
     writeBack,
     collapseEmptyRows,
+    emptyRegions,
     type LayoutItem,
 } from '../src/layout';
 
@@ -335,6 +336,22 @@ describe('applyRowSpans', () => {
 
         expect(next.find(item => item.id === 1)).toMatchObject({row: 0, rows: 2});
         expect(next.find(item => item.id === 2)).toMatchObject({row: 3});
+    });
+});
+
+describe('emptyRegions', () => {
+    it('groups neighbouring empty cells into rectangles, in reading order', () => {
+        // Six columns, three rows: a 2x2 block at the left of the first two rows.
+        const layout: LayoutItem[] = [{id: 1, column: 0, row: 0, columns: 2, rows: 2}];
+
+        expect(emptyRegions(layout, 6, 3)).toEqual([
+            {column: 2, row: 0, columns: 4, rows: 3},
+            {column: 0, row: 2, columns: 2, rows: 1},
+        ]);
+    });
+
+    it('offers nothing when the grid is full', () => {
+        expect(emptyRegions([{id: 1, column: 0, row: 0, columns: 2, rows: 1}], 2, 1)).toEqual([]);
     });
 });
 

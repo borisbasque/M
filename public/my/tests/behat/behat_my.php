@@ -28,6 +28,25 @@ require_once(__DIR__ . '/../../../lib/behat/behat_base.php');
  */
 class behat_my extends behat_base {
     /**
+     * Check whether the dashboard's block browser offers a block, by its exact name.
+     *
+     * @Then /^the dashboard block browser should( not)? offer the "(?P<blockname_string>(?:[^"]|\\")*)" block$/
+     * @param string $not " not" to check the block is not offered.
+     * @param string $blockname The block's name.
+     */
+    public function the_dashboard_block_browser_should_offer_the_block(string $not, string $blockname): void {
+        $this->execute('behat_general::i_click_on_in_the', [
+            get_string('addblock'), 'button', '.core-my-dashboard-toolbar', 'css_element',
+        ]);
+        $xpath = "//dialog[contains(@class, 'core-my-block-browser')]//input[@type='radio'][following-sibling::label"
+            . "//*[contains(@class, 'mds-choicebox-label')][normalize-space(.)=" . behat_context_helper::escape($blockname) . "]]";
+        $this->execute($not ? 'behat_general::should_not_exist' : 'behat_general::should_exist', [$xpath, 'xpath_element']);
+        $this->execute('behat_general::i_click_on_in_the', [
+            get_string('cancel'), 'button', get_string('addblock'), 'dialogue',
+        ]);
+    }
+
+    /**
      * Add a block to the dashboard through the block browser, leaving it where it lands.
      *
      * Opens the browser from the toolbar, finds the block by name, inserts it and puts down the
@@ -581,9 +600,7 @@ class behat_my extends behat_base {
      * @Then resizing the Course overview block into its row neighbour pushes it right
      */
     public function resizing_into_row_neighbour_pushes_it_right(): void {
-        $this->execute('behat_general::i_click_on_in_the', ['Resize block', 'button', 'Calendar', 'block']);
-        $this->execute('behat_general::i_click_on_in_the', ['Left', 'button', 'Calendar', 'block']);
-        $this->execute('behat_general::i_click_on_in_the', ['Resize block', 'button', 'Calendar', 'block']);
+        $this->resize_with_keys('Calendar', 'left');
 
         $result = $this->keyboard_resize_and_capture_bumped_tile('Course overview', 'myoverview', 'Right');
         if ($result['block'] !== 'calendar_month') {
@@ -711,6 +728,19 @@ class behat_my extends behat_base {
      * @param string $direction One of 'Right' or 'Down'.
      * @return array Displaced block name plus its before/after {column, row}.
      */
+    /**
+     * Resize a block by one cell: pick it up with a click on its resize corner, move the corner
+     * with an arrow key, and put it down with Enter.
+     *
+     * @param string $blocklabel The block's title.
+     * @param string $key The arrow key: left, right, up or down.
+     */
+    protected function resize_with_keys(string $blocklabel, string $key): void {
+        $this->execute('behat_general::i_click_on_in_the', ['Resize block', 'button', $blocklabel, 'block']);
+        $this->execute('behat_general::i_press_named_key', ['', $key]);
+        $this->execute('behat_general::i_press_named_key', ['', 'enter']);
+    }
+
     protected function keyboard_resize_and_capture_bumped_tile(
         string $blocklabel,
         string $blockname,
@@ -718,9 +748,7 @@ class behat_my extends behat_base {
     ): array {
         $before = $this->read_dashboard_tile_positions();
 
-        $this->execute('behat_general::i_click_on_in_the', ['Resize block', 'button', $blocklabel, 'block']);
-        $this->execute('behat_general::i_click_on_in_the', [$direction, 'button', $blocklabel, 'block']);
-        $this->execute('behat_general::i_click_on_in_the', ['Resize block', 'button', $blocklabel, 'block']);
+        $this->resize_with_keys($blocklabel, strtolower($direction));
 
         $after = $this->read_dashboard_tile_positions();
         $displaced = null;

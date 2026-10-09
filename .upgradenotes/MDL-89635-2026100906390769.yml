@@ -1,0 +1,12 @@
+issueNumber: MDL-89635
+notes:
+  core_my:
+    - message: >-
+        core_my_get_dashboard no longer renders the dashboard's blocks: each
+        block comes back with empty content and footer, loaded set to false, and
+        no collected JavaScript. Load each block's content with the new
+        core_my_get_dashboard_block function, which renders one block and
+        returns the JavaScript it needs. Both run with a read-only session. The
+        my_dashboard session cache has been removed. The mobile app's
+        core_my_get_dashboard_blocks is unchanged.
+      type: changed

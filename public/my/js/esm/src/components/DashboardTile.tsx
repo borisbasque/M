@@ -291,6 +291,8 @@ const DashboardTile = ({
         data-blockregion={narrow ? 'side-pre' : 'content'}
         data-bumped={isBumped || undefined}
         hidden={hidden || undefined}
+        // Until its own content arrives, the block is marked busy and shows a placeholder.
+        aria-busy={!block.loaded || undefined}
     >
         {editing && <>
             <span id={moveInstructionsId} className="visually-hidden">{labels.moveinstructions}</span>
@@ -311,7 +313,8 @@ const DashboardTile = ({
                 onDirection={onDirection}
                 onCommit={onCommit}
             />}
-            <h2 className="core-my-dashboard-tile__title">{block.title}</h2>
+            {/* One line, cut short with an ellipsis; the full title shows on hover. */}
+            <h2 className="core-my-dashboard-tile__title" title={block.title}>{block.title}</h2>
             {editing && <div className="core-my-dashboard-tile__actions">
                 <Button
                     size="md"
@@ -319,7 +322,7 @@ const DashboardTile = ({
                     className="core-my-dashboard-remove"
                     aria-label={labels.remove.replace('{$a}', block.title)}
                     title={labels.remove.replace('{$a}', block.title)}
-                    startIcon={<i className="fa fa-trash-can" aria-hidden="true" />}
+                    startIcon={<i className="fa fa-xmark" aria-hidden="true" />}
                     onClick={() => onRemove(block.id)}
                 />
                 <BlockActionsMenu
@@ -329,9 +332,17 @@ const DashboardTile = ({
                 />
             </div>}
         </header>
+        {!block.loaded && <div className="core-my-dashboard-tile__placeholder" aria-hidden="true">
+            <span className="core-my-dashboard-loading__line" />
+            <span className="core-my-dashboard-loading__line" />
+            <span className="core-my-dashboard-loading__line" />
+        </div>}
+        {block.failed && <p className="core-my-dashboard-tile__failed">{labels.blockfailed}</p>}
         <div ref={contentRef} className={`core-my-dashboard-tile__content block block_${block.name}`} />
         {block.footer && <div ref={footerRef} className="core-my-dashboard-tile__block-footer" />}
-        {editing && <footer className="core-my-dashboard-tile__dashboard-footer">
+        {/* No footer bar: the resize handle sits over the tile's corner, so editing costs the block no
+            content space. */}
+        {editing && <div className="core-my-dashboard-tile__resize">
             <DashboardHandle
                 mode="resize"
                 label={labels.resize}
@@ -346,7 +357,7 @@ const DashboardTile = ({
                 onDirection={onDirection}
                 onCommit={onCommit}
             />
-        </footer>}
+        </div>}
     </section>;
 };
 

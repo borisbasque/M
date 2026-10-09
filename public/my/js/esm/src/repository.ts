@@ -48,6 +48,19 @@ export interface DashboardBlock {
     minsize: GridSize;
     // The row span the block declares it prefers, or null to follow its content.
     preferredrows: number | null;
+    // Whether content and footer are filled in. A dashboard load sends every block without them;
+    // each block's own then loads separately (see getDashboardBlock()).
+    loaded: boolean;
+    // Set when the block's content could not be loaded.
+    failed?: boolean;
+}
+
+/** One block's rendered content, loaded on its own. */
+export interface DashboardBlockContent {
+    // The block, rendered, or null when it has nothing to show the viewer.
+    block: DashboardBlock | null;
+    // The JavaScript the block needs to run.
+    javascript: string;
 }
 
 export interface AvailableBlock {
@@ -112,6 +125,11 @@ export interface DashboardLabels {
     empty: string;
     opensinnewwindow: string;
     restoredefault: string;
+    addblockhere: string;
+    blockfailed: string;
+    dashboardblocks: string;
+    editingnotice: string;
+    emptyregion: string;
     tile: string;
     undo: string;
     up: string;
@@ -138,6 +156,8 @@ export interface DashboardData {
     ownlayout: boolean;
     // The dashboard's revision: sent with each change, so one made from an out-of-date window is refused.
     revision: number;
+    // Where to discover more blocks, or null when the site does not use the Moodle Marketplace.
+    discoverurl: string | null;
     canedit: boolean;
     editing: boolean;
     sitedefault: boolean;
@@ -174,6 +194,19 @@ export const getDashboard = (siteDefault: boolean): Promise<DashboardData> => fe
     methodname: 'core_my_get_dashboard',
     args: {sitedefault: siteDefault},
 });
+
+/**
+ * Load one block's content, after the dashboard's layout has arrived without it.
+ *
+ * @param siteDefault Whether the block is on the site default dashboard.
+ * @param blockid The block instance id.
+ * @return The block, rendered, and the JavaScript it needs.
+ */
+export const getDashboardBlock = (siteDefault: boolean, blockid: number): Promise<DashboardBlockContent> =>
+    fetchOne<DashboardBlockContent>({
+        methodname: 'core_my_get_dashboard_block',
+        args: {sitedefault: siteDefault, blockid},
+    });
 
 export const updateDashboard = (
     action: 'save' | 'add' | 'remove' | 'reset',

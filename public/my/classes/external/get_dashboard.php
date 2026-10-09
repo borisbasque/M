@@ -93,6 +93,13 @@ final class get_dashboard extends external_api {
                 PARAM_INT,
                 'The dashboard\'s current revision, to send with the first change made to it.',
             ),
+            'discoverurl' => new external_value(
+                PARAM_URL,
+                'Where to discover more blocks, or null when the site does not use the Moodle Marketplace.',
+                VALUE_REQUIRED,
+                null,
+                NULL_ALLOWED,
+            ),
             'canedit' => new external_value(PARAM_BOOL, 'Whether the user may edit.'),
             'editing' => new external_value(PARAM_BOOL, 'Whether Edit mode is active.'),
             'sitedefault' => new external_value(PARAM_BOOL, 'Whether this is the site default.'),
@@ -142,6 +149,11 @@ final class get_dashboard extends external_api {
                 'switchtositedefault' => new external_value(PARAM_RAW, 'Switch-to-site-default CTA label.'),
                 'tile' => new external_value(PARAM_RAW, 'Dashboard tile label.'),
                 'undo' => new external_value(PARAM_RAW, 'Undo label.'),
+                'blockfailed' => new external_value(PARAM_RAW, 'Shown in a block whose content could not be loaded.'),
+                'addblockhere' => new external_value(PARAM_RAW, 'Shown on an empty region on hover or focus.'),
+                'dashboardblocks' => new external_value(PARAM_RAW, 'The grid\'s accessible name.'),
+                'editingnotice' => new external_value(PARAM_RAW, 'Says the dashboard is being edited and saves itself.'),
+                'emptyregion' => new external_value(PARAM_RAW, 'An empty region\'s accessible name.'),
                 'browseralreadyadded' => new external_value(PARAM_RAW, 'Block browser or empty dashboard label.'),
                 'browserallpresent' => new external_value(PARAM_RAW, 'Block browser or empty dashboard label.'),
                 'browserblocks' => new external_value(PARAM_RAW, 'Block browser or empty dashboard label.'),
@@ -169,7 +181,10 @@ final class get_dashboard extends external_api {
      * @param int $required VALUE_REQUIRED or VALUE_OPTIONAL.
      * @return external_single_structure
      */
-    public static function block_structure(int $required = VALUE_REQUIRED): external_single_structure {
+    public static function block_structure(
+        int $required = VALUE_REQUIRED,
+        bool $allownull = NULL_NOT_ALLOWED,
+    ): external_single_structure {
         return new external_single_structure([
             'id' => new external_value(PARAM_INT, 'Block instance id.'),
             'name' => new external_value(PARAM_PLUGIN, 'Block plugin name.'),
@@ -202,7 +217,12 @@ final class get_dashboard extends external_api {
                 null,
                 NULL_ALLOWED,
             ),
-        ], 'A rendered dashboard block.', $required);
+            'loaded' => new external_value(
+                PARAM_BOOL,
+                'Whether content and footer are filled in. A dashboard load sends none; '
+                    . 'core_my_get_dashboard_block loads each block\'s own.',
+            ),
+        ], 'A dashboard block.', $required, null, $allownull);
     }
 
     /**

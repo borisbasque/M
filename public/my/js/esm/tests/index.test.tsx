@@ -135,6 +135,11 @@ const labels: DashboardLabels = {
     switchtositedefault: 'Switch to editing the default dashboard for all users',
     tile: '{$a} block',
     undo: 'Undo',
+    addblockhere: 'Add a block here',
+    dashboardblocks: 'Dashboard blocks',
+    editingnotice: 'You are editing your dashboard.',
+    emptyregion: 'Empty space, row {$a->row}, column {$a->column}. Add a block here.',
+    blockfailed: 'This block could not be loaded.',
     browseralreadyadded: 'Already added blocks are not listed.',
     browserallpresent: 'Every block is already on your dashboard.',
     browserblocks: 'Blocks',
@@ -171,7 +176,7 @@ const secondBlockOnly = [
     {
         id: 102, name: 'online_users', title: 'Second block', content: '<p>Second</p>',
         footer: '', region: 'content', weight: 1, actions: [], minsize: {columns: 1, rows: 2}, asynccontent: false,
-            preferredrows: null,
+            preferredrows: null, loaded: true,
     },
 ];
 
@@ -180,12 +185,12 @@ const buildData = (overrides: Partial<DashboardData> = {}): DashboardData => ({
         {
             id: 101, name: 'html', title: 'First block', content: '<p>First</p>',
             footer: '', region: 'content', weight: 0, actions: [], minsize: {columns: 1, rows: 2}, asynccontent: false,
-            preferredrows: null,
+            preferredrows: null, loaded: true,
         },
         {
             id: 102, name: 'online_users', title: 'Second block', content: '<p>Second</p>',
             footer: '', region: 'content', weight: 1, actions: [], minsize: {columns: 1, rows: 2}, asynccontent: false,
-            preferredrows: null,
+            preferredrows: null, loaded: true,
         },
     ],
     layout: baseLayout,
@@ -193,6 +198,7 @@ const buildData = (overrides: Partial<DashboardData> = {}): DashboardData => ({
     grid: {minsize: {columns: 1, rows: 2}, autorowscap: 8},
     ownlayout: true,
     revision: 7,
+    discoverurl: null,
     canedit: true,
     editing: true,
     sitedefault: false,
@@ -207,8 +213,9 @@ const buildData = (overrides: Partial<DashboardData> = {}): DashboardData => ({
 const mockDashboardApi = (options: {
     getResponses: DashboardData[];
     updateImpl?: (action: string, args: Record<string, unknown>) => Promise<{status: boolean; blockid: number}>;
+    blockImpl?: (blockid: number) => Promise<unknown>;
 }) => {
-    const {getResponses, updateImpl} = options;
+    const {getResponses, updateImpl, blockImpl} = options;
     let getCallCount = 0;
     const fetchOneSpy = jest.spyOn(Ajax, 'fetchOne');
     fetchOneSpy.mockImplementation((request: {methodname: string; args?: Record<string, unknown>}) => {
@@ -216,6 +223,9 @@ const mockDashboardApi = (options: {
             const response = getResponses[Math.min(getCallCount, getResponses.length - 1)];
             getCallCount += 1;
             return Promise.resolve(response);
+        }
+        if (request.methodname === 'core_my_get_dashboard_block' && blockImpl) {
+            return blockImpl((request.args ?? {}).blockid as number);
         }
         if (request.methodname === 'core_my_update_dashboard') {
             const args = request.args ?? {};
@@ -235,7 +245,7 @@ const serverError = (message: string) => ({message, errorcode: 'invalidparameter
 const newBlock = {
     id: 103, name: 'calendar_month', title: 'Calendar', content: '<p>Cal</p>',
     footer: '', region: 'content', weight: 2, actions: [], minsize: {columns: 1, rows: 2}, asynccontent: false,
-    preferredrows: null,
+    preferredrows: null, loaded: true,
 };
 
 /** The server's reply to 'add': the new block, rendered, wherever it chose to put it. */
@@ -731,7 +741,7 @@ describe('core_my Dashboard application', () => {
         await waitFor(() => expect(container.querySelector('.core-my-dashboard-grid'))
             .toHaveAttribute('data-columns', '6'));
 
-        const emptyCell = screen.getByRole('button', {name: 'Empty cell, Row 1, column 3'});
+        const emptyCell = screen.getByRole('button', {name: 'Empty space, row 1, column 3. Add a block here.'});
         fireEvent.click(emptyCell);
         fireEvent.click(await screen.findByRole('radio', {name: 'Calendar'}));
         fireEvent.click(screen.getByRole('button', {name: 'Insert'}));
@@ -774,6 +784,35 @@ describe('core_my Dashboard application', () => {
             // A block sized by hand is left alone.
             expect(save.layout.find(item => item.id === 102)).toMatchObject({rows: 2, autorows: false});
             expect(container.querySelector('[data-block-id="101"]')).toHaveStyle({gridRow: '1 / span 8'});
+        });
+
+        it('measures each block once its own content has arrived, whatever order blocks load in', async() => {
+            const data = buildData({layout: [autoLayout[0], {...autoLayout[1], autorows: true}], editing: false});
+            data.blocks = data.blocks.map(block => ({...block, content: '', loaded: false}));
+            const replies = new Map<number, (value: unknown) => void>();
+            const fetchOneSpy = mockDashboardApi({
+                getResponses: [data],
+                blockImpl: blockid => new Promise(resolve => {
+                    replies.set(blockid, resolve);
+                }),
+            });
+            const {container} = render(<Dashboard />);
+            await screen.findByText('First block');
+            await waitFor(() => expect(replies.size).toBe(2));
+
+            // The second block arrives first: only it is measured.
+            await act(async() => {
+                replies.get(102)!({block: {...data.blocks[1], content: '<p>Second</p>', loaded: true}, javascript: ''});
+            });
+            await waitFor(() => expect(container.querySelector('[data-block-id="102"]')).toHaveStyle({gridRow: '1 / span 8'}));
+            expect(container.querySelector('[data-block-id="101"]')).toHaveStyle({gridRow: '1 / span 2'});
+
+            // The first block is measured once its own content is in.
+            await act(async() => {
+                replies.get(101)!({block: {...data.blocks[0], content: '<p>First</p>', loaded: true}, javascript: ''});
+            });
+            await waitFor(() => expect(container.querySelector('[data-block-id="101"]')).toHaveStyle({gridRow: '1 / span 8'}));
+            expect(saves(fetchOneSpy).length).toBeGreaterThan(0);
         });
 
         it('uses a block\'s declared preferred height instead of measuring it', async() => {
@@ -1019,11 +1058,118 @@ describe('core_my Dashboard application', () => {
         expect(await screen.findByRole('dialog', {name: 'Add a block'})).toBeInTheDocument();
     });
 
+    it('shows the dashboard sent with the page without asking for it, and asks on later reloads', async() => {
+        const fetchOneSpy = mockDashboardApi({
+            getResponses: [buildData()],
+            updateImpl: () => Promise.reject({message: 'Your dashboard changed in another window.', errorcode: 'dashboardchanged'}),
+        });
+        render(<Dashboard initialData={buildData()} />);
+        await screen.findByText('First block');
+        expect(getCalls(fetchOneSpy)).toHaveLength(0);
+
+        // A refused change reloads from the server.
+        const moveHandle = screen.getByRole('button', {name: 'Move First block block'});
+        fireEvent.keyDown(moveHandle, {key: ' '});
+        fireEvent.keyDown(moveHandle, {key: 'ArrowDown'});
+        await act(async() => {
+            fireEvent.keyDown(moveHandle, {key: ' '});
+        });
+        await waitFor(() => expect(getCalls(fetchOneSpy)).toHaveLength(1));
+    });
+
+    it('names the grid, and keeps tiles and empty regions in reading order', async() => {
+        mockDashboardApi({getResponses: [buildData()]});
+        const {container} = render(<Dashboard />);
+        await screen.findByText('First block');
+        await waitFor(() => expect(container.querySelector('.core-my-dashboard-grid'))
+            .toHaveAttribute('data-columns', '6'));
+
+        const grid = screen.getByRole('group', {name: 'Dashboard blocks'});
+        // Blocks fill columns 1-2 and 4-5 of the first two rows: the gap between them comes between
+        // them in the page too, then the space after the second.
+        const order = Array.from(grid.children).map(child => child.getAttribute('data-block-id')
+            ?? child.getAttribute('aria-label'));
+        expect(order).toEqual([
+            '101',
+            'Empty space, row 1, column 3. Add a block here.',
+            '102',
+            'Empty space, row 1, column 6. Add a block here.',
+        ]);
+    });
+
+    it('says the dashboard is being edited, and leaves Edit mode with Done', async() => {
+        mockDashboardApi({getResponses: [buildData()]});
+        render(<Dashboard />);
+        await screen.findByText('First block');
+
+        expect(screen.getByText('You are editing your dashboard.')).toBeInTheDocument();
+        expectRedirect({urlContains: 'edit=0'});
+        fireEvent.click(screen.getByRole('button', {name: 'Done'}));
+    });
+
     it('opens the block browser straight away when Edit mode was turned on to add a block', async() => {
         mockDashboardApi({getResponses: [buildData()]});
         render(<Dashboard openBrowser />);
 
         expect(await screen.findByRole('dialog', {name: 'Add a block'})).toBeInTheDocument();
+    });
+
+    it('loads each block\'s content on its own after the layout, running only that block\'s JavaScript', async() => {
+        const runTemplateJS = jest.fn();
+        (requireManyAsync as jest.Mock).mockImplementation(() => Promise.resolve([
+            {processCollectedJavascript: (source: string) => source},
+            {runTemplateJS},
+            {notifyFilterContentUpdated: jest.fn()},
+        ]));
+        const unloaded = buildData();
+        unloaded.blocks = unloaded.blocks.map(block => ({...block, content: '', loaded: false}));
+        const replies = new Map<number, (value: unknown) => void>();
+        const fetchOneSpy = mockDashboardApi({
+            getResponses: [unloaded],
+            blockImpl: blockid => new Promise(resolve => {
+                replies.set(blockid, resolve);
+            }),
+        });
+        const {container} = render(<Dashboard />);
+        await screen.findByText('First block');
+
+        // Both are requested on their own, and wait with a placeholder.
+        await waitFor(() => expect(fetchOneSpy.mock.calls.filter(([request]) =>
+            (request as {methodname: string}).methodname === 'core_my_get_dashboard_block')).toHaveLength(2));
+        const first = container.querySelector('[data-block-id="101"]')!;
+        expect(first).toHaveAttribute('aria-busy', 'true');
+
+        // The second answers first: it does not wait for the first.
+        await act(async() => {
+            replies.get(102)!({block: {...unloaded.blocks[1], content: '<p>Second loaded</p>', loaded: true},
+                javascript: 'window.__ran = "second";'});
+        });
+        expect(await screen.findByText('Second loaded')).toBeInTheDocument();
+        expect(first).toHaveAttribute('aria-busy', 'true');
+        await waitFor(() => expect(runTemplateJS).toHaveBeenCalledWith('window.__ran = "second";'));
+
+        await act(async() => {
+            replies.get(101)!({block: {...unloaded.blocks[0], content: '<p>First loaded</p>', loaded: true},
+                javascript: ''});
+        });
+        expect(await screen.findByText('First loaded')).toBeInTheDocument();
+        expect(first).not.toHaveAttribute('aria-busy');
+    });
+
+    it('says so in the tile when a block\'s content cannot be loaded, leaving the rest', async() => {
+        const unloaded = buildData();
+        unloaded.blocks = unloaded.blocks.map(block => ({...block, content: '', loaded: false}));
+        mockDashboardApi({
+            getResponses: [unloaded],
+            blockImpl: blockid => blockid === 101
+                ? Promise.reject(new Error('timeout'))
+                : Promise.resolve({block: {...unloaded.blocks[1], content: '<p>Second loaded</p>', loaded: true},
+                    javascript: ''}),
+        });
+        render(<Dashboard />);
+
+        expect(await screen.findByText('This block could not be loaded.')).toBeInTheDocument();
+        expect(await screen.findByText('Second loaded')).toBeInTheDocument();
     });
 
     it('runs only the latest reload\'s collected block JS, not a superseded one', async() => {

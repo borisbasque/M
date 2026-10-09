@@ -213,6 +213,7 @@ if (core_userfeedback::should_display_reminder()) {
 // are read by the page's generic React auto-init (core/react_autoinit), which finds this element,
 // mounts core_my/index.tsx onto it and passes initialLayout/loadingLabel through as props.
 $loadinglabel = get_string('loading');
+$initialdata = \core_my\local\dashboard::get_initial_data(false);
 $initiallayout = \core_my\local\dashboard::get_skeleton_layout(false);
 echo html_writer::div(\core_my\local\dashboard::get_loading_placeholder($initiallayout), 'core-my-dashboard-mount', [
     'data-react-component' => '@moodle/lms/core_my/index',
@@ -221,6 +222,8 @@ echo html_writer::div(\core_my\local\dashboard::get_loading_placeholder($initial
         'initialLayout' => $initiallayout,
         // Set when Edit mode was turned on to add a block, from the empty dashboard's button.
         'openBrowser' => optional_param('addblock', false, PARAM_BOOL),
+        // The dashboard itself, so the first view needs no request for it.
+        'initialData' => $initialdata,
     ]),
 ]);
 

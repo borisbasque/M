@@ -14,6 +14,10 @@ const getDashboard = /* @__PURE__ */ __name((siteDefault) => fetchOne({
   methodname: "core_my_get_dashboard",
   args: { sitedefault: siteDefault }
 }), "getDashboard");
+const getDashboardBlock = /* @__PURE__ */ __name((siteDefault, blockid) => fetchOne({
+  methodname: "core_my_get_dashboard_block",
+  args: { sitedefault: siteDefault, blockid }
+}), "getDashboardBlock");
 const updateDashboard = /* @__PURE__ */ __name((action, siteDefault, layout = [], blockname = "", blockid = 0, revision = null) => fetchOne({
   methodname: "core_my_update_dashboard",
   args: {
@@ -43,6 +47,7 @@ export {
   UPDATE_TIMEOUT_MS,
   beaconRemoval,
   getDashboard,
+  getDashboardBlock,
   updateDashboard
 };
 //# sourceMappingURL=repository.dev.js.map

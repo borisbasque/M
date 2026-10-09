@@ -162,50 +162,39 @@ describe('core_my grid components', () => {
         expect(footer.textContent).toBe('Updated footer');
     });
 
-    it('exposes an available cell as a positioned button', () => {
+    it('offers an empty region as one positioned button, named with where it starts', () => {
         const activate = jest.fn();
         render(<GridCell
             column={2}
             row={3}
-            label="Empty grid cell"
-            positionLabel="Row {$a->row}, column {$a->column}"
-            addLabel="Add a block"
+            columns={2}
+            rows={1}
+            label="Empty space, row {$a->row}, column {$a->column}. Add a block here."
+            addLabel="Add a block here"
             onActivate={activate}
         />);
 
-        const cell = screen.getByRole('button', {name: 'Empty grid cell, Row 4, column 3'});
-        cell.focus();
-        expect(cell).toHaveFocus();
+        const region = screen.getByRole('button', {name: 'Empty space, row 4, column 3. Add a block here.'});
+        expect(region).toHaveStyle({gridColumn: '3 / span 2', gridRow: '4 / span 1'});
+        region.focus();
+        expect(region).toHaveFocus();
 
-        fireEvent.click(cell);
-        expect(activate).toHaveBeenCalledWith(2, 3);
+        fireEvent.click(region);
+        expect(activate).toHaveBeenCalledWith(2, 3, 2, 1);
     });
 
-    it('shows a plus icon and an "add a block" hover/focus cue without changing the accessible name', () => {
-        render(<GridCell
-            column={2}
-            row={3}
-            label="Empty grid cell"
-            positionLabel="Row {$a->row}, column {$a->column}"
-            addLabel="Add a block"
-        />);
+    it('shows an "add a block here" cue without changing the accessible name', () => {
+        render(<GridCell column={2} row={3} label="Empty space" addLabel="Add a block here" />);
 
-        const cell = screen.getByRole('button', {name: 'Empty grid cell, Row 4, column 3'});
+        const cell = screen.getByRole('button', {name: 'Empty space'});
         expect(cell.querySelector('.core-my-grid-cell__icon')).toHaveAttribute('aria-hidden', 'true');
         const cue = cell.querySelector('.core-my-grid-cell__label');
         expect(cue).toHaveAttribute('aria-hidden', 'true');
-        expect(cue).toHaveTextContent('Add a block');
+        expect(cue).toHaveTextContent('Add a block here');
     });
 
     it('renders prospective placement without adding a focus target', () => {
-        const {container} = render(<GridCell
-            column={0}
-            row={0}
-            label="Empty grid cell"
-            positionLabel="Row {$a->row}, column {$a->column}"
-            addLabel="Add a block"
-            prospective
-        />);
+        const {container} = render(<GridCell column={0} row={0} label="" addLabel="" prospective />);
 
         expect(screen.queryByRole('button')).not.toBeInTheDocument();
         expect(container.firstChild).toHaveAttribute('aria-hidden', 'true');
@@ -253,7 +242,7 @@ describe('core_my grid components', () => {
         const handle = screen.getByRole('button', {name: 'Move Course overview block'});
         expect(handle).toHaveAttribute('aria-describedby', 'move-instructions');
         expect(handle).toHaveAttribute('aria-pressed', 'false');
-        expect(handle.querySelector('.fa-arrows-up-down-left-right')).toBeInTheDocument();
+        expect(handle.querySelector('.fa-grip-vertical')).toBeInTheDocument();
         fireEvent.pointerDown(handle, {clientX: 10, clientY: 10});
         expect(pointerDown).toHaveBeenCalled();
         expect(handle).toHaveFocus();
@@ -339,7 +328,7 @@ describe('core_my grid components', () => {
                 region: 'content',
                 weight: 0,
                 actions: [],
-                asynccontent: false,
+                asynccontent: false, loaded: true,
                 minsize: {columns: 1, rows: 2},
             }}
             item={{id: 7, column: 0, row: 0, columns: 2, rows: 2}}
@@ -368,7 +357,7 @@ describe('core_my grid components', () => {
             region: 'content',
             weight: 0,
             actions: [],
-            asynccontent: false,
+            asynccontent: false, loaded: true,
         };
         const tile = (item: LayoutItem) => <DashboardTile
             block={{...block}}
@@ -402,7 +391,7 @@ describe('core_my grid components', () => {
         const {container} = render(<DashboardTile
             block={{
                 id: 12, name: 'timeline', title: 'Timeline', content: '<p>Events</p>', footer: '',
-                region: 'content', weight: 0, actions: [], asynccontent: true, minsize: {columns: 1, rows: 2},
+                region: 'content', weight: 0, actions: [], asynccontent: true, loaded: true, minsize: {columns: 1, rows: 2},
             }}
             item={{id: 12, column: 0, row: 0, columns: 2, rows: 2}}
             labels={{...labels, tile: '{$a} block'} as DashboardLabels}
@@ -432,7 +421,7 @@ describe('core_my grid components', () => {
                 region: 'content',
                 weight: 0,
                 actions: [],
-                asynccontent: false,
+                asynccontent: false, loaded: true,
                 minsize: {columns: 1, rows: 2},
             }}
             item={{id: 8, column: 0, row: 0, columns: 2, rows: 2}}
@@ -465,7 +454,7 @@ describe('core_my grid components', () => {
                 region: 'content',
                 weight: 0,
                 actions: [],
-                asynccontent: false,
+                asynccontent: false, loaded: true,
                 minsize: {columns: 1, rows: 2},
             }}
             item={{id: 9, column: 1, row: 1, columns: 2, rows: 2}}
@@ -497,7 +486,7 @@ describe('core_my grid components', () => {
                 region: 'content',
                 weight: 0,
                 actions: [],
-                asynccontent: false,
+                asynccontent: false, loaded: true,
                 minsize: {columns: 1, rows: 2},
             }}
             item={{id: 8, column: 0, row: 0, columns: 2, rows: 2}}
@@ -522,11 +511,13 @@ describe('core_my grid components', () => {
             .toHaveClass('mds-btn--size-md');
         expect(screen.getByRole('button', {name: 'Resize block'}))
             .toHaveClass('core-my-dashboard-handle--resize');
-        expect(screen.getByRole('button', {name: 'Resize block'}).closest('footer'))
-            .toHaveClass('core-my-dashboard-tile__dashboard-footer');
+        // No footer bar: the resize handle sits over the tile's corner.
+        expect(screen.getByRole('button', {name: 'Resize block'}).closest('.core-my-dashboard-tile__resize'))
+            .toBeInTheDocument();
+        expect(screen.queryByRole('contentinfo')).not.toBeInTheDocument();
         const remove = screen.getByRole('button', {name: 'Delete Useful links block'});
         expect(remove).toHaveAttribute('title', 'Delete Useful links block');
-        expect(remove.querySelector('.fa-trash-can')).toBeInTheDocument();
+        expect(remove.querySelector('.fa-xmark')).toBeInTheDocument();
         expect(remove).not.toHaveTextContent('Delete Useful links block');
     });
 
@@ -649,7 +640,7 @@ describe('core_my grid components', () => {
                 region: 'content',
                 weight: 0,
                 actions: [],
-                asynccontent: false,
+                asynccontent: false, loaded: true,
                 minsize: {columns: 1, rows: 2},
             }}
             item={{id: 13, column: 0, row: 0, columns: 2, rows: 2}}

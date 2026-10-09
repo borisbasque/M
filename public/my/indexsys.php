@@ -99,6 +99,7 @@ echo $OUTPUT->header();
 // See my/index.php for what this mount point and placeholder are for; get_skeleton_layout(true)
 // reads the site-default dashboard's persisted layout instead of the current user's own.
 $loadinglabel = get_string('loading');
+$initialdata = \core_my\local\dashboard::get_initial_data(true);
 $initiallayout = \core_my\local\dashboard::get_skeleton_layout(true);
 echo html_writer::div(\core_my\local\dashboard::get_loading_placeholder($initiallayout), 'core-my-dashboard-mount', [
     'data-react-component' => '@moodle/lms/core_my/index',
@@ -107,6 +108,8 @@ echo html_writer::div(\core_my\local\dashboard::get_loading_placeholder($initial
         'initialLayout' => $initiallayout,
         // Set when Edit mode was turned on to add a block, from the empty dashboard's button.
         'openBrowser' => optional_param('addblock', false, PARAM_BOOL),
+        // The dashboard itself, so the first view needs no request for it.
+        'initialData' => $initialdata,
     ]),
 ]);
 

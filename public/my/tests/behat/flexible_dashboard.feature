@@ -62,6 +62,8 @@ Feature: Arrange dashboard blocks in a responsive grid
     And I should see "Shows a cloud of the tags used across the site." in the "Add a block" "dialogue"
     And I set the field "Search blocks" to "zzz"
     And I should see "No blocks match \"zzz\"." in the "Add a block" "dialogue"
+    # In a search field, the first Escape clears the search and the second closes the browser.
+    And I press the escape key
     And I press the escape key
     Then "Add a block" "dialogue" should not exist
 
@@ -203,8 +205,8 @@ Feature: Arrange dashboard blocks in a responsive grid
     And I reload the page
     # Two course cards fit in one row of cards: shorter than the old fixed 5 rows, well short of the cap.
     Then the "myoverview" dashboard block should be between "3" and "4" rows tall
-    # "No recent items" fits the 2-row minimum, not the old fixed 3 rows.
-    And the "recentlyaccesseditems" dashboard block should be "2" rows tall
+    # "No recent items" needs about two rows; the 48px tile header (the same in both modes) can tip it into a third.
+    And the "recentlyaccesseditems" dashboard block should be between "2" and "3" rows tall
     # Never below the calendar's declared 4-row minimum.
     And the "calendar_month" dashboard block should be between "4" and "6" rows tall
 

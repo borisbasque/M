@@ -36918,8 +36918,43 @@ body.editing#page-course-learningoutcomes .activity-item:hover:not(:has(.activit
   display: flex;
   flex-wrap: wrap;
   gap: var(--mds-spacing-sm);
+  align-items: center;
   justify-content: space-between;
   margin-block: var(--mds-spacing-md);
+  padding: var(--mds-spacing-xs) var(--mds-spacing-sm);
+  background: var(--mds-bg-surface-default);
+  border-radius: var(--mds-border-radius-md);
+}
+@media (min-width: 768px) {
+  .core-my-dashboard-toolbar {
+    position: sticky;
+    top: 60px;
+    z-index: 10;
+    border-bottom: var(--mds-stroke-weight-sm) solid var(--mds-border-subtle);
+  }
+}
+
+.core-my-dashboard-toolbar__notice {
+  margin: 0;
+  font-size: var(--mds-font-size-paragraph-small);
+  color: var(--mds-text-subtle);
+}
+
+.core-my-dashboard-toolbar__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--mds-spacing-xs);
+  align-items: center;
+}
+
+.core-my-dashboard-toolbar.core-my-dashboard-toolbar--bottom {
+  position: static;
+  justify-content: center;
+  border: 0;
+}
+
+.core-my-dashboard-grid > * {
+  scroll-margin-top: calc(60px + var(--mds-scale-1600));
 }
 
 .core-my-dashboard-grid {
@@ -36955,6 +36990,8 @@ body.editing#page-course-learningoutcomes .activity-item:hover:not(:has(.activit
 }
 
 .core-my-dashboard-tile--pointer-dragging {
+  z-index: 4;
+  box-shadow: 0 var(--mds-spacing-xs) var(--mds-spacing-lg) var(--mds-color-sm);
   transition: none;
   will-change: transform, width, height;
 }
@@ -36970,10 +37007,19 @@ body.editing#page-course-learningoutcomes .activity-item:hover:not(:has(.activit
 
 .core-my-dashboard-tile__header {
   display: flex;
-  gap: var(--mds-spacing-sm);
+  flex: 0 0 auto;
+  gap: var(--mds-spacing-xs);
   align-items: center;
-  justify-content: space-between;
-  padding: var(--mds-spacing-xs);
+  min-height: var(--mds-scale-1200);
+  padding: 0 var(--mds-spacing-xs) 0 var(--mds-spacing-md);
+}
+
+.core-my-dashboard-tile__header .core-my-dashboard-handle-wrapper--move {
+  margin-inline-start: calc(var(--mds-spacing-xs) - var(--mds-spacing-md));
+}
+
+.core-my-dashboard-tile__header .core-my-dashboard-tile__title {
+  flex: 1 1 auto;
 }
 
 .core-my-dashboard-tile__title {
@@ -37037,30 +37083,36 @@ body.editing#page-course-learningoutcomes .activity-item:hover:not(:has(.activit
 .core-my-dashboard-handle-wrapper {
   position: relative;
   display: grid;
-  flex: 0 0 var(--mds-scale-1100);
+  flex: 0 0 var(--core-my-dashboard-control);
   place-items: center;
-  width: var(--mds-scale-1100);
-  height: var(--mds-scale-1100);
+  width: var(--core-my-dashboard-control);
+  height: var(--core-my-dashboard-control);
 }
 
 .core-my-dashboard-handle-wrapper.active {
   z-index: 5;
 }
 
-.core-my-dashboard-handle-wrapper--resize {
-  flex: 0 0 var(--mds-scale-1100);
+.core-my-dashboard-tile {
+  --core-my-dashboard-control: var(--mds-scale-900);
+}
+@media (pointer: coarse) {
+  .core-my-dashboard-tile {
+    --core-my-dashboard-control: var(--mds-scale-1100);
+  }
 }
 
 .mds-btn.btn.core-my-dashboard-handle,
-.mds-btn.btn.core-my-dashboard-remove {
-  flex: 0 0 var(--mds-scale-1100);
+.mds-btn.btn.core-my-dashboard-remove,
+.mds-btn.btn.core-my-dashboard-block-actions__trigger {
+  flex: 0 0 var(--core-my-dashboard-control);
   justify-content: center;
-  width: var(--mds-scale-1100);
-  min-width: var(--mds-scale-1100);
-  height: var(--mds-scale-1100);
-  min-height: var(--mds-scale-1100);
-  padding: var(--mds-spacing-xs);
-  border-radius: var(--mds-border-radius-md);
+  width: var(--core-my-dashboard-control);
+  min-width: var(--core-my-dashboard-control);
+  height: var(--core-my-dashboard-control);
+  min-height: var(--core-my-dashboard-control);
+  padding: 0;
+  border-radius: var(--mds-border-radius-sm);
 }
 
 .mds-btn.btn.core-my-dashboard-handle i,
@@ -37081,8 +37133,23 @@ body.editing#page-course-learningoutcomes .activity-item:hover:not(:has(.activit
 
 .core-my-dashboard-handle--resize {
   cursor: nwse-resize;
+}
+
+.core-my-dashboard-tile__resize {
+  position: absolute;
+  inset-inline-end: 0;
+  bottom: 0;
+  z-index: 3;
+}
+.core-my-dashboard-tile__resize .mds-btn.btn.core-my-dashboard-handle--resize {
+  color: var(--mds-text-subtle);
   background: var(--mds-bg-surface-default);
-  border: var(--mds-stroke-weight-sm) solid var(--mds-border-interactive-secondary-default);
+  border-start-start-radius: var(--mds-border-radius-sm);
+  border-end-end-radius: var(--mds-border-radius-lg);
+}
+
+.dir-rtl .core-my-dashboard-tile__resize .core-my-dashboard-handle--resize {
+  cursor: nesw-resize;
 }
 
 .mds-btn.btn.core-my-dashboard-handle[aria-pressed=true] {
@@ -37179,17 +37246,6 @@ body.editing#page-course-learningoutcomes .activity-item:hover:not(:has(.activit
   border-top: var(--mds-stroke-weight-sm) solid var(--mds-border-subtle);
 }
 
-.core-my-dashboard-tile__dashboard-footer {
-  display: flex;
-  flex: 0 0 auto;
-  align-items: center;
-  justify-content: flex-end;
-  min-height: var(--mds-scale-1100);
-  padding: 0;
-  background: var(--mds-bg-surface-subtle);
-  border-top: var(--mds-stroke-weight-sm) solid var(--mds-border-subtle);
-}
-
 .core-my-grid-cell {
   z-index: 1;
   width: 100%;
@@ -37199,14 +37255,12 @@ body.editing#page-course-learningoutcomes .activity-item:hover:not(:has(.activit
 
 .core-my-grid-cell--available {
   display: flex;
-  flex-direction: column;
   align-items: center;
   justify-content: center;
-  gap: var(--mds-spacing-xs);
   padding: 0;
   cursor: pointer;
-  background: var(--mds-bg-interactive-secondary-default);
-  border: var(--mds-stroke-weight-sm) dashed var(--mds-border-interactive-secondary-hover);
+  background: transparent;
+  border: var(--mds-stroke-weight-sm) dashed var(--mds-border-subtle);
 }
 
 .core-my-grid-cell__icon {
@@ -37216,6 +37270,9 @@ body.editing#page-course-learningoutcomes .activity-item:hover:not(:has(.activit
 }
 
 .core-my-grid-cell__label {
+  display: inline-flex;
+  gap: var(--mds-spacing-xxs);
+  align-items: center;
   max-width: 100%;
   overflow: hidden;
   font-size: var(--mds-font-size-paragraph-small);
