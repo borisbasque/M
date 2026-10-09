@@ -96,6 +96,9 @@ final class dashboard_test extends \advanced_testcase {
         $this->assertNotFalse(\cache::make('core', 'my_dashboard')->get('view'));
 
         // Store the calendar shorter than its minimum, as a layout saved before it declared one would be.
+        $PAGE = new \moodle_page();
+        dashboard::save(false, $result['layout']);
+        $this->assertTrue($DB->record_exists('block_positions', ['blockinstanceid' => $calendar['id']]));
         $DB->set_field('block_positions', 'gridrows', 2, ['blockinstanceid' => $calendar['id']]);
 
         $PAGE = new \moodle_page();
