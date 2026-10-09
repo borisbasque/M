@@ -58,6 +58,72 @@ final class update_dashboard_test extends \advanced_testcase {
     }
 
     /**
+     * Each change moves the dashboard on a revision. A change sent from an older revision - another
+     * window that has not seen the latest change - is refused and writes nothing.
+     */
+    public function test_execute_refuses_a_change_from_an_older_revision(): void {
+        global $DB, $PAGE, $USER;
+
+        $this->resetAfterTest();
+        $this->setAdminUser();
+        $USER->editing = 1;
+        $_POST['sesskey'] = sesskey();
+
+        $payload = external_api::clean_returnvalue(get_dashboard::execute_returns(), get_dashboard::execute(false));
+        $seen = $payload['revision'];
+
+        // The first window saves: the revision moves on.
+        $PAGE = new \moodle_page();
+        $first = external_api::clean_returnvalue(update_dashboard::execute_returns(),
+            update_dashboard::execute('save', false, $payload['layout'], '', 0, $seen));
+        $this->assertSame($seen + 1, $first['revision']);
+
+        // A second window, still on the revision it loaded, tries to move a block.
+        $moved = $payload['layout'];
+        $moved[0]['row'] = 40;
+        $PAGE = new \moodle_page();
+        try {
+            update_dashboard::execute('save', false, $moved, '', 0, $seen);
+            $this->fail('A change from an older revision was accepted.');
+        } catch (\moodle_exception $exception) {
+            $this->assertSame('dashboardchanged', $exception->errorcode);
+        }
+        $this->assertNotEquals(40, (int) $DB->get_field('block_positions', 'gridrow', [
+            'blockinstanceid' => $moved[0]['id'],
+            'contextid' => \context_user::instance($USER->id)->id,
+        ]));
+
+        // Once it has the latest revision, the same change goes through.
+        $PAGE = new \moodle_page();
+        $again = external_api::clean_returnvalue(update_dashboard::execute_returns(),
+            update_dashboard::execute('save', false, $moved, '', 0, $first['revision']));
+        $this->assertSame($first['revision'] + 1, $again['revision']);
+    }
+
+    /**
+     * Adding and removing blocks also move the revision on, and a client that sends none is not checked.
+     */
+    public function test_execute_counts_adds_and_removes_as_changes(): void {
+        global $PAGE, $USER;
+
+        $this->resetAfterTest();
+        $this->setAdminUser();
+        $USER->editing = 1;
+        $_POST['sesskey'] = sesskey();
+
+        $payload = external_api::clean_returnvalue(get_dashboard::execute_returns(), get_dashboard::execute(false));
+        $PAGE = new \moodle_page();
+        $added = external_api::clean_returnvalue(update_dashboard::execute_returns(),
+            update_dashboard::execute('add', false, [], 'online_users', 0, $payload['revision']));
+        $this->assertSame($payload['revision'] + 1, $added['revision']);
+
+        $PAGE = new \moodle_page();
+        $removed = external_api::clean_returnvalue(update_dashboard::execute_returns(),
+            update_dashboard::execute('remove', false, [], '', $added['blockid']));
+        $this->assertSame($added['revision'] + 1, $removed['revision']);
+    }
+
+    /**
      * Unknown actions are rejected.
      */
     public function test_execute_rejects_unknown_action(): void {

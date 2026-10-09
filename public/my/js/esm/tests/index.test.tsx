@@ -172,6 +172,7 @@ const buildData = (overrides: Partial<DashboardData> = {}): DashboardData => ({
     availableblocks: [{name: 'calendar_month', title: 'Calendar'}],
     grid: {minsize: {columns: 1, rows: 2}, autorowscap: 8},
     ownlayout: true,
+    revision: 7,
     canedit: true,
     editing: true,
     sitedefault: false,
@@ -593,6 +594,51 @@ describe('core_my Dashboard application', () => {
         const args = (updateCalls(fetchOneSpy)[0][0] as {args: {layout: LayoutItem[]}}).args;
         expect(args.layout.find(item => item.id === 102)).toMatchObject({column: 2});
         styleSpy.mockRestore();
+    });
+
+    it('sends each change with the revision it was made from, moving on with each reply', async() => {
+        let revision = 7;
+        const fetchOneSpy = mockDashboardApi({
+            getResponses: [buildData()],
+            updateImpl: () => Promise.resolve({status: true, blockid: 0, revision: ++revision} as {status: boolean; blockid: number}),
+        });
+        render(<Dashboard />);
+        await screen.findByText('First block');
+
+        const moveHandle = screen.getByRole('button', {name: 'Move First block block'});
+        for (const _ of [1, 2]) {
+            fireEvent.keyDown(moveHandle, {key: ' '});
+            fireEvent.keyDown(moveHandle, {key: 'ArrowDown'});
+            await act(async() => {
+                fireEvent.keyDown(moveHandle, {key: ' '});
+            });
+        }
+
+        await waitFor(() => expect(updateCalls(fetchOneSpy)).toHaveLength(2));
+        expect(updateCalls(fetchOneSpy).map(([request]) => (request as {args: {revision: number}}).args.revision))
+            .toEqual([7, 8]);
+    });
+
+    it('reloads with a message when the dashboard changed in another window', async() => {
+        const changed = buildData({layout: [baseLayout[1], {...baseLayout[0], row: 4}], revision: 9});
+        const fetchOneSpy = mockDashboardApi({
+            getResponses: [buildData(), changed],
+            updateImpl: () => Promise.reject({message: 'Your dashboard changed in another window.', errorcode: 'dashboardchanged'}),
+        });
+        render(<Dashboard />);
+        await screen.findByText('First block');
+
+        const moveHandle = screen.getByRole('button', {name: 'Move First block block'});
+        fireEvent.keyDown(moveHandle, {key: ' '});
+        fireEvent.keyDown(moveHandle, {key: 'ArrowRight'});
+        await act(async() => {
+            fireEvent.keyDown(moveHandle, {key: ' '});
+        });
+
+        expect(await screen.findByText('Your dashboard changed in another window.')).toBeInTheDocument();
+        expect(getCalls(fetchOneSpy)).toHaveLength(2);
+        // Not retried: the server's refusal is final.
+        expect(updateCalls(fetchOneSpy)).toHaveLength(1);
     });
 
     it('undoes changes newest first with Ctrl+Z, and from the toolbar', async() => {

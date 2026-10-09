@@ -64,6 +64,14 @@ final class update_dashboard extends external_api {
             ]), 'Layout items.', VALUE_DEFAULT, []),
             'blockname' => new external_value(PARAM_PLUGIN, 'Block plugin name.', VALUE_DEFAULT, ''),
             'blockid' => new external_value(PARAM_INT, 'Block instance id.', VALUE_DEFAULT, 0),
+            'revision' => new external_value(
+                PARAM_INT,
+                'The dashboard revision the change was made from. If the dashboard has changed since, the change is '
+                    . 'refused with the dashboardchanged error. Null skips the check.',
+                VALUE_DEFAULT,
+                null,
+                NULL_ALLOWED,
+            ),
         ]);
     }
 
@@ -75,6 +83,7 @@ final class update_dashboard extends external_api {
      * @param array $layout Layout items.
      * @param string $blockname Block plugin name.
      * @param int $blockid Block instance id.
+     * @param int|null $revision The dashboard revision the change was made from.
      * @return array
      */
     public static function execute(
@@ -83,6 +92,7 @@ final class update_dashboard extends external_api {
         array $layout = [],
         string $blockname = '',
         int $blockid = 0,
+        ?int $revision = null,
     ): array {
         $params = self::validate_parameters(self::execute_parameters(), [
             'action' => $action,
@@ -90,12 +100,21 @@ final class update_dashboard extends external_api {
             'layout' => $layout,
             'blockname' => $blockname,
             'blockid' => $blockid,
+            'revision' => $revision,
         ]);
         $context = $params['sitedefault']
             ? \context_system::instance()
             : \context_user::instance($GLOBALS['USER']->id);
         self::validate_context($context);
         require_sesskey();
+
+        // A change made from an out-of-date view of the dashboard would silently undo whatever
+        // changed it since, so refuse it before touching anything. Reset is exempt: it replaces
+        // everything anyway, and always asks first.
+        $changes = in_array($params['action'], ['save', 'add', 'remove'], true);
+        if ($changes) {
+            dashboard::require_revision($params['sitedefault'], $params['revision']);
+        }
 
         $newblockid = 0;
         $result = [];
@@ -133,6 +152,9 @@ final class update_dashboard extends external_api {
                 throw new \invalid_parameter_exception('Unknown dashboard update action.');
         }
 
+        if ($changes) {
+            $result['revision'] = dashboard::bump_revision($params['sitedefault']);
+        }
         return ['status' => true, 'blockid' => $newblockid] + $result;
     }
 
@@ -155,6 +177,11 @@ final class update_dashboard extends external_api {
             'availableblocks' => new external_multiple_structure(
                 get_dashboard::available_block_structure(),
                 'Blocks that can now be added, after an add or remove.',
+                VALUE_OPTIONAL,
+            ),
+            'revision' => new external_value(
+                PARAM_INT,
+                'The dashboard revision after a save, add or remove, to send with the next change.',
                 VALUE_OPTIONAL,
             ),
         ]);

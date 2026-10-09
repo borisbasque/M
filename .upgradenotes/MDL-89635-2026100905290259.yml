@@ -1,0 +1,12 @@
+issueNumber: MDL-89635
+notes:
+  core_my:
+    - message: >-
+        core_my_get_dashboard now returns the dashboard's revision, and
+        core_my_update_dashboard takes an optional revision parameter and
+        returns the new revision after a save, add or remove. A save, add or
+        remove sent with a revision older than the dashboard's current one is
+        refused with the dashboardchanged error and changes nothing, so a client
+        editing in an out-of-date window cannot overwrite a newer change.
+        Clients that send no revision are not checked.
+      type: changed

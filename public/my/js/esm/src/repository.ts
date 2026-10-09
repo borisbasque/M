@@ -113,6 +113,8 @@ export interface DashboardData {
     grid: DashboardGrid;
     // Whether this is the viewer's own stored dashboard: only then are measured heights saved.
     ownlayout: boolean;
+    // The dashboard's revision: sent with each change, so one made from an out-of-date window is refused.
+    revision: number;
     canedit: boolean;
     editing: boolean;
     sitedefault: boolean;
@@ -133,6 +135,8 @@ export interface UpdateResult {
     javascript?: string;
     /** After 'add' or 'remove': the blocks that can now be added. */
     availableblocks?: AvailableBlock[];
+    /** After 'save', 'add' or 'remove': the dashboard's new revision. */
+    revision?: number;
 }
 
 /**
@@ -154,6 +158,7 @@ export const updateDashboard = (
     layout: LayoutItem[] = [],
     blockname = '',
     blockid = 0,
+    revision: number | null = null,
 ): Promise<UpdateResult> => fetchOne<UpdateResult>({
     methodname: 'core_my_update_dashboard',
     args: {
@@ -162,5 +167,6 @@ export const updateDashboard = (
         layout,
         blockname,
         blockid,
+        revision,
     },
 }, {timeout: UPDATE_TIMEOUT_MS});

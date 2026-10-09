@@ -167,6 +167,8 @@ final class dashboard {
             $instances[$id] = (object) ['instance' => (object) $regions, 'minsize' => $regions['minsize']];
         }
         $cached['layout'] = self::get_layout($cached['pageid'], $cached['contextid'], $instances);
+        // Like the layout, the revision is read fresh: another window may have changed it.
+        $cached['revision'] = self::get_revision($sitedefault);
         return self::strip_cache_metadata($cached);
     }
 
@@ -244,6 +246,7 @@ final class dashboard {
             // Whether this is the viewer's own stored dashboard, as opposed to the site default
             // shown to someone who has not customised theirs: only then may measured heights be saved.
             'ownlayout' => !$sitedefault && (int) $mypage->userid === (int) $USER->id,
+            'revision' => self::get_revision($sitedefault),
             'canedit' => $canedit,
             'editing' => $editing,
             'sitedefault' => $sitedefault,
@@ -909,6 +912,70 @@ final class dashboard {
      * Only ever needed for the user's own dashboard: {@see self::get()} never caches the site
      * default.
      */
+    /**
+     * The revision of the dashboard the current user edits in a scope.
+     *
+     * A user who has not customised their dashboard yet has no page of their own, so its revision
+     * is 0: their first change copies the site default, and then counts from there.
+     *
+     * @param bool $sitedefault Whether to read the site default.
+     * @return int
+     */
+    public static function get_revision(bool $sitedefault): int {
+        global $CFG, $DB, $USER;
+
+        require_once($CFG->dirroot . '/my/lib.php');
+
+        $conditions = $sitedefault
+            ? ['userid' => null, 'private' => MY_PAGE_PRIVATE]
+            : ['userid' => $USER->id, 'private' => MY_PAGE_PRIVATE];
+        $revisions = $DB->get_fieldset('my_pages', 'revision', $conditions);
+        return $revisions ? (int) max($revisions) : 0;
+    }
+
+    /**
+     * Refuse a change made from a view of the dashboard that is no longer current.
+     *
+     * Every change sends the revision its window last saw. If the dashboard has changed since
+     * (in another window or tab, or on another device), the change is refused and nothing is
+     * written, so it can never silently undo the newer change.
+     *
+     * @param bool $sitedefault Whether the site default is being changed.
+     * @param int|null $expected The revision the client last saw, or null to skip the check.
+     * @throws \moodle_exception dashboardchanged when the dashboard has changed since.
+     */
+    public static function require_revision(bool $sitedefault, ?int $expected): void {
+        // Only someone who may edit the dashboard learns whether it has changed.
+        self::require_edit_capability(
+            $sitedefault,
+            $sitedefault ? context_system::instance() : context_user::instance($GLOBALS['USER']->id),
+        );
+        if ($expected !== null && $expected !== self::get_revision($sitedefault)) {
+            throw new \moodle_exception('dashboardchanged', 'my');
+        }
+    }
+
+    /**
+     * Record that the dashboard in a scope has changed.
+     *
+     * @param bool $sitedefault Whether the site default changed.
+     * @return int The new revision.
+     */
+    public static function bump_revision(bool $sitedefault): int {
+        global $CFG, $DB, $USER;
+
+        require_once($CFG->dirroot . '/my/lib.php');
+
+        $page = $DB->get_record('my_pages', $sitedefault
+            ? ['userid' => null, 'private' => MY_PAGE_PRIVATE]
+            : ['userid' => $USER->id, 'private' => MY_PAGE_PRIVATE], 'id, revision', IGNORE_MULTIPLE);
+        if (!$page) {
+            return 0;
+        }
+        $DB->set_field('my_pages', 'revision', $page->revision + 1, ['id' => $page->id]);
+        return $page->revision + 1;
+    }
+
     private static function purge_cache(): void {
         \cache::make('core', 'my_dashboard')->delete_many(['view', 'edit']);
     }

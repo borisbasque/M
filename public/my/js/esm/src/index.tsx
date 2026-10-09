@@ -47,6 +47,7 @@ import {
     type DashboardData,
     type DashboardLabels,
     type DashboardUrls,
+    type UpdateResult,
 } from './repository';
 import {SaveQueue, isTransientError, type SaveStatus} from './saveQueue';
 
@@ -393,10 +394,26 @@ const Dashboard = ({loadingLabel = '', initialLayout = []}: DashboardProps) => {
     // leaving with changes unsent.
     const reloadingRef = useRef(false);
     const siteDefault = isSiteDefault();
+    // The revision of the dashboard this window last saw. Every change carries it, so the server
+    // refuses one made from an out-of-date window rather than let it undo a newer change made
+    // elsewhere (see dashboard::require_revision()), and each accepted change moves it on.
+    const revisionRef = useRef<number | null>(null);
+    const [send] = useState(() => async(
+        action: 'save' | 'add' | 'remove',
+        layout: LayoutItem[] = [],
+        blockname = '',
+        blockid = 0,
+    ): Promise<UpdateResult> => {
+        const result = await updateDashboard(action, siteDefault, layout, blockname, blockid, revisionRef.current);
+        if (typeof result.revision === 'number') {
+            revisionRef.current = result.revision;
+        }
+        return result;
+    });
     // Every change to the dashboard goes through this one queue: in order, merged, and retried
     // across dropped connections (see saveQueue.ts).
     const [queue] = useState(() => new SaveQueue({
-        sendLayout: layout => updateDashboard('save', siteDefault, layout),
+        sendLayout: layout => send('save', layout),
         onStatus: setSaveStatus,
     }));
 
@@ -423,6 +440,7 @@ const Dashboard = ({loadingLabel = '', initialLayout = []}: DashboardProps) => {
             dataRef.current = response;
             setCanonical(response.layout);
             canonicalRef.current = response.layout;
+            revisionRef.current = response.revision;
             unsentRemovalsRef.current = new Set();
             pendingRemovalRef.current = null;
             setHiddenIds(new Set());
@@ -555,7 +573,7 @@ const Dashboard = ({loadingLabel = '', initialLayout = []}: DashboardProps) => {
         setUnsaved(false);
         try {
             for (const id of [...unsentRemovalsRef.current]) {
-                await queue.call(() => updateDashboard('remove', siteDefault, [], '', id), true);
+                await queue.call(() => send('remove', [], '', id), true);
                 unsentRemovalsRef.current.delete(id);
             }
             await queue.saveLayout(canonicalRef.current);
@@ -701,7 +719,7 @@ const Dashboard = ({loadingLabel = '', initialLayout = []}: DashboardProps) => {
         dropToast(pending.toastId);
         const {id} = pending;
         unsentRemovalsRef.current.add(id);
-        const removed = queue.call(() => updateDashboard('remove', siteDefault, [], '', id), true);
+        const removed = queue.call(() => send('remove', [], '', id), true);
         const layout = queue.saveLayout(canonicalRef.current);
         patchData({blocks: current.blocks.filter(block => block.id !== id)});
         setHiddenIds(previous => new Set([...previous].filter(hidden => hidden !== id)));
@@ -770,7 +788,7 @@ const Dashboard = ({loadingLabel = '', initialLayout = []}: DashboardProps) => {
         void announce('dashboardundone');
 
         try {
-            const removals = added.map(id => queue.call(() => updateDashboard('remove', siteDefault, [], '', id), true));
+            const removals = added.map(id => queue.call(() => send('remove', [], '', id), true));
             const saved = queue.saveLayout(layout);
             const results = await Promise.all(removals);
             const palette = results.reverse().find(result => result.availableblocks)?.availableblocks;
@@ -1296,7 +1314,7 @@ const Dashboard = ({loadingLabel = '', initialLayout = []}: DashboardProps) => {
         pushHistory();
         let result;
         try {
-            result = await queue.call(() => updateDashboard('add', siteDefault, [], block.name), false);
+            result = await queue.call(() => send('add', [], block.name), false);
         } catch (caught) {
             historyRef.current.pop();
             setHistorySize(historyRef.current.length);

@@ -89,6 +89,10 @@ final class get_dashboard extends external_api {
                 'autorowscap' => new external_value(PARAM_INT, 'The most rows a block sized to its content opens at.'),
             ], 'Grid rules the editor must enforce, as resolved by the server.'),
             'ownlayout' => new external_value(PARAM_BOOL, 'Whether this is the viewer\'s own stored dashboard.'),
+            'revision' => new external_value(
+                PARAM_INT,
+                'The dashboard\'s current revision, to send with the first change made to it.',
+            ),
             'canedit' => new external_value(PARAM_BOOL, 'Whether the user may edit.'),
             'editing' => new external_value(PARAM_BOOL, 'Whether Edit mode is active.'),
             'sitedefault' => new external_value(PARAM_BOOL, 'Whether this is the site default.'),

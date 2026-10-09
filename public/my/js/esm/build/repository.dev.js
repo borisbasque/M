@@ -13,14 +13,15 @@ const getDashboard = /* @__PURE__ */ __name((siteDefault) => fetchOne({
   methodname: "core_my_get_dashboard",
   args: { sitedefault: siteDefault }
 }), "getDashboard");
-const updateDashboard = /* @__PURE__ */ __name((action, siteDefault, layout = [], blockname = "", blockid = 0) => fetchOne({
+const updateDashboard = /* @__PURE__ */ __name((action, siteDefault, layout = [], blockname = "", blockid = 0, revision = null) => fetchOne({
   methodname: "core_my_update_dashboard",
   args: {
     action,
     sitedefault: siteDefault,
     layout,
     blockname,
-    blockid
+    blockid,
+    revision
   }
 }, { timeout: UPDATE_TIMEOUT_MS }), "updateDashboard");
 export {

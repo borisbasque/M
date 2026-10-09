@@ -2413,5 +2413,19 @@ function xmldb_main_upgrade($oldversion) {
         upgrade_main_savepoint(true, 2026100500.05);
     }
 
+    if ($oldversion < 2026100500.06) {
+        // Define field revision to be added to my_pages.
+        $table = new xmldb_table('my_pages');
+        $field = new xmldb_field('revision', XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, null, '0', 'sortorder');
+
+        // Conditionally launch add field revision.
+        if (!$dbman->field_exists($table, $field)) {
+            $dbman->add_field($table, $field);
+        }
+
+        // Main savepoint reached.
+        upgrade_main_savepoint(true, 2026100500.06);
+    }
+
     return true;
 }

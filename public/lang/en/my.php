@@ -35,6 +35,7 @@ $string['dashboardblockadded'] = '{$a} block added.';
 $string['dashboardblockremoved'] = 'Block removed.';
 $string['dashboardblockremovednamed'] = '{$a} removed.';
 $string['dashboardcancel'] = 'Cancel';
+$string['dashboardchanged'] = 'Your dashboard changed in another window.';
 $string['dashboarddone'] = 'Done';
 $string['dashboarddown'] = 'Down';
 $string['dashboardkeyboardmove'] = '{$a} picked up. Use the arrow keys to move it, then press Space or Enter to drop it, or Escape to cancel.';
