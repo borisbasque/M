@@ -24,6 +24,7 @@ import {
     readGridMetrics,
     rowsForHeight,
     writeBack,
+    collapseEmptyRows,
     type LayoutItem,
 } from '../src/layout';
 
@@ -156,10 +157,9 @@ describe('core_my responsive dashboard layout', () => {
         expect(packed.find(item => item.id === 2)).toMatchObject({column: 0, row: 4});
     });
 
-    it('falls back to the first free cell when a collision is diagonal (neither same row nor column)', () => {
-        // The pinned block occupies columns 1-2, rows 1-2; the other item's original rectangle
-        // (columns 2-3, rows 0-1) overlaps it without sharing either its row or its column, so
-        // neither pushRight nor pushDown apply and firstFreeCell must resolve it instead.
+    it('moves a block overlapped from below right within its own row, never up', () => {
+        // The pinned block occupies columns 1-2, rows 1-2; the other block (columns 2-3, rows 0-1)
+        // overlaps it from above, so it moves right in its own row.
         const layout: LayoutItem[] = [
             {id: 1, column: 1, row: 1, columns: 2, rows: 2},
             {id: 2, column: 2, row: 0, columns: 2, rows: 2},
@@ -167,12 +167,39 @@ describe('core_my responsive dashboard layout', () => {
 
         const packed = packWithPinned(layout, 6, layout[0]);
 
-        const other = packed.find(item => item.id === 2)!;
         expect(packed.find(item => item.id === 1)).toMatchObject({column: 1, row: 1});
-        // Landed somewhere that does not overlap the pinned block, not necessarily row 0.
-        const overlapsPinned = other.column < 3 && other.column + other.columns > 1 &&
-            other.row < 3 && other.row + other.rows > 1;
-        expect(overlapsPinned).toBe(false);
+        expect(packed.find(item => item.id === 2)).toMatchObject({column: 3, row: 0});
+    });
+
+    it('moves a block with no room to its right down in its own columns, never to a distant cell', () => {
+        // Three blocks fill the top row; moving the third onto the first leaves the first no room
+        // to its right, so it goes down rather than to the first free cell elsewhere.
+        const layout: LayoutItem[] = [
+            {id: 1, column: 0, row: 0, columns: 2, rows: 2},
+            {id: 2, column: 2, row: 0, columns: 2, rows: 2},
+            {id: 3, column: 4, row: 0, columns: 2, rows: 2},
+        ];
+
+        const packed = packWithPinned(layout, 6, {...layout[2], column: 0, row: 0});
+
+        expect(packed.find(item => item.id === 3)).toMatchObject({column: 0, row: 0});
+        expect(packed.find(item => item.id === 1)).toMatchObject({column: 0, row: 2});
+        expect(packed.find(item => item.id === 2)).toMatchObject({column: 2, row: 0});
+        packed.forEach(item => expect(item.row).toBeGreaterThanOrEqual(
+            layout.find(original => original.id === item.id)!.row));
+    });
+
+    it('resolves every preview from the layout as it was when the move began', () => {
+        // Passing through a neighbour and back must not leave it displaced.
+        const layout: LayoutItem[] = [
+            {id: 1, column: 0, row: 0, columns: 2, rows: 2},
+            {id: 2, column: 2, row: 0, columns: 2, rows: 2},
+        ];
+
+        packWithPinned(layout, 6, {...layout[0], column: 2});
+        const back = packWithPinned(layout, 6, layout[0]);
+
+        expect(back.find(item => item.id === 2)).toMatchObject({column: 2, row: 0});
     });
 
     it('falls back to pushDown when pushRight has no room in a single-column grid', () => {
@@ -308,6 +335,44 @@ describe('applyRowSpans', () => {
 
         expect(next.find(item => item.id === 1)).toMatchObject({row: 0, rows: 2});
         expect(next.find(item => item.id === 2)).toMatchObject({row: 3});
+    });
+});
+
+describe('collapseEmptyRows', () => {
+    it('closes up rows no block occupies, keeping columns and order', () => {
+        const layout: LayoutItem[] = [
+            {id: 1, column: 0, row: 0, columns: 2, rows: 2},
+            {id: 2, column: 3, row: 4, columns: 2, rows: 2},
+            {id: 3, column: 0, row: 7, columns: 1, rows: 1},
+        ];
+
+        expect(collapseEmptyRows(layout)).toEqual([
+            {id: 1, column: 0, row: 0, columns: 2, rows: 2},
+            {id: 2, column: 3, row: 2, columns: 2, rows: 2},
+            {id: 3, column: 0, row: 4, columns: 1, rows: 1},
+        ]);
+    });
+
+    it('returns the same layout when no row is empty', () => {
+        const layout: LayoutItem[] = [
+            {id: 1, column: 0, row: 0, columns: 2, rows: 2},
+            {id: 2, column: 3, row: 1, columns: 2, rows: 2},
+        ];
+
+        expect(collapseEmptyRows(layout)).toBe(layout);
+    });
+
+    it('closes up the rows a drop leaves empty when written back', () => {
+        const layout: LayoutItem[] = [
+            {id: 1, column: 0, row: 0, columns: 6, rows: 2},
+            {id: 2, column: 0, row: 2, columns: 3, rows: 2},
+        ];
+        const moved = {...layout[0], row: 4};
+
+        const written = writeBack(layout, [layout[1], moved], moved.id);
+
+        expect(written.find(item => item.id === 2)).toMatchObject({row: 0});
+        expect(written.find(item => item.id === 1)).toMatchObject({row: 2});
     });
 });
 

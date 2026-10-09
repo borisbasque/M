@@ -133,14 +133,6 @@ const packLayout = /* @__PURE__ */ __name((items, columnCount) => {
   });
 }, "packLayout");
 const rectsOverlap = /* @__PURE__ */ __name((left, right) => left.column < right.column + right.columns && left.column + left.columns > right.column && left.row < right.row + right.rows && left.row + left.rows > right.row, "rectsOverlap");
-const pushRight = /* @__PURE__ */ __name((rect, occupied, columnCount) => {
-  for (let column = rect.column + 1; column + rect.columns <= columnCount; column++) {
-    if (fits(occupied, column, rect.row, rect.columns, rect.rows)) {
-      return { ...rect, column };
-    }
-  }
-  return null;
-}, "pushRight");
 const pushDown = /* @__PURE__ */ __name((rect, occupied) => {
   for (let row = rect.row + 1; row < 1e4; row++) {
     if (fits(occupied, rect.column, row, rect.columns, rect.rows)) {
@@ -150,26 +142,12 @@ const pushDown = /* @__PURE__ */ __name((rect, occupied) => {
   return null;
 }, "pushDown");
 const displaceFromBlocker = /* @__PURE__ */ __name((rect, blocker, occupied, columnCount) => {
-  const sameRow = rect.row === blocker.row;
-  const sameColumn = rect.column === blocker.column;
-  if (sameColumn && !sameRow) {
-    return pushDown(rect, occupied) ?? pushRight(rect, occupied, columnCount);
+  const column = blocker.column + blocker.columns;
+  if (rect.row <= blocker.row && column + rect.columns <= columnCount && fits(occupied, column, rect.row, rect.columns, rect.rows)) {
+    return { ...rect, column };
   }
-  if (sameRow) {
-    return pushRight(rect, occupied, columnCount) ?? pushDown(rect, occupied);
-  }
-  return null;
+  return pushDown(rect, occupied);
 }, "displaceFromBlocker");
-const firstFreeCell = /* @__PURE__ */ __name((rect, occupied, columnCount) => {
-  for (let row = 0; row < 1e4; row++) {
-    for (let column = 0; column + rect.columns <= columnCount; column++) {
-      if (fits(occupied, column, row, rect.columns, rect.rows)) {
-        return { ...rect, column, row };
-      }
-    }
-  }
-  return null;
-}, "firstFreeCell");
 const packWithPinned = /* @__PURE__ */ __name((items, columnCount, pinned, minimum = { columns: 1, rows: 1 }) => {
   const columns = Math.min(Math.max(minimum.columns, pinned.columns), columnCount);
   const safePinned = {
@@ -182,25 +160,28 @@ const packWithPinned = /* @__PURE__ */ __name((items, columnCount, pinned, minim
   const occupied = /* @__PURE__ */ new Set();
   occupy(occupied, safePinned);
   const result = [safePinned];
-  const remaining = items.filter((item) => item.id !== pinned.id).sort((left, right) => left.row - right.row || left.column - right.column || left.id - right.id);
-  for (const item of remaining) {
+  const clamped = items.filter((item) => item.id !== pinned.id).sort((left, right) => left.row - right.row || left.column - right.column || left.id - right.id).map((item) => {
     const columns2 = Math.min(item.columns, columnCount);
-    const column = Math.max(0, Math.min(item.column, columnCount - columns2));
-    const row = Math.max(0, item.row);
-    const rect = { column, row, columns: columns2, rows: item.rows };
-    let placed = null;
-    if (fits(occupied, column, row, columns2, item.rows)) {
-      placed = { ...item, column, row, columns: columns2 };
+    return {
+      ...item,
+      column: Math.max(0, Math.min(item.column, columnCount - columns2)),
+      row: Math.max(0, item.row),
+      columns: columns2
+    };
+  });
+  const displaced = [];
+  for (const item of clamped) {
+    if (fits(occupied, item.column, item.row, item.columns, item.rows)) {
+      occupy(occupied, item);
+      result.push(item);
     } else {
-      const blocker = result.find((candidate) => rectsOverlap(rect, candidate));
-      const resolved = (blocker && displaceFromBlocker(rect, blocker, occupied, columnCount)) ?? firstFreeCell(rect, occupied, columnCount);
-      if (resolved) {
-        placed = { ...item, column: resolved.column, row: resolved.row, columns: columns2 };
-      }
+      displaced.push(item);
     }
-    if (!placed) {
-      throw new Error("Unable to place dashboard block.");
-    }
+  }
+  for (const item of displaced) {
+    const blocker = result.find((candidate) => rectsOverlap(item, candidate)) ?? safePinned;
+    const resolved = displaceFromBlocker(item, blocker, occupied, columnCount);
+    const placed = { ...item, column: resolved.column, row: resolved.row };
     occupy(occupied, placed);
     result.push(placed);
   }
@@ -215,7 +196,7 @@ const writeBack = /* @__PURE__ */ __name((canonical, derived, pinnedId, minimum)
   }));
   const pinned = restored.find((item) => item.id === pinnedId);
   const packed = pinned ? packWithPinned(restored, MAX_COLUMNS, pinned, minimum) : packInOrder(restored, MAX_COLUMNS);
-  return packed.map((item) => ({
+  return collapseEmptyRows(packed).map((item) => ({
     id: item.id,
     column: item.column,
     row: item.row,
@@ -224,6 +205,21 @@ const writeBack = /* @__PURE__ */ __name((canonical, derived, pinnedId, minimum)
     autorows: item.autorows ?? true
   }));
 }, "writeBack");
+const collapseEmptyRows = /* @__PURE__ */ __name((items) => {
+  const rows = maxRow(items);
+  const shift = [];
+  let empty = 0;
+  for (let row = 0; row < rows; row++) {
+    shift.push(empty);
+    if (!items.some((item) => row >= item.row && row < item.row + item.rows)) {
+      empty++;
+    }
+  }
+  if (empty === 0 || items.every((item) => !shift[item.row])) {
+    return items;
+  }
+  return items.map((item) => shift[item.row] ? { ...item, row: item.row - shift[item.row] } : item);
+}, "collapseEmptyRows");
 const disturbedCount = /* @__PURE__ */ __name((before, after, activeId) => {
   const positions = new Map(before.map((item) => [item.id, `${item.column}:${item.row}`]));
   return after.filter((item) => item.id !== activeId && positions.get(item.id) !== `${item.column}:${item.row}`).length;
@@ -276,6 +272,7 @@ export {
   SIX_COLUMN_THRESHOLD,
   TWO_COLUMN_THRESHOLD,
   applyRowSpans,
+  collapseEmptyRows,
   columnsForWidth,
   disturbedCount,
   fitMinimum,

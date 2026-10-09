@@ -26,6 +26,7 @@ import DashboardLoading from './components/DashboardLoading';
 import {
     columnsForWidth,
     applyRowSpans,
+    collapseEmptyRows,
     disturbedCount,
     fitMinimum,
     maxRow,
@@ -124,6 +125,9 @@ const DASHBOARD_SETTLE_QUIET_MS = 250;
 const DASHBOARD_SETTLE_TIMEOUT_MS = 5000;
 // Fired by blocks that declare asynchronous content: eventTypes.blockContentLoaded in core_block/events.
 const BLOCK_CONTENT_LOADED = 'core_block/contentLoaded';
+// How close to the top or bottom of the window a drag scrolls the page, and how far per frame.
+const AUTOSCROLL_EDGE_PX = 64;
+const AUTOSCROLL_STEP_PX = 12;
 let dashboardSettleCounter = 0;
 
 const isSiteDefault = (): boolean => window.location.pathname.endsWith('/my/indexsys.php');
@@ -743,13 +747,39 @@ const Dashboard = ({loadingLabel = '', initialLayout = []}: DashboardProps) => {
         const rowStride = rowHeight + gap;
         const originalWidth = origin.columns * cellWidth + (origin.columns - 1) * gap;
         const originalHeight = origin.rows * rowHeight + (origin.rows - 1) * gap;
-        const move = (pointerEvent: PointerEvent) => {
+        // The page scrolls while the pointer is held near the top or bottom of the window, so a
+        // block can be dragged further than one screen. Distances count the scroll as movement.
+        const startScroll = window.scrollY;
+        let lastPointer: {clientX: number; clientY: number} | null = null;
+        let scrollFrame = 0;
+        const autoScroll = () => {
+            scrollFrame = 0;
+            if (!lastPointer || !pointerRef.current) {
+                return;
+            }
+            const edge = Math.min(AUTOSCROLL_EDGE_PX, window.innerHeight / 4);
+            const step = lastPointer.clientY < edge ? -AUTOSCROLL_STEP_PX
+                : lastPointer.clientY > window.innerHeight - edge ? AUTOSCROLL_STEP_PX : 0;
+            if (!step) {
+                return;
+            }
+            const before = window.scrollY;
+            window.scrollBy(0, step);
+            if (window.scrollY !== before) {
+                move(lastPointer);
+            }
+        };
+        const move = (pointerEvent: {clientX: number; clientY: number}) => {
             const pointer = pointerRef.current;
             if (!pointer) {
                 return;
             }
+            lastPointer = {clientX: pointerEvent.clientX, clientY: pointerEvent.clientY};
+            if (!scrollFrame) {
+                scrollFrame = window.requestAnimationFrame(autoScroll);
+            }
             const deltaX = pointerEvent.clientX - pointer.x;
-            const deltaY = pointerEvent.clientY - pointer.y;
+            const deltaY = pointerEvent.clientY - pointer.y + window.scrollY - startScroll;
             pointer.moved = pointer.moved || Math.abs(deltaX) >= 4 || Math.abs(deltaY) >= 4;
             const horizontal = Math.round(deltaX / columnStride);
             const vertical = Math.round(deltaY / rowStride);
@@ -788,6 +818,8 @@ const Dashboard = ({loadingLabel = '', initialLayout = []}: DashboardProps) => {
             });
         };
         const cleanup = () => {
+            window.cancelAnimationFrame(scrollFrame);
+            lastPointer = null;
             window.removeEventListener('pointermove', move);
             window.removeEventListener('pointerup', up);
             window.removeEventListener('pointercancel', abort);
@@ -833,7 +865,9 @@ const Dashboard = ({loadingLabel = '', initialLayout = []}: DashboardProps) => {
             return;
         }
         patchData({blocks: current.blocks.filter(block => block.id !== id)});
-        updateCanonical(canonicalRef.current.filter(item => item.id !== id));
+        const remaining = canonicalRef.current.filter(item => item.id !== id);
+        const collapsed = collapseEmptyRows(remaining);
+        updateCanonical(collapsed);
         void announce('dashboardblockremoved');
 
         unsentRemovalsRef.current.add(id);
@@ -842,6 +876,10 @@ const Dashboard = ({loadingLabel = '', initialLayout = []}: DashboardProps) => {
             unsentRemovalsRef.current.delete(id);
             if (result.availableblocks) {
                 patchData({availableblocks: result.availableblocks});
+            }
+            // Removing the block left empty rows that have closed up on screen: save that too.
+            if (collapsed !== remaining) {
+                await queue.saveLayout(canonicalRef.current);
             }
         } catch (caught) {
             handleSyncFailure(caught);

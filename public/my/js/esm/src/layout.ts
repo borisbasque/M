@@ -248,18 +248,6 @@ const rectsOverlap = (left: GridRect, right: GridRect): boolean =>
     left.row < right.row + right.rows && left.row + left.rows > right.row;
 
 /**
- * Slide a rect rightwards, in its own row, to the nearest free columns.
- */
-const pushRight = (rect: GridRect, occupied: Set<string>, columnCount: number): GridRect | null => {
-    for (let column = rect.column + 1; column + rect.columns <= columnCount; column++) {
-        if (fits(occupied, column, rect.row, rect.columns, rect.rows)) {
-            return {...rect, column};
-        }
-    }
-    return null;
-};
-
-/**
  * Slide a rect downwards, in its own column, to the nearest free rows.
  */
 const pushDown = (rect: GridRect, occupied: Set<string>): GridRect | null => {
@@ -272,40 +260,27 @@ const pushDown = (rect: GridRect, occupied: Set<string>): GridRect | null => {
 };
 
 /**
- * Displace a colliding rect towards the empty grid space the collision came from, rather than
- * relocating it to the first free cell in reading order. A block sharing a row with whatever it
- * collided with is pushed right; a block sharing a column is pushed down.
+ * Move a block that is in the way just far enough to clear the block it collided with.
+ *
+ * A block level with or above the one in its way moves to just past that block's right edge, if
+ * that space is free; otherwise, or if it was below the block in its way, it moves down within its
+ * own columns to the first rows that are free. It never moves up, never jumps over other blocks to
+ * a distant cell, and never pushes anything else, so the rest of the dashboard stays where its
+ * owner left it.
  */
 const displaceFromBlocker = (
     rect: GridRect,
     blocker: GridRect,
     occupied: Set<string>,
     columnCount: number,
-): GridRect | null => {
-    const sameRow = rect.row === blocker.row;
-    const sameColumn = rect.column === blocker.column;
-    if (sameColumn && !sameRow) {
-        return pushDown(rect, occupied) ?? pushRight(rect, occupied, columnCount);
+): GridRect => {
+    const column = blocker.column + blocker.columns;
+    if (rect.row <= blocker.row && column + rect.columns <= columnCount
+            && fits(occupied, column, rect.row, rect.columns, rect.rows)) {
+        return {...rect, column};
     }
-    if (sameRow) {
-        return pushRight(rect, occupied, columnCount) ?? pushDown(rect, occupied);
-    }
-    return null;
-};
-
-/**
- * Fall back to the first free cell in reading order, used when directional displacement finds
- * no room in either direction.
- */
-const firstFreeCell = (rect: GridRect, occupied: Set<string>, columnCount: number): GridRect | null => {
-    for (let row = 0; row < 10000; row++) {
-        for (let column = 0; column + rect.columns <= columnCount; column++) {
-            if (fits(occupied, column, row, rect.columns, rect.rows)) {
-                return {...rect, column, row};
-            }
-        }
-    }
-    return null;
+    // Always succeeds: there is always free space below the layout.
+    return pushDown(rect, occupied)!;
 };
 
 /**
@@ -336,28 +311,33 @@ export const packWithPinned = (
     const occupied = new Set<string>();
     occupy(occupied, safePinned);
     const result: LayoutItem[] = [safePinned];
-    const remaining = items
+    const clamped = items
         .filter(item => item.id !== pinned.id)
-        .sort((left, right) => left.row - right.row || left.column - right.column || left.id - right.id);
-    for (const item of remaining) {
-        const columns = Math.min(item.columns, columnCount);
-        const column = Math.max(0, Math.min(item.column, columnCount - columns));
-        const row = Math.max(0, item.row);
-        const rect: GridRect = {column, row, columns, rows: item.rows};
-        let placed: LayoutItem | null = null;
-        if (fits(occupied, column, row, columns, item.rows)) {
-            placed = {...item, column, row, columns};
+        .sort((left, right) => left.row - right.row || left.column - right.column || left.id - right.id)
+        .map(item => {
+            const columns = Math.min(item.columns, columnCount);
+            return {
+                ...item,
+                column: Math.max(0, Math.min(item.column, columnCount - columns)),
+                row: Math.max(0, item.row),
+                columns,
+            };
+        });
+    // Every block the pinned one does not overlap stays exactly where it is. Only then are the
+    // blocks it does overlap moved, into space that is free, so nothing else is pushed along.
+    const displaced: LayoutItem[] = [];
+    for (const item of clamped) {
+        if (fits(occupied, item.column, item.row, item.columns, item.rows)) {
+            occupy(occupied, item);
+            result.push(item);
         } else {
-            const blocker = result.find(candidate => rectsOverlap(rect, candidate));
-            const resolved = (blocker && displaceFromBlocker(rect, blocker, occupied, columnCount))
-                ?? firstFreeCell(rect, occupied, columnCount);
-            if (resolved) {
-                placed = {...item, column: resolved.column, row: resolved.row, columns};
-            }
+            displaced.push(item);
         }
-        if (!placed) {
-            throw new Error('Unable to place dashboard block.');
-        }
+    }
+    for (const item of displaced) {
+        const blocker = result.find(candidate => rectsOverlap(item, candidate)) ?? safePinned;
+        const resolved = displaceFromBlocker(item, blocker, occupied, columnCount);
+        const placed = {...item, column: resolved.column, row: resolved.row};
         occupy(occupied, placed);
         result.push(placed);
     }
@@ -398,7 +378,7 @@ export const writeBack = (
     const packed = pinned
         ? packWithPinned(restored, MAX_COLUMNS, pinned, minimum)
         : packInOrder(restored, MAX_COLUMNS);
-    return packed.map(item => ({
+    return collapseEmptyRows(packed).map(item => ({
         id: item.id,
         column: item.column,
         row: item.row,
@@ -406,6 +386,31 @@ export const writeBack = (
         rows: item.rows,
         autorows: item.autorows ?? true,
     }));
+};
+
+/**
+ * Close up rows that no block occupies, moving everything below them up by as many rows.
+ *
+ * Applied after a drop, resize, add or remove, so a change never leaves a band of empty space
+ * across the whole dashboard. Blocks keep their columns and their order.
+ *
+ * @param items Layout items.
+ * @return The layout with empty rows removed, or the same array when there were none.
+ */
+export const collapseEmptyRows = <T extends LayoutItem>(items: T[]): T[] => {
+    const rows = maxRow(items);
+    const shift: number[] = [];
+    let empty = 0;
+    for (let row = 0; row < rows; row++) {
+        shift.push(empty);
+        if (!items.some(item => row >= item.row && row < item.row + item.rows)) {
+            empty++;
+        }
+    }
+    if (empty === 0 || items.every(item => !shift[item.row])) {
+        return items;
+    }
+    return items.map(item => shift[item.row] ? {...item, row: item.row - shift[item.row]} : item);
 };
 
 export const disturbedCount = (before: LayoutItem[], after: LayoutItem[], activeId: number): number => {
