@@ -61,7 +61,9 @@ export const unsubscribe = function(eventName, callback) {
 export const publish = function(eventName, data) {
     const pendingPromise = new Pending("Publishing " + eventName);
     if (events[eventName]) {
-        events[eventName].forEach(function(callback) {
+        // Deliver to a copy of the subscriber list: a callback that unsubscribes (itself or another)
+        // splices the live list, which would otherwise make this loop skip the next subscriber.
+        [...events[eventName]].forEach(function(callback) {
             callback(data);
         });
     }

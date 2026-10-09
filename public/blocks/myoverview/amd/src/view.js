@@ -861,10 +861,7 @@ export const init = root => {
         const eventName = namespace + PagedContentEvents.PAGES_SHOWN;
         const shown = () => {
             resolve();
-            // Unsubscribe after this publish has finished: core/pubsub iterates its subscribers
-            // while unsubscribe() splices the same array, so removing ourselves mid-publish would
-            // skip the next subscriber - the paging bar, which then never updates its buttons.
-            setTimeout(() => PubSub.unsubscribe(eventName, shown), 0);
+            PubSub.unsubscribe(eventName, shown);
         };
         PubSub.subscribe(eventName, shown);
     });
