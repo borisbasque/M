@@ -13,6 +13,6 @@
   },
   "Toast": {
     "eject": "risky",
-    "wrap": "risky"
+    "wrap": "safe"
   }
 }
