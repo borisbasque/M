@@ -13,9 +13,8 @@
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
 
-import React, {useLayoutEffect, useMemo, useRef, useState} from 'react';
+import React, {useLayoutEffect, useRef, useState} from 'react';
 import {columnsForWidth, packLayout, type LayoutItem} from '../layout';
-import {useHeadingAlignment} from '../headingAlignment';
 
 interface DashboardLoadingProps {
     label: string;
@@ -52,9 +51,7 @@ const PositionedGrid = ({layout}: {layout: LayoutItem[]}) => {
         return () => observer.disconnect();
     }, []);
 
-    const positioned = useMemo(() => packLayout(layout, columnCount), [layout, columnCount]);
-    // Aligned already while loading, so the heading does not move when the blocks arrive.
-    useHeadingAlignment(gridRef, positioned, columnCount);
+    const positioned = packLayout(layout, columnCount);
     const rows = Math.max(1, ...positioned.map(item => item.row + item.rows));
 
     return <div

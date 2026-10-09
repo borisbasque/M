@@ -26,14 +26,6 @@ $core-my-dashboard-grid-max-width: 1921px !default;
     line-height: var(--mds-line-height-headings-2);
 }
 
-// The page heading runs from the leftmost to the rightmost column that has a block, so it lines up
-// with them when the outer columns are empty (core_my/headingAlignment sets the insets). The 15px is
-// Boost's own .header-maxwidth padding, kept.
-.core-my-dashboard-page #page-header {
-    padding-inline-start: calc(15px + var(--core-my-dashboard-heading-inset-start, 0px));
-    padding-inline-end: calc(15px + var(--core-my-dashboard-heading-inset-end, 0px));
-}
-
 .core-my-dashboard-mount,
 .core-my-dashboard-app {
     width: 100%;

@@ -8,37 +8,36 @@ import { jsxDEV } from "react/jsx-dev-runtime";
  * @copyright  2026 Matt Porritt <matt.porritt@moodle.com>
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
-import { useLayoutEffect, useMemo, useRef, useState } from "react";
+import { useLayoutEffect, useRef, useState } from "react";
 import { columnsForWidth, packLayout } from "../layout";
-import { useHeadingAlignment } from "../headingAlignment";
 const GenericGrid = /* @__PURE__ */ __name(() => /* @__PURE__ */ jsxDEV("div", { className: "core-my-dashboard-loading__grid", "aria-hidden": "true", children: Array.from({ length: 6 }, (_, index) => /* @__PURE__ */ jsxDEV("div", { className: "core-my-dashboard-loading__tile", children: [
   /* @__PURE__ */ jsxDEV("div", { className: "core-my-dashboard-loading__heading" }, void 0, false, {
     fileName: "public/my/js/esm/src/components/DashboardLoading.tsx",
-    lineNumber: 27,
+    lineNumber: 26,
     columnNumber: 9
   }),
   /* @__PURE__ */ jsxDEV("div", { className: "core-my-dashboard-loading__line core-my-dashboard-loading__line--long" }, void 0, false, {
     fileName: "public/my/js/esm/src/components/DashboardLoading.tsx",
-    lineNumber: 28,
+    lineNumber: 27,
     columnNumber: 9
   }),
   /* @__PURE__ */ jsxDEV("div", { className: "core-my-dashboard-loading__line" }, void 0, false, {
     fileName: "public/my/js/esm/src/components/DashboardLoading.tsx",
-    lineNumber: 29,
+    lineNumber: 28,
     columnNumber: 9
   }),
   /* @__PURE__ */ jsxDEV("div", { className: "core-my-dashboard-loading__line core-my-dashboard-loading__line--short" }, void 0, false, {
     fileName: "public/my/js/esm/src/components/DashboardLoading.tsx",
-    lineNumber: 30,
+    lineNumber: 29,
     columnNumber: 9
   })
 ] }, index, true, {
   fileName: "public/my/js/esm/src/components/DashboardLoading.tsx",
-  lineNumber: 26,
+  lineNumber: 25,
   columnNumber: 44
 })) }, void 0, false, {
   fileName: "public/my/js/esm/src/components/DashboardLoading.tsx",
-  lineNumber: 25,
+  lineNumber: 24,
   columnNumber: 27
 }), "GenericGrid");
 const PositionedGrid = /* @__PURE__ */ __name(({ layout }) => {
@@ -55,8 +54,7 @@ const PositionedGrid = /* @__PURE__ */ __name(({ layout }) => {
     measure();
     return () => observer.disconnect();
   }, []);
-  const positioned = useMemo(() => packLayout(layout, columnCount), [layout, columnCount]);
-  useHeadingAlignment(gridRef, positioned, columnCount);
+  const positioned = packLayout(layout, columnCount);
   const rows = Math.max(1, ...positioned.map((item) => item.row + item.rows));
   return /* @__PURE__ */ jsxDEV(
     "div",
@@ -80,17 +78,17 @@ const PositionedGrid = /* @__PURE__ */ __name(({ layout }) => {
           children: [
             /* @__PURE__ */ jsxDEV("div", { className: "core-my-dashboard-loading__heading" }, void 0, false, {
               fileName: "public/my/js/esm/src/components/DashboardLoading.tsx",
-              lineNumber: 78,
+              lineNumber: 75,
               columnNumber: 13
             }),
             /* @__PURE__ */ jsxDEV("div", { className: "core-my-dashboard-loading__line core-my-dashboard-loading__line--long" }, void 0, false, {
               fileName: "public/my/js/esm/src/components/DashboardLoading.tsx",
-              lineNumber: 79,
+              lineNumber: 76,
               columnNumber: 13
             }),
             /* @__PURE__ */ jsxDEV("div", { className: "core-my-dashboard-loading__line" }, void 0, false, {
               fileName: "public/my/js/esm/src/components/DashboardLoading.tsx",
-              lineNumber: 80,
+              lineNumber: 77,
               columnNumber: 13
             })
           ]
@@ -99,7 +97,7 @@ const PositionedGrid = /* @__PURE__ */ __name(({ layout }) => {
         true,
         {
           fileName: "public/my/js/esm/src/components/DashboardLoading.tsx",
-          lineNumber: 70,
+          lineNumber: 67,
           columnNumber: 33
         }
       ))
@@ -108,7 +106,7 @@ const PositionedGrid = /* @__PURE__ */ __name(({ layout }) => {
     false,
     {
       fileName: "public/my/js/esm/src/components/DashboardLoading.tsx",
-      lineNumber: 60,
+      lineNumber: 57,
       columnNumber: 12
     }
   );
@@ -123,16 +121,16 @@ const DashboardLoading = /* @__PURE__ */ __name(({ label, layout = [] }) => /* @
     children: [
       /* @__PURE__ */ jsxDEV("span", { className: "visually-hidden", children: label }, void 0, false, {
         fileName: "public/my/js/esm/src/components/DashboardLoading.tsx",
-        lineNumber: 91,
+        lineNumber: 88,
         columnNumber: 5
       }),
       layout.length > 0 ? /* @__PURE__ */ jsxDEV(PositionedGrid, { layout }, void 0, false, {
         fileName: "public/my/js/esm/src/components/DashboardLoading.tsx",
-        lineNumber: 92,
+        lineNumber: 89,
         columnNumber: 26
       }) : /* @__PURE__ */ jsxDEV(GenericGrid, {}, void 0, false, {
         fileName: "public/my/js/esm/src/components/DashboardLoading.tsx",
-        lineNumber: 92,
+        lineNumber: 89,
         columnNumber: 63
       })
     ]
@@ -141,7 +139,7 @@ const DashboardLoading = /* @__PURE__ */ __name(({ label, layout = [] }) => /* @
   true,
   {
     fileName: "public/my/js/esm/src/components/DashboardLoading.tsx",
-    lineNumber: 85,
+    lineNumber: 82,
     columnNumber: 75
   }
 ), "DashboardLoading");

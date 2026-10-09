@@ -1107,24 +1107,6 @@ describe('core_my Dashboard application', () => {
         fireEvent.click(screen.getByRole('button', {name: 'Done'}));
     });
 
-    it('lines the page heading up with the leftmost and rightmost columns that have a block', async() => {
-        // Six columns, 2000px wide with 16px gaps: each column and its gap is 336px. The two blocks
-        // leave column 6 empty, and nothing on the left.
-        mockDashboardApi({getResponses: [buildData()]});
-        const {container, unmount} = render(<Dashboard />);
-        await screen.findByText('First block');
-        await waitFor(() => expect(container.querySelector('.core-my-dashboard-grid'))
-            .toHaveAttribute('data-columns', '6'));
-
-        await waitFor(() => expect(document.body.style.getPropertyValue('--core-my-dashboard-heading-inset-end'))
-            .toBe('336px'));
-        expect(document.body.style.getPropertyValue('--core-my-dashboard-heading-inset-start')).toBe('0px');
-
-        // Leaving the dashboard puts the heading back.
-        unmount();
-        expect(document.body.style.getPropertyValue('--core-my-dashboard-heading-inset-end')).toBe('');
-    });
-
     it('opens the block browser straight away when Edit mode was turned on to add a block', async() => {
         mockDashboardApi({getResponses: [buildData()]});
         render(<Dashboard openBrowser />);
