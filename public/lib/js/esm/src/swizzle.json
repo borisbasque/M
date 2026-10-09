@@ -1,4 +1,8 @@
 {
+  "EditModeSwitch": {
+    "eject": "risky",
+    "wrap": "risky"
+  },
   "nav/Nav": {
     "eject": "risky",
     "wrap": "risky"
@@ -7,7 +11,7 @@
     "eject": "risky",
     "wrap": "safe"
   },
-  "EditModeSwitch": {
+  "Toast": {
     "eject": "risky",
     "wrap": "risky"
   }

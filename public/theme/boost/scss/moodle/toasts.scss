@@ -48,3 +48,77 @@
         color: inherit;
     }
 }
+
+// A temporary message with one optional action (core/Toast). The design system has no inverse
+// surface token yet, so the text and surface colours are swapped; this keeps 4.5:1 in both themes.
+.core-toast {
+    position: fixed;
+    inset-inline: 0;
+    bottom: var(--mds-spacing-lg);
+    width: max-content;
+    margin-inline: auto;
+    z-index: $zindex-toast;
+    display: flex;
+    align-items: center;
+    gap: var(--mds-spacing-sm);
+    max-width: calc(100vw - 2 * var(--mds-spacing-md));
+    padding: var(--mds-spacing-xs) var(--mds-spacing-xs) var(--mds-spacing-xs) var(--mds-spacing-md);
+    background: var(--mds-text-default);
+    color: var(--mds-bg-surface-default);
+    border-radius: var(--mds-border-radius-md);
+    box-shadow: 0 var(--mds-spacing-offset) var(--mds-spacing-xs) var(--mds-color-sm);
+    font-size: var(--mds-font-size-paragraph-small);
+    opacity: 0;
+    pointer-events: none;
+    transform: translateY(var(--mds-spacing-md));
+    transition: opacity .16s ease, transform .16s ease;
+
+    &.core-toast--visible {
+        opacity: 1;
+        pointer-events: auto;
+        transform: none;
+    }
+
+    &:empty {
+        padding: 0;
+    }
+
+    .core-toast__action,
+    .core-toast__close {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        min-width: 24px;
+        min-height: 24px;
+        padding: 0 var(--mds-spacing-xs);
+        border: 0;
+        border-radius: var(--mds-border-radius-xs);
+        background: transparent;
+        color: inherit;
+        font: inherit;
+        cursor: pointer;
+
+        &:hover {
+            text-decoration: underline;
+        }
+
+        &:focus-visible {
+            outline: var(--mds-stroke-weight-md) solid var(--mds-bg-surface-default);
+            outline-offset: 1px;
+        }
+    }
+
+    .core-toast__action {
+        font-weight: var(--mds-font-weight-bold);
+        text-decoration: underline;
+    }
+
+    .core-toast__close {
+        font-size: var(--mds-font-size-paragraph-default);
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+        transition: none;
+    }
+}
+
