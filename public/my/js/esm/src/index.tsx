@@ -57,6 +57,7 @@ import {
 } from './repository';
 import {SaveQueue, isTransientError, type SaveStatus} from './saveQueue';
 import {BlockLoader} from './blockLoader';
+import {useHeadingAlignment} from './headingAlignment';
 
 /**
  * Turn a rejection into readable text.
@@ -797,6 +798,8 @@ const Dashboard = ({loadingLabel = '', initialLayout = [], openBrowser = false, 
 
     const displayLayout = useMemo(() => packLayout(canonical, columnCount), [canonical, columnCount]);
     displayLayoutRef.current = displayLayout;
+    // The page heading runs from the leftmost to the rightmost column that has a block.
+    useHeadingAlignment(gridRef, displayLayout, columnCount);
     const previewLayout = useMemo(() => interaction
         ? packWithPinned(displayLayout, columnCount, interaction.draft,
             fitMinimum(minimumSize(interaction.id), columnCount))

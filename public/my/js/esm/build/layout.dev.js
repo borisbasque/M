@@ -256,6 +256,14 @@ const emptyRegions = /* @__PURE__ */ __name((items, columnCount, rowCount) => {
   }
   return regions;
 }, "emptyRegions");
+const unusedEdgeColumns = /* @__PURE__ */ __name((items, columnCount) => {
+  if (!items.length) {
+    return { start: 0, end: 0 };
+  }
+  const first = Math.min(...items.map((item) => item.column));
+  const last = Math.max(...items.map((item) => item.column + item.columns));
+  return { start: Math.max(0, first), end: Math.max(0, columnCount - last) };
+}, "unusedEdgeColumns");
 const disturbedCount = /* @__PURE__ */ __name((before, after, activeId) => {
   const positions = new Map(before.map((item) => [item.id, `${item.column}:${item.row}`]));
   return after.filter((item) => item.id !== activeId && positions.get(item.id) !== `${item.column}:${item.row}`).length;
@@ -321,6 +329,7 @@ export {
   packWithPinned,
   readGridMetrics,
   rowsForHeight,
+  unusedEdgeColumns,
   writeBack
 };
 //# sourceMappingURL=layout.dev.js.map

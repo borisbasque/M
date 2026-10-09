@@ -476,6 +476,23 @@ export const emptyRegions = (items: LayoutItem[], columnCount: number, rowCount:
     return regions;
 };
 
+/**
+ * How many columns at each side of the grid no block uses, for lining the page heading up with the
+ * blocks: from the leftmost to the rightmost column that has a block.
+ *
+ * @param items The layout, at the current column count.
+ * @param columnCount The grid's column count.
+ * @return Empty columns before the first block and after the last; none when there are no blocks.
+ */
+export const unusedEdgeColumns = (items: LayoutItem[], columnCount: number): {start: number; end: number} => {
+    if (!items.length) {
+        return {start: 0, end: 0};
+    }
+    const first = Math.min(...items.map(item => item.column));
+    const last = Math.max(...items.map(item => item.column + item.columns));
+    return {start: Math.max(0, first), end: Math.max(0, columnCount - last)};
+};
+
 export const disturbedCount = (before: LayoutItem[], after: LayoutItem[], activeId: number): number => {
     const positions = new Map(before.map(item => [item.id, `${item.column}:${item.row}`]));
     return after.filter(item => item.id !== activeId

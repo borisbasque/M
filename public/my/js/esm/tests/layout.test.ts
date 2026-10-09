@@ -26,6 +26,7 @@ import {
     writeBack,
     collapseEmptyRows,
     emptyRegions,
+    unusedEdgeColumns,
     type LayoutItem,
 } from '../src/layout';
 
@@ -336,6 +337,30 @@ describe('applyRowSpans', () => {
 
         expect(next.find(item => item.id === 1)).toMatchObject({row: 0, rows: 2});
         expect(next.find(item => item.id === 2)).toMatchObject({row: 3});
+    });
+});
+
+describe('unusedEdgeColumns', () => {
+    it('counts the empty columns either side of the blocks, as in the default layout at six columns', () => {
+        const layout: LayoutItem[] = [
+            {id: 1, column: 1, row: 0, columns: 3, rows: 5},
+            {id: 2, column: 4, row: 0, columns: 1, rows: 5},
+        ];
+
+        expect(unusedEdgeColumns(layout, 6)).toEqual({start: 1, end: 1});
+    });
+
+    it('uses the furthest block on each side, whichever row it is in', () => {
+        const layout: LayoutItem[] = [
+            {id: 1, column: 2, row: 0, columns: 2, rows: 2},
+            {id: 2, column: 0, row: 4, columns: 1, rows: 2},
+        ];
+
+        expect(unusedEdgeColumns(layout, 6)).toEqual({start: 0, end: 2});
+    });
+
+    it('leaves the heading full width with no blocks', () => {
+        expect(unusedEdgeColumns([], 6)).toEqual({start: 0, end: 0});
     });
 });
 
