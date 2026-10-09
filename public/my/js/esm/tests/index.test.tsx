@@ -137,7 +137,6 @@ const labels: DashboardLabels = {
     undo: 'Undo',
     addblockhere: 'Add a block here',
     dashboardblocks: 'Dashboard blocks',
-    editingnotice: 'You are editing your dashboard.',
     emptyregion: 'Empty space, row {$a->row}, column {$a->column}. Add a block here.',
     blockfailed: 'This block could not be loaded.',
     browseralreadyadded: 'Already added blocks are not listed.',
@@ -1097,12 +1096,12 @@ describe('core_my Dashboard application', () => {
         ]);
     });
 
-    it('says the dashboard is being edited, and leaves Edit mode with Done', async() => {
+    it('says which dashboard is being edited in the toolbar, and leaves Edit mode with Done', async() => {
         mockDashboardApi({getResponses: [buildData()]});
         render(<Dashboard />);
         await screen.findByText('First block');
 
-        expect(screen.getByText('You are editing your dashboard.')).toBeInTheDocument();
+        expect(screen.getByText('Editing your dashboard').closest('.core-my-dashboard-toolbar')).not.toBeNull();
         expectRedirect({urlContains: 'edit=0'});
         fireEvent.click(screen.getByRole('button', {name: 'Done'}));
     });

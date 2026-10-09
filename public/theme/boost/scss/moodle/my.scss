@@ -130,7 +130,6 @@ $core-my-dashboard-grid-max-width: 1921px !default;
     flex-wrap: wrap;
     align-items: center;
     gap: var(--mds-spacing-sm);
-    margin-block-start: var(--mds-spacing-md);
 }
 
 .core-my-dashboard-toolbar {
@@ -151,12 +150,6 @@ $core-my-dashboard-grid-max-width: 1921px !default;
         z-index: 10;
         border-bottom: var(--mds-stroke-weight-sm) solid var(--mds-border-subtle);
     }
-}
-
-.core-my-dashboard-toolbar__notice {
-    margin: 0;
-    font-size: var(--mds-font-size-paragraph-small);
-    color: var(--mds-text-subtle);
 }
 
 .core-my-dashboard-toolbar__actions {

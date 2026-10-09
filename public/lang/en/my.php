@@ -53,7 +53,6 @@ $string['dashboardcancel'] = 'Cancel';
 $string['dashboardchanged'] = 'Your dashboard changed in another window.';
 $string['dashboarddone'] = 'Done';
 $string['dashboarddown'] = 'Down';
-$string['dashboardeditingnotice'] = 'You are editing your dashboard. Changes are saved automatically.';
 $string['dashboardempty'] = 'Your dashboard is empty. Add blocks to see your courses, deadlines and calendar in one place. You can move and resize them any time.';
 $string['dashboardemptyregion'] = 'Empty space, row {$a->row}, column {$a->column}. Add a block here.';
 $string['dashboardkeyboardmove'] = '{$a} picked up. Use the arrow keys to move it, then press Space or Enter to drop it, or Escape to cancel.';

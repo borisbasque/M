@@ -128,7 +128,6 @@ export interface DashboardLabels {
     addblockhere: string;
     blockfailed: string;
     dashboardblocks: string;
-    editingnotice: string;
     emptyregion: string;
     tile: string;
     undo: string;

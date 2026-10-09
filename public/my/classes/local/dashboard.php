@@ -229,7 +229,6 @@ final class dashboard {
                 'blockfailed' => get_string('dashboardblockfailed', 'my'),
                 'addblockhere' => get_string('dashboardaddblockhere', 'my'),
                 'dashboardblocks' => get_string('dashboardblocks', 'my'),
-                'editingnotice' => get_string('dashboardeditingnotice', 'my'),
                 'emptyregion' => get_string('dashboardemptyregion', 'my'),
                 'browseralreadyadded' => get_string('browseralreadyadded', 'my'),
                 'browserallpresent' => get_string('browserallpresent', 'my'),

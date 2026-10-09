@@ -152,7 +152,6 @@ final class get_dashboard extends external_api {
                 'blockfailed' => new external_value(PARAM_RAW, 'Shown in a block whose content could not be loaded.'),
                 'addblockhere' => new external_value(PARAM_RAW, 'Shown on an empty region on hover or focus.'),
                 'dashboardblocks' => new external_value(PARAM_RAW, 'The grid\'s accessible name.'),
-                'editingnotice' => new external_value(PARAM_RAW, 'Says the dashboard is being edited and saves itself.'),
                 'emptyregion' => new external_value(PARAM_RAW, 'An empty region\'s accessible name.'),
                 'browseralreadyadded' => new external_value(PARAM_RAW, 'Block browser or empty dashboard label.'),
                 'browserallpresent' => new external_value(PARAM_RAW, 'Block browser or empty dashboard label.'),

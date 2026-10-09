@@ -1617,14 +1617,13 @@ const Dashboard = ({loadingLabel = '', initialLayout = [], openBrowser = false, 
         </div>}
         <div className="core-my-dashboard-savestatus" role="status">{statusMessages[saveStatus]}</div>
         <div className="visually-hidden" aria-live="polite" aria-atomic="true">{announcement}</div>
-        {data.editing && <DashboardScopeBanner
-            siteDefault={siteDefault}
-            caneditotherscope={data.caneditotherscope}
-            urls={data.urls}
-            labels={data.labels}
-        />}
         {data.editing && <div className="core-my-dashboard-toolbar">
-            <p className="core-my-dashboard-toolbar__notice">{data.labels.editingnotice}</p>
+            <DashboardScopeBanner
+                siteDefault={siteDefault}
+                caneditotherscope={data.caneditotherscope}
+                urls={data.urls}
+                labels={data.labels}
+            />
             <div className="core-my-dashboard-toolbar__actions">
                 {!siteDefault && <Button
                     variant="ghost"
