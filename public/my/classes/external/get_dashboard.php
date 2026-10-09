@@ -137,6 +137,7 @@ final class get_dashboard extends external_api {
                 'switchtoown' => new external_value(PARAM_RAW, 'Switch-to-own-dashboard CTA label.'),
                 'switchtositedefault' => new external_value(PARAM_RAW, 'Switch-to-site-default CTA label.'),
                 'tile' => new external_value(PARAM_RAW, 'Dashboard tile label.'),
+                'undo' => new external_value(PARAM_RAW, 'Undo label.'),
                 'up' => new external_value(PARAM_RAW, 'Up label.'),
             ]),
         ]);

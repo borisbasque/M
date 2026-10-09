@@ -18,6 +18,7 @@ import {Badge, Button, Link} from '@moodlehq/design-system';
 import {getString} from '@moodle/lms/core/stringUtils';
 import {requireManyAsync} from '@moodle/lms/core/amd';
 import Pending from '@moodle/lms/core/pending';
+import Toast, {type ToastAction, type ToastMessage} from '@moodle/lms/core/Toast';
 import DashboardTile from './components/DashboardTile';
 import ConfirmationDialog from './components/ConfirmationDialog';
 import BlockPalette from './components/BlockPalette';
@@ -118,7 +119,11 @@ interface PaletteTarget {
     position?: 'start' | 'end';
 }
 
-type ConfirmAction = {type: 'remove'; id: number} | {type: 'reset'};
+// Removing a block can be undone, so only resetting the dashboard still asks first.
+type ConfirmAction = {type: 'reset'};
+
+/** How many changes Undo can reverse within one visit. */
+const HISTORY_LIMIT = 50;
 
 // See the settling MutationObserver in the collected-JS effect below for what these guard.
 const DASHBOARD_SETTLE_QUIET_MS = 250;
@@ -131,6 +136,17 @@ const AUTOSCROLL_STEP_PX = 12;
 let dashboardSettleCounter = 0;
 
 const isSiteDefault = (): boolean => window.location.pathname.endsWith('/my/indexsys.php');
+
+/**
+ * Whether the grid is laid out right to left. CSS grid already mirrors the columns there, so only
+ * what JavaScript works out from pointer positions and arrow keys needs mirroring by hand.
+ */
+const isRtl = (element: Element | null): boolean =>
+    window.getComputedStyle(element ?? document.documentElement).direction === 'rtl';
+
+/** Whether a key press belongs to a field being typed in, rather than to the dashboard. */
+const isTyping = (target: EventTarget | null): boolean => target instanceof HTMLElement
+    && (target.isContentEditable || ['INPUT', 'TEXTAREA', 'SELECT'].includes(target.tagName));
 
 const layoutChanged = (original: LayoutItem, draft: LayoutItem): boolean =>
     original.column !== draft.column || original.row !== draft.row ||
@@ -348,6 +364,23 @@ const Dashboard = ({loadingLabel = '', initialLayout = []}: DashboardProps) => {
     const [unsaved, setUnsaved] = useState(false);
     const [loadedScript, setLoadedScript] = useState<CollectedScript | null>(null);
     const [addedScripts, setAddedScripts] = useState<CollectedScript[]>([]);
+    const [toast, setToast] = useState<ToastMessage | null>(null);
+    // The toast on screen, its close handler, and which interaction (if any) it is instructions for.
+    const toastRef = useRef<ToastMessage | null>(null);
+    const toastOnCloseRef = useRef<(() => void) | null>(null);
+    const toastCounterRef = useRef(0);
+    const interactionToastRef = useRef<number | null>(null);
+    // Layouts to go back to, newest last (see pushHistory and undo).
+    const historyRef = useRef<LayoutItem[][]>([]);
+    const [historySize, setHistorySize] = useState(0);
+    // Blocks removed on screen whose removal is not sent yet, so Undo can bring them back as they
+    // were: their tiles stay in the page, hidden, with their content and JavaScript intact.
+    const [hiddenIds, setHiddenIds] = useState<ReadonlySet<number>>(new Set());
+    const pendingRemovalRef = useRef<{id: number; toastId: number} | null>(null);
+    // Where focus goes once the next layout has rendered: a block, or the Add a block button.
+    const focusAfterRef = useRef<number | 'add' | null>(null);
+    const addButtonRef = useRef<HTMLButtonElement>(null);
+    const saveStatusRef = useRef<SaveStatus>('idle');
     const gridRef = useRef<HTMLDivElement>(null);
     const pointerRef = useRef<{x: number; y: number; moved: boolean} | null>(null);
     const interactionRef = useRef<Interaction | null>(null);
@@ -391,6 +424,8 @@ const Dashboard = ({loadingLabel = '', initialLayout = []}: DashboardProps) => {
             setCanonical(response.layout);
             canonicalRef.current = response.layout;
             unsentRemovalsRef.current = new Set();
+            pendingRemovalRef.current = null;
+            setHiddenIds(new Set());
             setUnsaved(false);
             setLoadedScript({
                 source: response.javascript,
@@ -420,6 +455,74 @@ const Dashboard = ({loadingLabel = '', initialLayout = []}: DashboardProps) => {
         canonicalRef.current = next;
         setCanonical(next);
     }, []);
+
+    /**
+     * Show a toast, replacing any already showing. A replaced toast counts as closed, so its own
+     * close handler (such as sending a delayed removal) still runs.
+     *
+     * @return The new toast's id.
+     */
+    const showToast = useCallback((text: string, options: {
+        action?: ToastAction;
+        persist?: boolean;
+        onClose?: () => void;
+    } = {}): number => {
+        // While offline, every toast also says that changes will save on reconnecting, since it
+        // replaces the toast that said so.
+        const offline = saveStatusRef.current === 'offline' && dataRef.current
+            && text !== dataRef.current.labels.saveoffline ? ` ${dataRef.current.labels.saveoffline}` : '';
+        const next: ToastMessage = {
+            id: ++toastCounterRef.current,
+            text: text + offline,
+            action: options.action,
+            persist: options.persist,
+        };
+        const previousClose = toastOnCloseRef.current;
+        toastOnCloseRef.current = options.onClose ?? null;
+        toastRef.current = next;
+        setToast(next);
+        previousClose?.();
+        return next.id;
+    }, []);
+
+    /** Close the toast, running its close handler. */
+    const hideToast = useCallback(() => {
+        const close = toastOnCloseRef.current;
+        toastOnCloseRef.current = null;
+        toastRef.current = null;
+        setToast(null);
+        close?.();
+    }, []);
+
+    /** Close one particular toast, if it is still the one showing, without running its close handler. */
+    const dropToast = useCallback((id: number | null) => {
+        if (id !== null && toastRef.current?.id === id) {
+            toastOnCloseRef.current = null;
+            toastRef.current = null;
+            setToast(null);
+        }
+    }, []);
+
+    /**
+     * Announce a message to screen readers through the page's live region.
+     *
+     * The toast is a status region of its own, so a message it is already showing is not announced
+     * a second time. The region is polite: routine changes never interrupt what is being read.
+     */
+    const announce = useCallback(async(key: string, value?: string | Record<string, unknown>) => {
+        const text = await getString(key, 'my', value);
+        if (toastRef.current?.text === text) {
+            return;
+        }
+        setAnnouncement(text);
+    }, []);
+
+    /** Show a toast with one of this page's strings. */
+    const toastString = useCallback(async(
+        key: string,
+        value?: string | Record<string, unknown>,
+        options?: Parameters<typeof showToast>[1],
+    ): Promise<number> => showToast(await getString(key, 'my', value), options), [showToast]);
 
     /**
      * React to a change the server did not accept.
@@ -473,7 +576,7 @@ const Dashboard = ({loadingLabel = '', initialLayout = []}: DashboardProps) => {
 
     // Leaving the page with changes still unsent would lose them: ask first.
     useEffect(() => {
-        if (saveStatus === 'idle' && !unsaved) {
+        if (saveStatus === 'idle' && !unsaved && hiddenIds.size === 0) {
             return undefined;
         }
         const beforeUnload = (event: BeforeUnloadEvent) => {
@@ -483,11 +586,29 @@ const Dashboard = ({loadingLabel = '', initialLayout = []}: DashboardProps) => {
         };
         window.addEventListener('beforeunload', beforeUnload);
         return () => window.removeEventListener('beforeunload', beforeUnload);
-    }, [saveStatus, unsaved]);
+    }, [hiddenIds, saveStatus, unsaved]);
 
     useEffect(() => {
         void load();
     }, [load]);
+
+    // Say so when changes cannot be sent because the browser is offline, and confirm once they are
+    // saved after reconnecting. Nothing is said about routine saving.
+    const wasOfflineRef = useRef(false);
+    useEffect(() => {
+        saveStatusRef.current = saveStatus;
+        const labels = dataRef.current?.labels;
+        if (!labels) {
+            return;
+        }
+        if (saveStatus === 'offline' && !wasOfflineRef.current) {
+            wasOfflineRef.current = true;
+            showToast(labels.saveoffline, {persist: true});
+        } else if (saveStatus === 'idle' && wasOfflineRef.current) {
+            wasOfflineRef.current = false;
+            void toastString('dashboardsavedonline');
+        }
+    }, [saveStatus, showToast, toastString]);
 
     // Size every block that follows its content (MDL-89635 auto height) once per load, after its
     // content is in place: at its current width, rounded up to whole rows, between its minimum and
@@ -560,10 +681,171 @@ const Dashboard = ({loadingLabel = '', initialLayout = []}: DashboardProps) => {
     const previewById = useMemo(() => new Map(previewLayout.map(item => [item.id, item])), [previewLayout]);
     const blocksById = useMemo(() => new Map((data?.blocks ?? []).map(block => [block.id, block])), [data]);
 
-    /** Set the live region's text so screen readers announce a move/resize outcome. */
-    const announce = useCallback(async(key: string, value?: string | Record<string, unknown>) => {
-        setAnnouncement(await getString(key, 'my', value));
-    }, []);
+
+    /**
+     * Send a removal that was waiting for its toast to close, or for the next change.
+     *
+     * Until then the block is only hidden, so Undo can bring it back with its settings and content.
+     * The removal is queued straight away, without waiting, so it always reaches the server before
+     * the layout save of whatever change triggered it: the server will not accept a layout that
+     * leaves out a block it still has.
+     */
+    const flushRemoval = useCallback(async() => {
+        const pending = pendingRemovalRef.current;
+        const current = dataRef.current;
+        if (!pending || !current) {
+            return;
+        }
+        pendingRemovalRef.current = null;
+        // Its Undo would now reverse something else, so its toast goes too.
+        dropToast(pending.toastId);
+        const {id} = pending;
+        unsentRemovalsRef.current.add(id);
+        const removed = queue.call(() => updateDashboard('remove', siteDefault, [], '', id), true);
+        const layout = queue.saveLayout(canonicalRef.current);
+        patchData({blocks: current.blocks.filter(block => block.id !== id)});
+        setHiddenIds(previous => new Set([...previous].filter(hidden => hidden !== id)));
+        try {
+            const result = await removed;
+            unsentRemovalsRef.current.delete(id);
+            if (result.availableblocks) {
+                patchData({availableblocks: result.availableblocks});
+            }
+            await layout;
+        } catch (caught) {
+            handleSyncFailure(caught);
+        }
+    }, [dropToast, handleSyncFailure, patchData, queue, siteDefault]);
+
+    // A removal still waiting when the page is left is sent then; leaving first asks, since the
+    // browser may not finish sending it.
+    useEffect(() => {
+        const leave = () => void flushRemoval();
+        window.addEventListener('pagehide', leave);
+        return () => window.removeEventListener('pagehide', leave);
+    }, [flushRemoval]);
+
+    /**
+     * Record the layout as it is before a change, so Undo can return to it. Any removal still
+     * waiting is sent first: the change is about to make its Undo unreachable.
+     */
+    const pushHistory = useCallback(() => {
+        void flushRemoval();
+        historyRef.current = [...historyRef.current, canonicalRef.current].slice(-HISTORY_LIMIT);
+        setHistorySize(historyRef.current.length);
+    }, [flushRemoval]);
+
+    /**
+     * Reverse the most recent change.
+     *
+     * Blocks added since are removed again, a removal not yet sent is cancelled (the block was only
+     * hidden), and every block returns to where it was. A block whose removal has already reached
+     * the server cannot come back, so it is left out.
+     */
+    const undo = useCallback(async() => {
+        const previous = historyRef.current.pop();
+        setHistorySize(historyRef.current.length);
+        const current = dataRef.current;
+        if (!previous || !current) {
+            return;
+        }
+        interactionRef.current = null;
+        setInteraction(null);
+
+        const pending = pendingRemovalRef.current;
+        const wanted = new Set(previous.map(item => item.id));
+        if (pending && wanted.has(pending.id)) {
+            pendingRemovalRef.current = null;
+            setHiddenIds(hidden => new Set([...hidden].filter(id => id !== pending.id)));
+        }
+        const existing = new Set(current.blocks.map(block => block.id));
+        const added = canonicalRef.current.filter(item => !wanted.has(item.id)).map(item => item.id);
+        const layout = previous.filter(item => existing.has(item.id));
+
+        updateCanonical(layout);
+        if (added.length) {
+            patchData({blocks: current.blocks.filter(block => !added.includes(block.id))});
+        }
+        hideToast();
+        void announce('dashboardundone');
+
+        try {
+            const removals = added.map(id => queue.call(() => updateDashboard('remove', siteDefault, [], '', id), true));
+            const saved = queue.saveLayout(layout);
+            const results = await Promise.all(removals);
+            const palette = results.reverse().find(result => result.availableblocks)?.availableblocks;
+            if (palette) {
+                patchData({availableblocks: palette});
+            }
+            await saved;
+        } catch (caught) {
+            handleSyncFailure(caught);
+        }
+    }, [announce, handleSyncFailure, hideToast, patchData, queue, siteDefault, updateCanonical]);
+
+    // Ctrl+Z, or Cmd+Z, undoes the last change while editing, except while typing in a field or
+    // while a block is picked up (Escape puts that back instead).
+    useEffect(() => {
+        if (!data?.editing) {
+            return undefined;
+        }
+        const onKeyDown = (event: KeyboardEvent) => {
+            if (event.key.toLowerCase() !== 'z' || !(event.ctrlKey || event.metaKey) || event.shiftKey
+                    || event.altKey || isTyping(event.target) || interactionRef.current) {
+                return;
+            }
+            event.preventDefault();
+            void undo();
+        };
+        document.addEventListener('keydown', onKeyDown);
+        return () => document.removeEventListener('keydown', onKeyDown);
+    }, [data?.editing, undo]);
+
+    // Once a layout change has rendered, move focus where it was asked to go (see remove()).
+    useEffect(() => {
+        const target = focusAfterRef.current;
+        if (target === null) {
+            return;
+        }
+        focusAfterRef.current = null;
+        if (target === 'add') {
+            addButtonRef.current?.focus();
+            return;
+        }
+        gridRef.current?.querySelector<HTMLElement>(
+            `.core-my-dashboard-tile[data-instance-id="${target}"] .core-my-dashboard-handle--move`,
+        )?.focus();
+    }, [canonical]);
+
+    /**
+     * Keep instructions on screen while a block is picked up without dragging, with Cancel for
+     * touch screens that have no Escape key. The toast is the announcement too.
+     */
+    const showInstructions = useCallback(async(title: string, mode: 'move' | 'resize', how: 'keyboard' | 'tap') => {
+        const labels = dataRef.current?.labels;
+        if (!labels) {
+            return;
+        }
+        const key = how === 'keyboard'
+            ? (mode === 'move' ? 'dashboardkeyboardmove' : 'dashboardkeyboardresize')
+            : (mode === 'move' ? 'dashboardtapmove' : 'dashboardtapresize');
+        const text = await getString(key, 'my', title);
+        if (!interactionRef.current) {
+            return;
+        }
+        interactionToastRef.current = showToast(text, {
+            persist: true,
+            action: {label: labels.cancel, onClick: () => cancelRef.current()},
+        });
+    }, [showToast]);
+
+    /** Finish the current interaction, taking its instructions off screen. */
+    const endInteraction = useCallback(() => {
+        interactionRef.current = null;
+        setInteraction(null);
+        dropToast(interactionToastRef.current);
+        interactionToastRef.current = null;
+    }, [dropToast]);
 
     /**
      * Begin a move or resize interaction on a tile.
@@ -583,8 +865,12 @@ const Dashboard = ({loadingLabel = '', initialLayout = []}: DashboardProps) => {
         const next = {id, mode, origin, original: item, draft: item, before: displayLayout};
         interactionRef.current = next;
         setInteraction(next);
-        void announce(mode === 'move' ? 'dashboardmovebegin' : 'dashboardresizebegin', block.title);
-    }, [announce, blocksById, displayLayout]);
+        if (origin === 'keyboard') {
+            void showInstructions(block.title, mode, 'keyboard');
+        } else {
+            void announce(mode === 'move' ? 'dashboardmovebegin' : 'dashboardresizebegin', block.title);
+        }
+    }, [announce, blocksById, displayLayout, showInstructions]);
 
     /**
      * Nudge the in-progress interaction's draft rectangle by whole grid cells - one keypress, one
@@ -594,7 +880,9 @@ const Dashboard = ({loadingLabel = '', initialLayout = []}: DashboardProps) => {
      * rejected (with an announcement) rather than clamped, so the keyboard controls never go
      * silently unresponsive at the limit.
      */
-    const shift = useCallback((horizontal: number, vertical: number) => {
+    const shift = useCallback((visualHorizontal: number, vertical: number) => {
+        // Arrow keys and direction buttons are visual: in a right-to-left grid, right is backwards.
+        const horizontal = isRtl(gridRef.current) ? -visualHorizontal : visualHorizontal;
         setInteraction(current => {
             if (!current) {
                 return current;
@@ -642,6 +930,12 @@ const Dashboard = ({loadingLabel = '', initialLayout = []}: DashboardProps) => {
         if (!current || !currentData) {
             return;
         }
+        if (!layoutChanged(current.original, current.draft)) {
+            endInteraction();
+            void announce('dashboardnothingchanged');
+            return;
+        }
+        pushHistory();
         const minimum = minimumSize(current.id);
         const derived = packWithPinned(currentDisplay, currentColumns, current.draft, fitMinimum(minimum, currentColumns));
         const disturbed = disturbedCount(current.before, derived, current.id);
@@ -653,8 +947,7 @@ const Dashboard = ({loadingLabel = '', initialLayout = []}: DashboardProps) => {
         // Optimistic: settle the tile where it was dropped straight away, and save in the
         // background. The layout is fully known client-side, so there is nothing to wait for.
         updateCanonical(next);
-        interactionRef.current = null;
-        setInteraction(null);
+        endInteraction();
         void announce(current.mode === 'move' ? 'dashboardmovecommitted' : 'dashboardresizecommitted', {
             row: item.row + 1,
             column: item.column + 1,
@@ -668,16 +961,20 @@ const Dashboard = ({loadingLabel = '', initialLayout = []}: DashboardProps) => {
         } catch (caught) {
             handleSyncFailure(caught);
         }
-    }, [announce, handleSyncFailure, queue, updateCanonical]);
+    }, [announce, endInteraction, handleSyncFailure, pushHistory, queue, updateCanonical]);
 
     /** Abandon the in-progress interaction, discarding its draft rectangle unsaved. */
     const cancel = useCallback(() => {
-        if (interaction) {
+        if (interactionRef.current) {
             void announce('dashboardoperationdiscarded');
         }
-        interactionRef.current = null;
-        setInteraction(null);
-    }, [announce, interaction]);
+        endInteraction();
+    }, [announce, endInteraction]);
+    // Read through refs by listeners and toast actions registered before the latest render.
+    const cancelRef = useRef(cancel);
+    cancelRef.current = cancel;
+    const commitRef = useRef(commit);
+    commitRef.current = commit;
 
     /**
      * Keyboard-driven move/resize: Space/Enter starts or commits an interaction, Escape cancels
@@ -731,6 +1028,11 @@ const Dashboard = ({loadingLabel = '', initialLayout = []}: DashboardProps) => {
      */
     const pointerDown = useCallback((event: React.PointerEvent, id: number, mode: 'move' | 'resize') => {
         event.preventDefault();
+        // While a block is picked up by a click, the next click places it, wherever it lands -
+        // including on a handle (see the click-mode effect below).
+        if (interactionRef.current?.origin === 'mouseclick') {
+            return;
+        }
         start(id, mode, 'pointer');
         pointerRef.current = {x: event.clientX, y: event.clientY, moved: false};
         const origin = displayLayout.find(item => item.id === id);
@@ -745,6 +1047,8 @@ const Dashboard = ({loadingLabel = '', initialLayout = []}: DashboardProps) => {
             : 1;
         const columnStride = cellWidth + gap;
         const rowStride = rowHeight + gap;
+        // In a right-to-left grid, dragging right moves towards the first column.
+        const direction = isRtl(grid) ? -1 : 1;
         const originalWidth = origin.columns * cellWidth + (origin.columns - 1) * gap;
         const originalHeight = origin.rows * rowHeight + (origin.rows - 1) * gap;
         // The page scrolls while the pointer is held near the top or bottom of the window, so a
@@ -781,7 +1085,7 @@ const Dashboard = ({loadingLabel = '', initialLayout = []}: DashboardProps) => {
             const deltaX = pointerEvent.clientX - pointer.x;
             const deltaY = pointerEvent.clientY - pointer.y + window.scrollY - startScroll;
             pointer.moved = pointer.moved || Math.abs(deltaX) >= 4 || Math.abs(deltaY) >= 4;
-            const horizontal = Math.round(deltaX / columnStride);
+            const horizontal = Math.round(direction * deltaX / columnStride);
             const vertical = Math.round(deltaY / rowStride);
             setInteraction(current => {
                 if (!current) {
@@ -792,9 +1096,13 @@ const Dashboard = ({loadingLabel = '', initialLayout = []}: DashboardProps) => {
                 if (mode === 'move') {
                     draft.column = Math.max(0, Math.min(columnCount - draft.columns, origin.column + horizontal));
                     draft.row = Math.max(0, origin.row + vertical);
+                    // How far the tile may travel on screen, towards the start and the end of a row.
+                    const towardsStart = -origin.column * columnStride;
+                    const towardsEnd = (columnCount - origin.column - origin.columns) * columnStride;
                     drag = {
-                        x: Math.max(-origin.column * columnStride,
-                            Math.min((columnCount - origin.column - origin.columns) * columnStride, deltaX)),
+                        x: direction > 0
+                            ? Math.max(towardsStart, Math.min(towardsEnd, deltaX))
+                            : Math.max(-towardsEnd, Math.min(-towardsStart, deltaX)),
                         y: Math.max(-origin.row * rowStride, deltaY),
                     };
                 } else {
@@ -806,10 +1114,10 @@ const Dashboard = ({loadingLabel = '', initialLayout = []}: DashboardProps) => {
                         y: 0,
                         width: Math.max(cellWidth, Math.min(
                             (columnCount - origin.column) * columnStride - gap,
-                            originalWidth + deltaX,
+                            originalWidth + direction * deltaX,
                         )),
                         height: Math.max(rowHeight, originalHeight + deltaY),
-                        shrinking: deltaX < 0 || deltaY < 0,
+                        shrinking: direction * deltaX < 0 || deltaY < 0,
                     };
                 }
                 const next = {...current, draft, drag};
@@ -829,15 +1137,15 @@ const Dashboard = ({loadingLabel = '', initialLayout = []}: DashboardProps) => {
             const current = interactionRef.current;
             if (pointerRef.current?.moved && current && layoutChanged(current.original, current.draft)) {
                 void commit();
-            } else if (!pointerRef.current?.moved) {
-                setInteraction(previous => {
-                    if (!previous) {
-                        return previous;
-                    }
-                    const next = {...previous, origin: 'mouseclick' as const};
-                    interactionRef.current = next;
-                    return next;
-                });
+            } else if (!pointerRef.current?.moved && current) {
+                // A click without a drag picks the block up: the next click places it.
+                const next = {...current, origin: 'mouseclick' as const, drag: undefined};
+                interactionRef.current = next;
+                setInteraction(next);
+                const block = dataRef.current?.blocks.find(candidate => candidate.id === current.id);
+                if (block) {
+                    void showInstructions(block.title, current.mode, 'tap');
+                }
             } else {
                 cancel();
             }
@@ -850,41 +1158,123 @@ const Dashboard = ({loadingLabel = '', initialLayout = []}: DashboardProps) => {
         window.addEventListener('pointermove', move);
         window.addEventListener('pointerup', up);
         window.addEventListener('pointercancel', abort);
-    }, [cancel, columnCount, commit, displayLayout, start]);
+    }, [cancel, columnCount, commit, displayLayout, minimumSize, showInstructions, start]);
 
     /**
-     * Delete a block instance, after the caller has already confirmed.
+     * Click mode: a block picked up by a click follows the pointer as a preview, and the next click
+     * anywhere on the grid places it (move) or sets its new bottom corner (resize). That includes a
+     * click on the block's own handle, which the preview will often have moved under the pointer.
+     * A click outside the grid, Escape, or the toast's Cancel puts it back. Moving and resizing
+     * therefore never need dragging (WCAG 2.2 SC 2.5.7).
+     */
+    const tapKey = interaction?.origin === 'mouseclick' ? `${interaction.id}:${interaction.mode}` : null;
+    useEffect(() => {
+        const grid = gridRef.current;
+        if (!tapKey || !grid) {
+            return undefined;
+        }
+        const draftAt = (x: number, y: number) => {
+            const current = interactionRef.current;
+            if (!current) {
+                return null;
+            }
+            const columns = columnCountRef.current ?? 1;
+            const rect = grid.getBoundingClientRect();
+            const {rowHeight, gap} = readGridMetrics(grid);
+            const cellWidth = (rect.width - gap * (columns - 1)) / columns;
+            const offset = isRtl(grid) ? rect.right - x : x - rect.left;
+            const column = Math.max(0, Math.min(columns - 1, Math.floor(offset / (cellWidth + gap))));
+            const row = Math.max(0, Math.floor((y - rect.top) / (rowHeight + gap)));
+            const {original} = current;
+            const draft = {...original};
+            if (current.mode === 'move') {
+                draft.column = Math.min(column, columns - original.columns);
+                draft.row = row;
+            } else {
+                const minimum = fitMinimum(minimumSize(current.id), columns);
+                draft.columns = Math.min(columns - original.column, Math.max(minimum.columns, column - original.column + 1));
+                draft.rows = Math.max(minimum.rows, row - original.row + 1);
+            }
+            return {...current, draft};
+        };
+        const onMove = (event: PointerEvent) => {
+            if (event.pointerType !== 'mouse') {
+                return;
+            }
+            const next = draftAt(event.clientX, event.clientY);
+            if (next && layoutChanged(next.draft, interactionRef.current!.draft)) {
+                interactionRef.current = next;
+                setInteraction(next);
+            }
+        };
+        const onClick = (event: MouseEvent) => {
+            const target = event.target instanceof Element ? event.target : null;
+            if (target?.closest('.core-toast')) {
+                // The toast's Cancel decides.
+                return;
+            }
+            event.preventDefault();
+            event.stopPropagation();
+            if (!target || !grid.contains(target)) {
+                cancelRef.current();
+                return;
+            }
+            const next = draftAt(event.clientX, event.clientY);
+            if (next) {
+                interactionRef.current = next;
+                void commitRef.current();
+            }
+        };
+        const onKeyDown = (event: KeyboardEvent) => {
+            if (event.key === 'Escape') {
+                event.preventDefault();
+                cancelRef.current();
+            }
+        };
+        // Wait for the click that picked the block up to finish, so it is not taken as the drop.
+        const timer = setTimeout(() => {
+            window.addEventListener('pointermove', onMove);
+            window.addEventListener('click', onClick, true);
+        });
+        window.addEventListener('keydown', onKeyDown);
+        return () => {
+            clearTimeout(timer);
+            window.removeEventListener('pointermove', onMove);
+            window.removeEventListener('click', onClick, true);
+            window.removeEventListener('keydown', onKeyDown);
+        };
+    }, [columnCountRef, minimumSize, tapKey]);
+
+    /**
+     * Remove a block: one click, no confirmation, because it can be undone.
      *
-     * Optimistic, like a move: the tile goes straight away and nothing else on the dashboard is
-     * reloaded or re-rendered. The server's reply only refreshes the palette, since removing a
-     * block that allows one instance per page makes it addable again.
+     * The tile disappears at once and the rows it leaves empty close up, but the block is only
+     * hidden until its toast closes or the next change is made (see flushRemoval), so Undo brings
+     * it back exactly as it was. Focus moves to the next block, or the previous one if it was the
+     * last, or to Add a block when none are left.
      */
     const remove = useCallback(async(id: number) => {
         const current = dataRef.current;
-        if (!current) {
+        const block = current?.blocks.find(candidate => candidate.id === id);
+        if (!current || !block) {
             return;
         }
-        patchData({blocks: current.blocks.filter(block => block.id !== id)});
-        const remaining = canonicalRef.current.filter(item => item.id !== id);
-        const collapsed = collapseEmptyRows(remaining);
-        updateCanonical(collapsed);
-        void announce('dashboardblockremoved');
+        pushHistory();
+        const order = displayLayoutRef.current.map(item => item.id);
+        const index = order.indexOf(id);
+        focusAfterRef.current = order[index + 1] ?? order[index - 1] ?? 'add';
 
-        unsentRemovalsRef.current.add(id);
-        try {
-            const result = await queue.call(() => updateDashboard('remove', siteDefault, [], '', id), true);
-            unsentRemovalsRef.current.delete(id);
-            if (result.availableblocks) {
-                patchData({availableblocks: result.availableblocks});
-            }
-            // Removing the block left empty rows that have closed up on screen: save that too.
-            if (collapsed !== remaining) {
-                await queue.saveLayout(canonicalRef.current);
-            }
-        } catch (caught) {
-            handleSyncFailure(caught);
-        }
-    }, [announce, handleSyncFailure, patchData, queue, siteDefault, updateCanonical]);
+        setHiddenIds(hidden => new Set([...hidden, id]));
+        updateCanonical(collapseEmptyRows(canonicalRef.current.filter(item => item.id !== id)));
+
+        const text = await getString('dashboardblockremovednamed', 'my', block.title);
+        const pending = {id, toastId: 0};
+        pendingRemovalRef.current = pending;
+        pending.toastId = showToast(text, {
+            action: {label: current.labels.undo, onClick: () => void undo()},
+            onClose: () => void flushRemoval(),
+        });
+    }, [flushRemoval, pushHistory, showToast, undo, updateCanonical]);
 
     /**
      * Add a new block instance, then, if the palette was opened from a specific empty cell or
@@ -903,11 +1293,22 @@ const Dashboard = ({loadingLabel = '', initialLayout = []}: DashboardProps) => {
     const add = useCallback(async(block: AvailableBlock) => {
         const target = palette;
         setPalette(null);
+        pushHistory();
         let result;
         try {
             result = await queue.call(() => updateDashboard('add', siteDefault, [], block.name), false);
         } catch (caught) {
-            setError(errorMessage(caught));
+            historyRef.current.pop();
+            setHistorySize(historyRef.current.length);
+            if (isTransientError(caught)) {
+                // The reply was lost, so the block may or may not have been added. Adding again
+                // could add a second one: show what is actually saved instead.
+                if (await load()) {
+                    void toastString('dashboardaddunconfirmed');
+                }
+            } else {
+                setError(errorMessage(caught));
+            }
             return;
         }
         const current = dataRef.current;
@@ -930,7 +1331,9 @@ const Dashboard = ({loadingLabel = '', initialLayout = []}: DashboardProps) => {
             asyncBlocks: added.asynccontent ? [added.id] : [],
             blocks: [added.id],
         }]);
-        void announce('dashboardblockadded', block.title);
+        void toastString('dashboardblockadded', block.title, {
+            action: {label: current.labels.undo, onClick: () => void undo()},
+        });
 
         const columns = columnCountRef.current;
         let pinned: LayoutItem | null = null;
@@ -956,7 +1359,7 @@ const Dashboard = ({loadingLabel = '', initialLayout = []}: DashboardProps) => {
         } catch (caught) {
             handleSyncFailure(caught);
         }
-    }, [announce, handleSyncFailure, load, palette, patchData, queue, siteDefault, updateCanonical]);
+    }, [handleSyncFailure, load, palette, patchData, pushHistory, queue, siteDefault, toastString, undo, updateCanonical]);
 
     /**
      * Discard the user's own dashboard customisation and revert to the site default.
@@ -966,6 +1369,10 @@ const Dashboard = ({loadingLabel = '', initialLayout = []}: DashboardProps) => {
         if (!data) {
             return;
         }
+        // Reset cannot be undone, and replaces everything a pending removal or Undo would act on.
+        historyRef.current = [];
+        setHistorySize(0);
+        pendingRemovalRef.current = null;
         try {
             // Through the queue, so anything still being sent lands first.
             await queue.call(() => updateDashboard('reset', false), false);
@@ -988,12 +1395,18 @@ const Dashboard = ({loadingLabel = '', initialLayout = []}: DashboardProps) => {
     const prospective = interaction && (layoutChanged(interaction.original, interaction.draft) ||
         (interaction.origin === 'pointer' && interaction.mode === 'resize' && interaction.drag?.shrinking))
         ? interaction.draft : undefined;
+    // Being offline is said by a toast (see the saveStatus effect); only retrying is said here.
     const statusMessages: Record<SaveStatus, string> = {
         idle: '',
         saving: '',
-        offline: data.labels.saveoffline,
+        offline: '',
         retrying: data.labels.saveretrying,
     };
+    // Tiles stay in the page while their removal can still be undone, hidden, after the visible ones.
+    const tiles: Array<{committed: LayoutItem; hidden: boolean}> = [
+        ...displayLayout.map(committed => ({committed, hidden: false})),
+        ...[...hiddenIds].map(id => ({committed: {id, column: 0, row: 0, columns: 1, rows: 1}, hidden: true})),
+    ];
     return <div className="core-my-dashboard-app" aria-busy={saveStatus !== 'idle'}>
         {error && <div className="alert alert-danger" role="alert">{error}</div>}
         {unsaved && <div className="alert alert-warning core-my-dashboard-unsaved" role="alert">
@@ -1015,7 +1428,19 @@ const Dashboard = ({loadingLabel = '', initialLayout = []}: DashboardProps) => {
             labels={data.labels}
         />}
         {data.editing && <div className="core-my-dashboard-toolbar">
-            <Button variant="secondary" label={data.labels.addblocktop} onClick={() => setPalette({position: 'start'})} />
+            <Button
+                ref={addButtonRef}
+                variant="secondary"
+                label={data.labels.addblocktop}
+                onClick={() => setPalette({position: 'start'})}
+            />
+            <Button
+                variant="ghost"
+                label={data.labels.undo}
+                startIcon={<i className="fa fa-rotate-left" aria-hidden="true" />}
+                disabled={historySize === 0}
+                onClick={() => void undo()}
+            />
             {!siteDefault && <Button
                 variant="outline-danger"
                 label={data.labels.reset}
@@ -1057,7 +1482,7 @@ const Dashboard = ({loadingLabel = '', initialLayout = []}: DashboardProps) => {
                 preview. Reordering the DOM on every pointer move would detach and reattach tiles,
                 which restarts anything inside them that cannot survive a move (iframes, media)
                 and would make react_autoinit tear down and remount React blocks. */}
-            {displayLayout.map(committed => {
+            {tiles.map(({committed, hidden}) => {
                 const item = previewById.get(committed.id) ?? committed;
                 const block = blocksById.get(item.id);
                 if (!block) {
@@ -1069,8 +1494,10 @@ const Dashboard = ({loadingLabel = '', initialLayout = []}: DashboardProps) => {
                     item={item}
                     labels={data.labels}
                     editing={data.editing}
+                    hidden={hidden}
+                    tapping={interaction?.id === item.id && interaction.origin === 'mouseclick'}
                     activeMode={interaction?.id === item.id ? interaction.mode : undefined}
-                    showControls={interaction?.id === item.id && interaction.origin !== 'pointer'}
+                    showControls={interaction?.id === item.id && interaction.origin === 'keyboard'}
                     drag={interaction?.id === item.id ? interaction.drag : undefined}
                     dragOrigin={interaction?.id === item.id ? interaction.original : undefined}
                     shouldAnimatePosition={interaction?.origin === 'pointer' && interaction.id !== item.id}
@@ -1080,7 +1507,7 @@ const Dashboard = ({loadingLabel = '', initialLayout = []}: DashboardProps) => {
                     onPointerDown={pointerDown}
                     onDirection={shift}
                     onCommit={() => void commit()}
-                    onRemove={id => setConfirmAction({type: 'remove', id})}
+                    onRemove={id => void remove(id)}
                 />;
             })}
         </div>
@@ -1095,21 +1522,17 @@ const Dashboard = ({loadingLabel = '', initialLayout = []}: DashboardProps) => {
             onClose={() => setPalette(null)}
         />}
         {confirmAction && <ConfirmationDialog
-            title={confirmAction.type === 'remove' ? data.labels.removeheading : data.labels.resetheading}
-            message={confirmAction.type === 'remove' ? data.labels.confirmremove : data.labels.confirmreset}
+            title={data.labels.resetheading}
+            message={data.labels.confirmreset}
             confirmLabel={data.labels.confirm}
             cancelLabel={data.labels.cancel}
             onConfirm={() => {
-                const action = confirmAction;
                 setConfirmAction(null);
-                if (action.type === 'remove') {
-                    void remove(action.id);
-                } else {
-                    void reset();
-                }
+                void reset();
             }}
             onCancel={() => setConfirmAction(null)}
         />}
+        <Toast message={toast} closeLabel={data.labels.close} onClose={hideToast} />
     </div>;
 };
 

@@ -154,6 +154,10 @@ interface DashboardTileProps {
     item: LayoutItem;
     labels: DashboardLabels;
     editing: boolean;
+    // Removed on screen, but kept (and its content kept running) while the removal can be undone.
+    hidden?: boolean;
+    // Picked up by a click: the next click places it, so its handles must not act on their own.
+    tapping?: boolean;
     activeMode?: 'move' | 'resize';
     showControls: boolean;
     drag?: PointerDrag;
@@ -173,6 +177,8 @@ const DashboardTile = ({
     item,
     labels,
     editing,
+    hidden = false,
+    tapping = false,
     activeMode,
     showControls,
     drag,
@@ -280,6 +286,7 @@ const DashboardTile = ({
         data-instance-id={block.id}
         data-blockregion={narrow ? 'side-pre' : 'content'}
         data-bumped={isBumped || undefined}
+        hidden={hidden || undefined}
     >
         {editing && <>
             <span id={moveInstructionsId} className="visually-hidden">{labels.moveinstructions}</span>
@@ -292,6 +299,7 @@ const DashboardTile = ({
                 labels={labels}
                 instructionsId={moveInstructionsId}
                 active={activeMode === 'move'}
+                tapping={tapping}
                 showControls={showControls}
                 onStart={() => onStart(block.id, 'move')}
                 onKeyDown={event => onKeyDown(event, block.id, 'move')}
@@ -326,6 +334,7 @@ const DashboardTile = ({
                 labels={labels}
                 instructionsId={resizeInstructionsId}
                 active={activeMode === 'resize'}
+                tapping={tapping}
                 showControls={showControls}
                 onStart={() => onStart(block.id, 'resize')}
                 onKeyDown={event => onKeyDown(event, block.id, 'resize')}

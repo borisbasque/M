@@ -288,6 +288,7 @@ final class dashboard {
                 'switchtoown' => get_string('dashboardswitchtoown', 'my'),
                 'switchtositedefault' => get_string('dashboardswitchtositedefault', 'my'),
                 'tile' => get_string('dashboardtile', 'my'),
+                'undo' => get_string('dashboardundo', 'my'),
                 'up' => get_string('dashboardup', 'my'),
                 'blockactions' => get_string('dashboardblockactions', 'my'),
             ],

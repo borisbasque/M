@@ -24,6 +24,8 @@ interface DashboardHandleProps {
     labels: DashboardLabels;
     instructionsId: string;
     active: boolean;
+    // The block is picked up by a click, so the next click (handled by the dashboard) places it.
+    tapping?: boolean;
     showControls: boolean;
     onStart: () => void;
     onKeyDown: (event: React.KeyboardEvent) => void;
@@ -38,6 +40,7 @@ const DashboardHandle = ({
     labels,
     instructionsId,
     active,
+    tapping = false,
     showControls,
     onStart,
     onKeyDown,
@@ -47,8 +50,13 @@ const DashboardHandle = ({
 }: DashboardHandleProps) => <div
     className={`core-my-dashboard-handle-wrapper core-my-dashboard-handle-wrapper--${mode}${active ? ' active' : ''}`}
     onBlur={event => {
+        // Tabbing away from a block picked up by keyboard drops it there. Moving to the toast's
+        // Cancel does not: Cancel decides. Nor does anything while picked up by a click.
         const nextTarget = event.relatedTarget;
-        if (active && (!(nextTarget instanceof Node) || !event.currentTarget.contains(nextTarget))) {
+        if (!active || tapping || (nextTarget instanceof Element && nextTarget.closest('.core-toast'))) {
+            return;
+        }
+        if (!(nextTarget instanceof Node) || !event.currentTarget.contains(nextTarget)) {
             onCommit();
         }
     }}
@@ -77,6 +85,10 @@ const DashboardHandle = ({
         }}
         onKeyDown={onKeyDown}
         onPointerDown={event => {
+            if (tapping) {
+                event.preventDefault();
+                return;
+            }
             if (active) {
                 event.preventDefault();
                 onCommit();

@@ -16,6 +16,7 @@ const DashboardHandle = /* @__PURE__ */ __name(({
   labels,
   instructionsId,
   active,
+  tapping = false,
   showControls,
   onStart,
   onKeyDown,
@@ -28,14 +29,17 @@ const DashboardHandle = /* @__PURE__ */ __name(({
     className: `core-my-dashboard-handle-wrapper core-my-dashboard-handle-wrapper--${mode}${active ? " active" : ""}`,
     onBlur: (event) => {
       const nextTarget = event.relatedTarget;
-      if (active && (!(nextTarget instanceof Node) || !event.currentTarget.contains(nextTarget))) {
+      if (!active || tapping || nextTarget instanceof Element && nextTarget.closest(".core-toast")) {
+        return;
+      }
+      if (!(nextTarget instanceof Node) || !event.currentTarget.contains(nextTarget)) {
         onCommit();
       }
     },
     children: [
       active && showControls && /* @__PURE__ */ jsxDEV(GridControls, { mode, labels, onDirection }, void 0, false, {
         fileName: "public/my/js/esm/src/components/DashboardHandle.tsx",
-        lineNumber: 56,
+        lineNumber: 64,
         columnNumber: 32
       }),
       /* @__PURE__ */ jsxDEV(
@@ -58,7 +62,7 @@ const DashboardHandle = /* @__PURE__ */ __name(({
             false,
             {
               fileName: "public/my/js/esm/src/components/DashboardHandle.tsx",
-              lineNumber: 65,
+              lineNumber: 73,
               columnNumber: 20
             }
           ),
@@ -69,6 +73,10 @@ const DashboardHandle = /* @__PURE__ */ __name(({
           },
           onKeyDown,
           onPointerDown: (event) => {
+            if (tapping) {
+              event.preventDefault();
+              return;
+            }
             if (active) {
               event.preventDefault();
               onCommit();
@@ -82,7 +90,7 @@ const DashboardHandle = /* @__PURE__ */ __name(({
         false,
         {
           fileName: "public/my/js/esm/src/components/DashboardHandle.tsx",
-          lineNumber: 57,
+          lineNumber: 65,
           columnNumber: 5
         }
       )
@@ -92,7 +100,7 @@ const DashboardHandle = /* @__PURE__ */ __name(({
   true,
   {
     fileName: "public/my/js/esm/src/components/DashboardHandle.tsx",
-    lineNumber: 47,
+    lineNumber: 50,
     columnNumber: 29
   }
 ), "DashboardHandle");

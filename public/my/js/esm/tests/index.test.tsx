@@ -130,6 +130,7 @@ const labels: DashboardLabels = {
     switchtoown: 'Switch to editing your dashboard',
     switchtositedefault: 'Switch to editing the default dashboard for all users',
     tile: '{$a} block',
+    undo: 'Undo',
     up: 'Up',
 };
 
@@ -402,13 +403,9 @@ describe('core_my Dashboard application', () => {
             fireEvent.keyDown(resizeHandle, {key: ' '});
         });
 
-        const saveCall = fetchOneSpy.mock.calls.find(([request]) =>
-            (request as {methodname: string}).methodname === 'core_my_update_dashboard')!;
-        // Committing still saves (Space always commits the current draft) - but the rejected
-        // shrink left the draft's row span unchanged at 2, proving the minimum-size guard, not
-        // the commit path itself, is what's under test here.
-        const args = (saveCall[0] as {args: {layout: LayoutItem[]}}).args;
-        expect(args.layout.find(item => item.id === 101)?.rows).toBe(2);
+        // The rejected shrink left the block as it was, so dropping it changes and sends nothing.
+        await waitFor(() => expect(screen.getByText('[dashboardnothingchanged, my]')).toBeInTheDocument());
+        expect(updateCalls(fetchOneSpy)).toHaveLength(0);
     });
 
     it('announces the block\'s own declared minimum when a resize reaches it', async() => {
@@ -461,19 +458,193 @@ describe('core_my Dashboard application', () => {
     // is covered; the drag-distance-to-grid-cell math itself is covered directly by the pure
     // layout.ts helpers it delegates to (see layout.test.ts), which pointerDown's own comment
     // documents as the same clamping logic shift()/keyDown exercise here via the keyboard.
-    it('reveals move/resize controls on a plain pointer click that never drags', async() => {
-        mockDashboardApi({getResponses: [buildData()]});
+    describe('picking a block up with a click (no dragging)', () => {
+        // This file stubs every element as a 2000 × 800 box at the origin, so the six-column grid's
+        // cells are (2000 - 5 × 16) / 6 = 320px wide plus a 16px gap, and rows 96px plus the gap.
+        const cellX = (column: number) => column * 336 + 10;
+        const cellY = (row: number) => row * 112 + 10;
 
+        const pickUp = async(name: string) => {
+            const handle = screen.getByRole('button', {name});
+            await act(async() => {
+                fireEvent.pointerDown(handle, {clientX: 0, clientY: 0});
+                fireEvent.pointerUp(window);
+            });
+            // The click that picked the block up must finish before the next one can place it.
+            await act(async() => {
+                await new Promise(resolve => setTimeout(resolve, 0));
+            });
+            return handle;
+        };
+
+        it('keeps instructions with Cancel on screen while a block is picked up', async() => {
+            mockString('dashboardtapmove', 'my', 'First block picked up. Click where you want it to go.');
+            mockDashboardApi({getResponses: [buildData()]});
+            render(<Dashboard />);
+            await screen.findByText('First block');
+
+            await pickUp('Move First block block');
+
+            const toast = await screen.findByText('First block picked up. Click where you want it to go.');
+            expect(toast.closest('[role="status"]')).toBeInTheDocument();
+            fireEvent.click(screen.getByRole('button', {name: 'Cancel'}));
+            await waitFor(() => expect(screen.queryByText('First block picked up. Click where you want it to go.'))
+                .not.toBeInTheDocument());
+        });
+
+        it('places the block with the next click on the grid', async() => {
+            const fetchOneSpy = mockDashboardApi({getResponses: [buildData()]});
+            const {container} = render(<Dashboard />);
+            await screen.findByText('First block');
+            await waitFor(() => expect(container.querySelector('.core-my-dashboard-grid'))
+                .toHaveAttribute('data-columns', '6'));
+
+            await pickUp('Move First block block');
+            await act(async() => {
+                fireEvent.click(container.querySelector('.core-my-dashboard-grid')!, {clientX: cellX(1), clientY: cellY(2)});
+            });
+
+            await waitFor(() => expect(updateCalls(fetchOneSpy)).toHaveLength(1));
+            const args = (updateCalls(fetchOneSpy)[0][0] as {args: {layout: LayoutItem[]}}).args;
+            expect(args.layout.find(item => item.id === 101)).toMatchObject({column: 1});
+        });
+
+        it('places the block even when the click lands on its own handle', async() => {
+            const fetchOneSpy = mockDashboardApi({getResponses: [buildData()]});
+            const {container} = render(<Dashboard />);
+            await screen.findByText('First block');
+            await waitFor(() => expect(container.querySelector('.core-my-dashboard-grid'))
+                .toHaveAttribute('data-columns', '6'));
+
+            const handle = await pickUp('Move First block block');
+            await act(async() => {
+                fireEvent.pointerDown(handle, {clientX: cellX(1), clientY: cellY(0)});
+                fireEvent.click(handle, {clientX: cellX(1), clientY: cellY(0)});
+            });
+
+            await waitFor(() => expect(updateCalls(fetchOneSpy)).toHaveLength(1));
+            const args = (updateCalls(fetchOneSpy)[0][0] as {args: {layout: LayoutItem[]}}).args;
+            expect(args.layout.find(item => item.id === 101)).toMatchObject({column: 1, row: 0});
+        });
+
+        it('puts the block back on Escape or a click outside the grid', async() => {
+            const fetchOneSpy = mockDashboardApi({getResponses: [buildData()]});
+            render(<Dashboard />);
+            await screen.findByText('First block');
+
+            await pickUp('Move First block block');
+            await act(async() => {
+                fireEvent.keyDown(window, {key: 'Escape'});
+            });
+            await pickUp('Move First block block');
+            await act(async() => {
+                fireEvent.click(document.body, {clientX: cellX(1), clientY: cellY(0)});
+            });
+
+            expect(updateCalls(fetchOneSpy)).toHaveLength(0);
+        });
+    });
+
+    it('shows the keys while a block is picked up by keyboard, and Cancel there does not drop it', async() => {
+        mockString('dashboardkeyboardmove', 'my', 'First block picked up. Use the arrow keys.');
+        const fetchOneSpy = mockDashboardApi({getResponses: [buildData()]});
         render(<Dashboard />);
         await screen.findByText('First block');
 
         const moveHandle = screen.getByRole('button', {name: 'Move First block block'});
+        moveHandle.focus();
+        fireEvent.keyDown(moveHandle, {key: ' '});
+        expect(await screen.findByText('First block picked up. Use the arrow keys.')).toBeInTheDocument();
+        fireEvent.keyDown(moveHandle, {key: 'ArrowRight'});
+
+        // Tabbing to the toast's Cancel leaves the block picked up...
+        const cancel = screen.getByRole('button', {name: 'Cancel'});
+        fireEvent.blur(moveHandle, {relatedTarget: cancel});
+        expect(moveHandle).toHaveAttribute('aria-pressed', 'true');
+        // ...and Cancel puts it back, unsaved.
         await act(async() => {
-            fireEvent.pointerDown(moveHandle, {clientX: 0, clientY: 0});
-            fireEvent.pointerUp(window);
+            fireEvent.click(cancel);
+        });
+        expect(moveHandle).toHaveAttribute('aria-pressed', 'false');
+        expect(updateCalls(fetchOneSpy)).toHaveLength(0);
+    });
+
+    it('mirrors the Left and Right arrow keys in a right-to-left language', async() => {
+        const getComputedStyle = window.getComputedStyle;
+        const styleSpy = jest.spyOn(window, 'getComputedStyle').mockImplementation(element => {
+            const style = getComputedStyle(element);
+            return new Proxy(style, {
+                get: (target, property) => property === 'direction' ? 'rtl' : Reflect.get(target, property),
+            });
+        });
+        const fetchOneSpy = mockDashboardApi({getResponses: [buildData()]});
+        render(<Dashboard />);
+        await screen.findByText('First block');
+
+        const moveHandle = screen.getByRole('button', {name: 'Move Second block block'});
+        fireEvent.keyDown(moveHandle, {key: ' '});
+        // Right, on screen, is towards the first column in a right-to-left grid.
+        fireEvent.keyDown(moveHandle, {key: 'ArrowRight'});
+        await act(async() => {
+            fireEvent.keyDown(moveHandle, {key: ' '});
         });
 
-        expect(screen.getByRole('group', {name: 'Move block controls'})).toBeInTheDocument();
+        await waitFor(() => expect(updateCalls(fetchOneSpy)).toHaveLength(1));
+        const args = (updateCalls(fetchOneSpy)[0][0] as {args: {layout: LayoutItem[]}}).args;
+        expect(args.layout.find(item => item.id === 102)).toMatchObject({column: 2});
+        styleSpy.mockRestore();
+    });
+
+    it('undoes changes newest first with Ctrl+Z, and from the toolbar', async() => {
+        const fetchOneSpy = mockDashboardApi({getResponses: [buildData()]});
+        render(<Dashboard />);
+        await screen.findByText('First block');
+        const undoButton = screen.getByRole('button', {name: 'Undo'});
+        expect(undoButton).toBeDisabled();
+
+        const moveHandle = screen.getByRole('button', {name: 'Move First block block'});
+        for (const _ of [1, 2]) {
+            fireEvent.keyDown(moveHandle, {key: ' '});
+            fireEvent.keyDown(moveHandle, {key: 'ArrowDown'});
+            await act(async() => {
+                fireEvent.keyDown(moveHandle, {key: ' '});
+            });
+        }
+        expect(undoButton).toBeEnabled();
+
+        await act(async() => {
+            fireEvent.keyDown(document.body, {key: 'z', ctrlKey: true});
+        });
+        await waitFor(() => expect(updateCalls(fetchOneSpy)).toHaveLength(3));
+        const afterOne = (updateCalls(fetchOneSpy)[2][0] as {args: {layout: LayoutItem[]}}).args.layout;
+        const afterFirstMove = (updateCalls(fetchOneSpy)[0][0] as {args: {layout: LayoutItem[]}}).args.layout;
+        expect(afterOne).toEqual(afterFirstMove);
+
+        await act(async() => {
+            fireEvent.click(undoButton);
+        });
+        await waitFor(() => expect(updateCalls(fetchOneSpy)).toHaveLength(4));
+        const original = (updateCalls(fetchOneSpy)[3][0] as {args: {layout: LayoutItem[]}}).args.layout;
+        expect(original.find(item => item.id === 101)).toMatchObject({column: 0, row: 0});
+        expect(undoButton).toBeDisabled();
+    });
+
+    it('ignores Ctrl+Z while typing in a field', async() => {
+        const fetchOneSpy = mockDashboardApi({getResponses: [buildData()]});
+        render(<><Dashboard /><input aria-label="Notes" /></>);
+        await screen.findByText('First block');
+        const moveHandle = screen.getByRole('button', {name: 'Move First block block'});
+        fireEvent.keyDown(moveHandle, {key: ' '});
+        fireEvent.keyDown(moveHandle, {key: 'ArrowDown'});
+        await act(async() => {
+            fireEvent.keyDown(moveHandle, {key: ' '});
+        });
+
+        await act(async() => {
+            fireEvent.keyDown(screen.getByRole('textbox', {name: 'Notes'}), {key: 'z', ctrlKey: true});
+        });
+
+        expect(updateCalls(fetchOneSpy)).toHaveLength(1);
     });
 
     it('places a newly added block into the specific empty cell that was clicked', async() => {
@@ -588,24 +759,36 @@ describe('core_my Dashboard application', () => {
         });
     });
 
-    it('removes a block straight away, without reloading the dashboard', async() => {
+    it('removes a block with one click, and sends the removal once its toast closes', async() => {
+        mockString('dashboardblockremovednamed', 'my', 'First block removed.');
         let resolveRemove: (value: unknown) => void = () => undefined;
         const fetchOneSpy = mockDashboardApi({
             getResponses: [buildData({availableblocks: []})],
-            updateImpl: () => new Promise(resolve => {
-                resolveRemove = resolve;
-            }) as Promise<{status: boolean; blockid: number}>,
+            updateImpl: action => action === 'remove'
+                ? new Promise(resolve => {
+                    resolveRemove = resolve;
+                }) as Promise<{status: boolean; blockid: number}>
+                : Promise.resolve({status: true, blockid: 0}),
         });
 
         render(<Dashboard />);
         await screen.findByText('First block');
 
-        fireEvent.click(screen.getByRole('button', {name: 'Delete First block block'}));
-        fireEvent.click(await screen.findByRole('button', {name: 'Confirm'}));
+        await act(async() => {
+            fireEvent.click(screen.getByRole('button', {name: 'Delete First block block'}));
+        });
 
-        // Gone before the server has even answered.
-        await waitFor(() => expect(screen.queryByText('First block')).not.toBeInTheDocument());
-        expect(screen.getByText('Second block')).toBeInTheDocument();
+        // Gone at once, with no dialog, and focus on the next block...
+        expect(screen.queryByRole('region', {name: 'First block block'})).not.toBeInTheDocument();
+        expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+        await waitFor(() => expect(screen.getByRole('button', {name: 'Move Second block block'})).toHaveFocus());
+        // ...but nothing is sent while Undo can still bring it back.
+        expect(await screen.findByText('First block removed.')).toBeInTheDocument();
+        expect(updateCalls(fetchOneSpy)).toHaveLength(0);
+
+        await act(async() => {
+            fireEvent.click(screen.getByRole('button', {name: 'Close'}));
+        });
         expect((updateCalls(fetchOneSpy)[0][0] as {args: {action: string; blockid: number}}).args).toMatchObject({
             action: 'remove',
             blockid: 101,
@@ -618,6 +801,52 @@ describe('core_my Dashboard application', () => {
         fireEvent.click(screen.getByRole('button', {name: labels.addblocktop}));
         expect(await screen.findByRole('button', {name: 'Text'})).toBeInTheDocument();
         expect(getCalls(fetchOneSpy)).toHaveLength(1);
+    });
+
+    it('brings a removed block back with Undo, as it was, without asking the server', async() => {
+        mockString('dashboardblockremovednamed', 'my', 'First block removed.');
+        const fetchOneSpy = mockDashboardApi({getResponses: [buildData()]});
+        render(<Dashboard />);
+        await screen.findByText('First block');
+        const tile = screen.getByRole('region', {name: 'First block block'});
+        const content = tile.querySelector('.core-my-dashboard-tile__content')!;
+
+        await act(async() => {
+            fireEvent.click(screen.getByRole('button', {name: 'Delete First block block'}));
+        });
+        await act(async() => {
+            fireEvent.click(within(await waitFor(() => document.querySelector<HTMLElement>('.core-toast--visible')!))
+                .getByRole('button', {name: 'Undo'}));
+        });
+
+        // The same tile, with the same content nodes, is back in place.
+        expect(screen.getByRole('region', {name: 'First block block'})).toBe(tile);
+        expect(tile.querySelector('.core-my-dashboard-tile__content')).toBe(content);
+        expect(tile).toBeVisible();
+        // No removal was ever sent; restoring the layout is the only request.
+        expect(updateCalls(fetchOneSpy).every(([request]) =>
+            (request as {args: {action: string}}).args.action === 'save')).toBe(true);
+    });
+
+    it('sends a waiting removal before the next change\'s layout', async() => {
+        const fetchOneSpy = mockDashboardApi({getResponses: [buildData()]});
+        render(<Dashboard />);
+        await screen.findByText('First block');
+
+        await act(async() => {
+            fireEvent.click(screen.getByRole('button', {name: 'Delete First block block'}));
+        });
+        const moveHandle = screen.getByRole('button', {name: 'Move Second block block'});
+        fireEvent.keyDown(moveHandle, {key: ' '});
+        fireEvent.keyDown(moveHandle, {key: 'ArrowDown'});
+        await act(async() => {
+            fireEvent.keyDown(moveHandle, {key: ' '});
+        });
+
+        await waitFor(() => expect(updateCalls(fetchOneSpy).length).toBeGreaterThanOrEqual(2));
+        const actions = updateCalls(fetchOneSpy).map(([request]) => (request as {args: {action: string}}).args.action);
+        expect(actions[0]).toBe('remove');
+        expect(actions.slice(1).every(action => action === 'save')).toBe(true);
     });
 
     it('adds a block from the palette without reloading or re-running other blocks', async() => {

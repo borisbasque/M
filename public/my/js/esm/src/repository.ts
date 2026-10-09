@@ -90,6 +90,7 @@ export interface DashboardLabels {
     switchtoown: string;
     switchtositedefault: string;
     tile: string;
+    undo: string;
     up: string;
 }
 
