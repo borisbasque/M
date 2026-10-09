@@ -15,37 +15,30 @@
 
 import React from 'react';
 import {Button} from '@moodlehq/design-system';
-import type {DashboardLabels} from '../repository';
-import GridControls from './GridControls';
 
 interface DashboardHandleProps {
     mode: 'move' | 'resize';
     label: string;
-    labels: DashboardLabels;
     instructionsId: string;
     active: boolean;
     // The block is picked up by a click, so the next click (handled by the dashboard) places it.
     tapping?: boolean;
-    showControls: boolean;
+    // Activated by assistive technology without a key press, such as a screen reader's double-tap.
     onStart: () => void;
     onKeyDown: (event: React.KeyboardEvent) => void;
     onPointerDown: (event: React.PointerEvent) => void;
-    onDirection: (horizontal: number, vertical: number) => void;
     onCommit: () => void;
 }
 
 const DashboardHandle = ({
     mode,
     label,
-    labels,
     instructionsId,
     active,
     tapping = false,
-    showControls,
     onStart,
     onKeyDown,
     onPointerDown,
-    onDirection,
     onCommit,
 }: DashboardHandleProps) => <div
     className={`core-my-dashboard-handle-wrapper core-my-dashboard-handle-wrapper--${mode}${active ? ' active' : ''}`}
@@ -61,7 +54,6 @@ const DashboardHandle = ({
         }
     }}
 >
-    {active && showControls && <GridControls mode={mode} labels={labels} onDirection={onDirection} />}
     <Button
         size="md"
         variant="ghost"
@@ -77,8 +69,10 @@ const DashboardHandle = ({
             aria-hidden="true"
         />}
         onClick={event => {
-            // Pointer activation starts on pointerdown so dragging works immediately.
-            // A zero-detail click covers assistive-technology activation.
+            // Pointer activation starts on pointerdown so dragging works immediately, and Space or
+            // Enter on keydown. A zero-detail click is neither: assistive technology activated the
+            // handle, such as a screen reader's double-tap on a touch screen, where there may be no
+            // keyboard. It picks the block up as a click does.
             if (event.detail === 0 && !active) {
                 onStart();
             }

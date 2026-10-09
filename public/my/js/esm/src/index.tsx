@@ -948,14 +948,21 @@ const Dashboard = ({loadingLabel = '', initialLayout = [], openBrowser = false, 
      * Keep instructions on screen while a block is picked up without dragging, with Cancel for
      * touch screens that have no Escape key. The toast is the announcement too.
      */
-    const showInstructions = useCallback(async(title: string, mode: 'move' | 'resize', how: 'keyboard' | 'tap') => {
+    const showInstructions = useCallback(async(
+        title: string,
+        mode: 'move' | 'resize',
+        how: 'keyboard' | 'tap' | 'assistive',
+    ) => {
         const labels = dataRef.current?.labels;
         if (!labels) {
             return;
         }
-        const key = how === 'keyboard'
-            ? (mode === 'move' ? 'dashboardkeyboardmove' : 'dashboardkeyboardresize')
-            : (mode === 'move' ? 'dashboardtapmove' : 'dashboardtapresize');
+        const keys = {
+            keyboard: {move: 'dashboardkeyboardmove', resize: 'dashboardkeyboardresize'},
+            tap: {move: 'dashboardtapmove', resize: 'dashboardtapresize'},
+            assistive: {move: 'dashboardchoosemove', resize: 'dashboardchooseresize'},
+        };
+        const key = keys[how][mode];
         const text = await getString(key, 'my', title);
         if (!interactionRef.current) {
             return;
@@ -1000,6 +1007,20 @@ const Dashboard = ({loadingLabel = '', initialLayout = [], openBrowser = false, 
     }, [announce, blocksById, displayLayout, showInstructions]);
 
     /**
+     * Pick a block up for assistive technology that activated its handle without a key press, such
+     * as a screen reader's double-tap on a touch screen, where there may be no keyboard. It works as
+     * a click does: the next activation on the grid places it, and empty spaces are named as places
+     * to put it. The arrow keys work too, for anyone who has them.
+     */
+    const pickUp = useCallback((id: number, mode: 'move' | 'resize') => {
+        const block = blocksById.get(id);
+        start(id, mode, 'mouseclick');
+        if (block) {
+            void showInstructions(block.title, mode, 'assistive');
+        }
+    }, [blocksById, showInstructions, start]);
+
+    /**
      * Nudge the in-progress interaction's draft rectangle by whole grid cells - one keypress, one
      * cell. (pointerDown's own `move` handler needs sub-cell drag position for the tile to track
      * the pointer smoothly, so it recomputes the equivalent clamping itself rather than reusing
@@ -1008,31 +1029,39 @@ const Dashboard = ({loadingLabel = '', initialLayout = [], openBrowser = false, 
      * silently unresponsive at the limit.
      */
     const shift = useCallback((visualHorizontal: number, vertical: number) => {
-        // Arrow keys and direction buttons are visual: in a right-to-left grid, right is backwards.
+        const current = interactionRef.current;
+        if (!current) {
+            return;
+        }
+        // Arrow keys are visual: in a right-to-left grid, right is backwards.
         const horizontal = isRtl(gridRef.current) ? -visualHorizontal : visualHorizontal;
-        setInteraction(current => {
-            if (!current) {
-                return current;
+        const draft = {...current.draft};
+        if (current.mode === 'move') {
+            draft.column = Math.max(0, Math.min(columnCount - draft.columns, draft.column + horizontal));
+            draft.row = Math.max(0, draft.row + vertical);
+        } else {
+            const nextColumns = draft.columns + horizontal;
+            const nextRows = draft.rows + vertical;
+            const minimum = fitMinimum(minimumSize(current.id), columnCount);
+            if (nextColumns < minimum.columns || nextRows < minimum.rows) {
+                void announce('dashboardminimumsize', `${minimum.columns} × ${minimum.rows}`);
+                return;
             }
-            const draft = {...current.draft};
-            if (current.mode === 'move') {
-                draft.column = Math.max(0, Math.min(columnCount - draft.columns, draft.column + horizontal));
-                draft.row = Math.max(0, draft.row + vertical);
-            } else {
-                const nextColumns = draft.columns + horizontal;
-                const nextRows = draft.rows + vertical;
-                const minimum = fitMinimum(minimumSize(current.id), columnCount);
-                if (nextColumns < minimum.columns || nextRows < minimum.rows) {
-                    void announce('dashboardminimumsize', `${minimum.columns} × ${minimum.rows}`);
-                    return current;
-                }
-                draft.columns = Math.min(columnCount - draft.column, nextColumns);
-                draft.rows = nextRows;
-            }
-            const next = {...current, draft};
-            interactionRef.current = next;
-            return next;
-        });
+            draft.columns = Math.min(columnCount - draft.column, nextColumns);
+            draft.rows = nextRows;
+        }
+        if (!layoutChanged(draft, current.draft)) {
+            return;
+        }
+        const next = {...current, draft};
+        interactionRef.current = next;
+        setInteraction(next);
+        // Each step is announced: where the block now is, or its new size.
+        if (current.mode === 'move') {
+            void announce('gridcellposition', {row: draft.row + 1, column: draft.column + 1});
+        } else {
+            void announce('dashboardresizesize', {columns: draft.columns, rows: draft.rows});
+        }
     }, [announce, columnCount, minimumSize]);
 
     /**
@@ -1300,18 +1329,13 @@ const Dashboard = ({loadingLabel = '', initialLayout = [], openBrowser = false, 
         if (!tapKey || !grid) {
             return undefined;
         }
-        const draftAt = (x: number, y: number) => {
+        // The draft with the block's start corner (move) or end corner (resize) on a cell.
+        const draftForCell = (column: number, row: number) => {
             const current = interactionRef.current;
             if (!current) {
                 return null;
             }
             const columns = columnCountRef.current ?? 1;
-            const rect = grid.getBoundingClientRect();
-            const {rowHeight, gap} = readGridMetrics(grid);
-            const cellWidth = (rect.width - gap * (columns - 1)) / columns;
-            const offset = isRtl(grid) ? rect.right - x : x - rect.left;
-            const column = Math.max(0, Math.min(columns - 1, Math.floor(offset / (cellWidth + gap))));
-            const row = Math.max(0, Math.floor((y - rect.top) / (rowHeight + gap)));
             const {original} = current;
             const draft = {...original};
             if (current.mode === 'move') {
@@ -1323,6 +1347,16 @@ const Dashboard = ({loadingLabel = '', initialLayout = [], openBrowser = false, 
                 draft.rows = Math.max(minimum.rows, row - original.row + 1);
             }
             return {...current, draft};
+        };
+        const draftAt = (x: number, y: number) => {
+            const columns = columnCountRef.current ?? 1;
+            const rect = grid.getBoundingClientRect();
+            const {rowHeight, gap} = readGridMetrics(grid);
+            const cellWidth = (rect.width - gap * (columns - 1)) / columns;
+            const offset = isRtl(grid) ? rect.right - x : x - rect.left;
+            const column = Math.max(0, Math.min(columns - 1, Math.floor(offset / (cellWidth + gap))));
+            const row = Math.max(0, Math.floor((y - rect.top) / (rowHeight + gap)));
+            return draftForCell(column, row);
         };
         const onMove = (event: PointerEvent) => {
             if (event.pointerType !== 'mouse') {
@@ -1344,6 +1378,24 @@ const Dashboard = ({loadingLabel = '', initialLayout = [], openBrowser = false, 
             event.stopPropagation();
             if (!target || !grid.contains(target)) {
                 cancelRef.current();
+                return;
+            }
+            const current = interactionRef.current;
+            if (event.detail === 0 && current) {
+                // Activated by assistive technology or a key, with no pointer position: the block
+                // goes where the activated empty space or block starts. Activating the picked-up
+                // block itself drops it where it is, after any arrow-key steps.
+                const tile = target.closest(`.core-my-dashboard-tile[data-instance-id="${current.id}"]`);
+                const place = target.closest<HTMLElement>('[data-grid-column][data-grid-row]');
+                if (tile || !place) {
+                    void commitRef.current();
+                    return;
+                }
+                const next = draftForCell(Number(place.dataset.gridColumn), Number(place.dataset.gridRow));
+                if (next) {
+                    interactionRef.current = next;
+                    void commitRef.current();
+                }
                 return;
             }
             const next = draftAt(event.clientX, event.clientY);
@@ -1543,7 +1595,9 @@ const Dashboard = ({loadingLabel = '', initialLayout = [], openBrowser = false, 
             : <DashboardLoading label={loadingLabel} layout={initialLayout} />;
     }
 
-    const rows = Math.max(1, maxRow(previewLayout));
+    // While a block is picked up there is one empty row below the last block, so it can be moved to
+    // the bottom, or made taller, in one click or tap.
+    const rows = Math.max(1, maxRow(previewLayout)) + (interaction ? 1 : 0);
     const prospective = interaction && (layoutChanged(interaction.original, interaction.draft) ||
         (interaction.origin === 'pointer' && interaction.mode === 'resize' && interaction.drag?.shrinking))
         ? interaction.draft : undefined;
@@ -1562,29 +1616,41 @@ const Dashboard = ({loadingLabel = '', initialLayout = [], openBrowser = false, 
             hidden={hidden}
             tapping={interaction?.id === item.id && interaction.origin === 'mouseclick'}
             activeMode={interaction?.id === item.id ? interaction.mode : undefined}
-            showControls={interaction?.id === item.id && interaction.origin === 'keyboard'}
             drag={interaction?.id === item.id ? interaction.drag : undefined}
             dragOrigin={interaction?.id === item.id ? interaction.original : undefined}
             shouldAnimatePosition={interaction?.origin === 'pointer' && interaction.id !== item.id}
             isBumped={bumpedBlockIds.has(item.id)}
             highlighted={highlightId === item.id}
-            onStart={start}
+            onStart={pickUp}
             onKeyDown={keyDown}
             onPointerDown={pointerDown}
-            onDirection={shift}
             onCommit={() => void commit()}
             onRemove={id => void remove(id)}
         />;
     };
-    const regions = data.editing && !interaction ? emptyRegions(displayLayout, columnCount, rows) : [];
+    // Empty spaces offer "Add a block here" at rest. While a block is picked up by a click or by
+    // assistive technology they are named as places to put it instead, worked out from the layout as
+    // it was when the block was picked up, so they don't change under the pointer. They're left out
+    // while dragging or using the arrow keys, where Tab would drop the block.
+    const placing = interaction?.origin === 'mouseclick' ? interaction : null;
+    const placingTitle = placing ? blocksById.get(placing.id)?.title ?? '' : '';
+    const regions = !data.editing ? []
+        : placing ? emptyRegions(placing.before.filter(item => item.id !== placing.id), columnCount, rows)
+            : !interaction ? emptyRegions(displayLayout, columnCount, rows) : [];
     const gridChildren = [
         ...displayLayout.map(committed => ({row: committed.row, column: committed.column, node: renderTile(committed, false)})),
         ...regions.map(region => ({row: region.row, column: region.column, node: <GridCell
             key={`region:${region.column}:${region.row}`}
             {...region}
-            label={data.labels.emptyregion}
-            addLabel={data.labels.addblockhere}
-            onActivate={(column, row, columns, regionRows) => setPalette({column, row, columns, rows: regionRows})}
+            placing={Boolean(placing)}
+            label={placing
+                ? (placing.mode === 'move' ? data.labels.placemove : data.labels.placeresize).replace('{$a->block}', placingTitle)
+                : data.labels.emptyregion}
+            addLabel={placing
+                ? (placing.mode === 'move' ? data.labels.movehere : data.labels.resizehere)
+                : data.labels.addblockhere}
+            onActivate={placing ? undefined
+                : (column, row, columns, regionRows) => setPalette({column, row, columns, rows: regionRows})}
         />})),
     ].sort((left, right) => left.row - right.row || left.column - right.column).map(child => child.node);
     // Tiles stay in the page while their removal can still be undone, hidden, after everything else.
@@ -1603,7 +1669,13 @@ const Dashboard = ({loadingLabel = '', initialLayout = [], openBrowser = false, 
         offline: '',
         retrying: data.labels.saveretrying,
     };
-    return <div className="core-my-dashboard-app" aria-busy={saveStatus !== 'idle'}>
+    return <div
+        className="core-my-dashboard-app"
+        aria-busy={saveStatus !== 'idle'}
+        // While a block is picked up without dragging, its instructions sit at the bottom of the
+        // window; the theme keeps the grid's last row able to scroll clear of them (my.scss).
+        data-instructions={interaction && interaction.origin !== 'pointer' ? true : undefined}
+    >
         {error && <div className="alert alert-danger" role="alert">{error}</div>}
         {unsaved && <div className="alert alert-warning core-my-dashboard-unsaved" role="alert">
             {data.labels.savefailed}

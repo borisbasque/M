@@ -23,10 +23,6 @@
     "eject": "safe",
     "wrap": "safe"
   },
-  "components/GridControls": {
-    "eject": "safe",
-    "wrap": "safe"
-  },
   "index": {
     "eject": "risky",
     "wrap": "safe"

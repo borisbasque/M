@@ -115,6 +115,46 @@ class behat_my extends behat_base {
     }
 
     /**
+     * Pick a block up by clicking its grip, then click the empty row the dashboard adds below the
+     * last block while one is picked up, and check the block now sits below every other block.
+     *
+     * @Then putting the :block dashboard block in the empty row at the bottom moves it there
+     * @param string $block The block's title.
+     */
+    public function putting_block_in_bottom_row_moves_it_there(string $block): void {
+        $this->execute('behat_general::i_click_on_in_the', ["Move {$block} block", 'button', $block, 'block']);
+        $row = $this->spin_until_script(<<<'JS'
+            return (() => {
+                const rows = [...document.querySelectorAll('.core-my-grid-cell--available')]
+                    .map(cell => Number(cell.dataset.gridRow));
+                return rows.length ? Math.max(...rows) : null;
+            })();
+        JS, static fn($value): bool => $value !== null);
+        $this->execute('behat_general::i_click_on', [
+            ".core-my-grid-cell--available[data-grid-row='{$row}']",
+            'css_element',
+        ]);
+
+        $title = json_encode("{$block} block");
+        $below = $this->spin_until_script(<<<JS
+            return (() => {
+                const tiles = [...document.querySelectorAll('.core-my-dashboard-tile:not([hidden])')];
+                const moved = tiles.find(tile => tile.getAttribute('aria-label') === {$title});
+                if (!moved || document.querySelector('.core-my-grid-cell--available[aria-label^="Move "]')) {
+                    return null;
+                }
+                const top = Number(moved.dataset.gridRow);
+                return tiles.every(tile => tile === moved
+                    || Number(tile.dataset.gridRow) + parseInt(tile.style.gridRow.split('span ')[1], 10) <= top);
+            })();
+        JS, static fn($value): bool => $value === true);
+
+        if ($below !== true) {
+            throw new \Exception("The {$block} block was not moved below every other block.");
+        }
+    }
+
+    /**
      * Drag a dashboard block one column into free grid space and verify its saved position.
      *
      * @Then dragging the :block dashboard block into an adjacent free column persists
@@ -199,43 +239,6 @@ class behat_my extends behat_base {
     }
 
     /**
-     * Assert that keyboard activation exposes the discrete resize controls.
-     *
-     * @Then keyboard activation shows resize directional controls
-     */
-    public function keyboard_activation_shows_resize_directional_controls(): void {
-        $activated = $this->evaluate_script(<<<'JS'
-            return (() => {
-                const handle = document.querySelector(
-                    ".core-my-dashboard-tile[data-block='calendar_month'] .core-my-dashboard-handle--resize"
-                );
-                if (!handle) {
-                    return null;
-                }
-                handle.dispatchEvent(new KeyboardEvent('keydown', {bubbles: true, key: 'Enter'}));
-                return true;
-            })();
-        JS);
-
-        if ($activated === null) {
-            throw new \Exception('The Calendar resize handle was not found.');
-        }
-
-        $controls = $this->spin_until_script(<<<'JS'
-            return document.querySelectorAll('.core-my-grid-controls__direction').length;
-        JS, static fn($controls): bool => $controls === 4);
-        $this->evaluate_script(<<<'JS'
-            document.querySelector(".core-my-dashboard-tile[data-block='calendar_month'] .core-my-dashboard-handle--resize")
-                ?.dispatchEvent(new KeyboardEvent('keydown', {bubbles: true, key: 'Escape'}));
-            return true;
-        JS);
-
-        if ($controls !== 4) {
-            throw new \Exception('Keyboard activation did not show all resize directional controls.');
-        }
-    }
-
-    /**
      * Assert that a pointer resize stays fluid until it crosses a grid-cell threshold.
      *
      * @Then the mouse resize preview follows the pointer before snapping to a grid cell
@@ -283,15 +286,14 @@ class behat_my extends behat_base {
                     dragging: tile?.classList.contains('core-my-dashboard-tile--pointer-dragging'),
                     width: parseFloat(tile?.style.width || '0'),
                     prospective: document.querySelectorAll('.core-my-grid-cell--prospective').length,
-                    controls: document.querySelectorAll('.core-my-grid-controls__direction').length,
                 };
             })();
         JS, static fn($value): bool => $value['dragging'] && $value['width'] > $start['width']
-                && $value['prospective'] === 0 && $value['controls'] === 0);
+                && $value['prospective'] === 0);
 
         if (
             !$beforethreshold['dragging'] || $beforethreshold['width'] <= $start['width'] ||
-                $beforethreshold['prospective'] !== 0 || $beforethreshold['controls'] !== 0
+                $beforethreshold['prospective'] !== 0
         ) {
             throw new \Exception('Resize did not remain fluid below the grid-cell threshold: ' .
                 json_encode($beforethreshold));
@@ -312,9 +314,8 @@ class behat_my extends behat_base {
         $afterthreshold = $this->spin_until_script(<<<'JS'
             return {
                 prospective: document.querySelectorAll('.core-my-grid-cell--prospective').length,
-                controls: document.querySelectorAll('.core-my-grid-controls__direction').length,
             };
-        JS, static fn($value): bool => $value['prospective'] !== 0 && $value['controls'] === 0);
+        JS, static fn($value): bool => $value['prospective'] !== 0);
         $this->evaluate_script(<<<'JS'
             window.dispatchEvent(new PointerEvent('pointercancel', {
                 bubbles: true,
@@ -324,8 +325,8 @@ class behat_my extends behat_base {
             return true;
         JS);
 
-        if ($afterthreshold['prospective'] === 0 || $afterthreshold['controls'] !== 0) {
-            throw new \Exception('Pointer resize controls or snap preview are incorrect after crossing the threshold: ' .
+        if ($afterthreshold['prospective'] === 0) {
+            throw new \Exception('Pointer resize snap preview is missing after crossing the threshold: ' .
                 json_encode($afterthreshold));
         }
 
@@ -528,64 +529,6 @@ class behat_my extends behat_base {
         ) {
             throw new \Exception('A returning dashboard tile did not run its position easing animation: ' .
                 json_encode($returnanimation));
-        }
-    }
-
-    /**
-     * Assert that the four resize controls are centred around their active handle.
-     *
-     * @Then the resize directional controls are centred on the active resize handle
-     */
-    public function resize_directional_controls_are_centred(): void {
-        $geometry = $this->evaluate_script(<<<'JS'
-            return (() => {
-                const handle = document.querySelector('.core-my-dashboard-handle--resize[aria-pressed="true"]');
-                const controls = handle?.closest('.core-my-dashboard-handle-wrapper')?.querySelector('.core-my-grid-controls');
-                if (!handle || !controls) {
-                    return null;
-                }
-
-                const centre = rect => ({x: rect.left + rect.width / 2, y: rect.top + rect.height / 2});
-                const handlecentre = centre(handle.getBoundingClientRect());
-                const directions = ['up', 'left', 'right', 'down'];
-                const offsets = Object.fromEntries(directions.map(direction => {
-                    const control = controls.querySelector(`.core-my-grid-controls__direction--${direction}`);
-                    const controlcentre = centre(control.getBoundingClientRect());
-                    const iconrect = control.querySelector('i').getBoundingClientRect();
-                    return [direction, {
-                        x: controlcentre.x - handlecentre.x,
-                        y: controlcentre.y - handlecentre.y,
-                        iconwidth: iconrect.width,
-                        iconheight: iconrect.height,
-                        controlwidth: control.getBoundingClientRect().width,
-                        controlheight: control.getBoundingClientRect().height,
-                    }];
-                }));
-
-                return {offsets};
-            })();
-        JS);
-
-        if ($geometry === null) {
-            throw new \Exception('The active resize handle or its directional controls were not found.');
-        }
-
-        $offsets = $geometry['offsets'];
-        $tolerance = 1;
-        if (
-            abs($offsets['up']['x']) > $tolerance || abs($offsets['down']['x']) > $tolerance ||
-                abs($offsets['left']['y']) > $tolerance || abs($offsets['right']['y']) > $tolerance
-        ) {
-            throw new \Exception('Resize directional controls are not centred: ' . json_encode($offsets));
-        }
-
-        foreach ($offsets as $offset) {
-            if (
-                abs($offset['iconwidth'] - $offset['controlwidth']) > $tolerance ||
-                    abs($offset['iconheight'] - $offset['controlheight']) > $tolerance
-            ) {
-                throw new \Exception('Resize directional icons do not fill their controls: ' . json_encode($offsets));
-            }
         }
     }
 

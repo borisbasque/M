@@ -170,6 +170,23 @@ $core-my-dashboard-grid-max-width: 1921px !default;
     scroll-margin-top: calc(#{$navbar-height} + var(--mds-scale-1600));
 }
 
+// While a block is picked up without dragging, its instructions are shown at the bottom of the
+// window. The page gets room to scroll the grid's last row, including the empty row added below
+// the last block, clear of them, and whatever gets focus stops short of them (WCAG 2.2 SC 2.4.11).
+.core-my-dashboard-app[data-instructions] {
+    --core-my-dashboard-instructions-clearance: calc(var(--mds-scale-1600) + var(--mds-spacing-xl));
+    padding-block-end: var(--core-my-dashboard-instructions-clearance);
+
+    @include media-breakpoint-down(md) {
+        // The instructions wrap onto more lines on a narrow screen.
+        --core-my-dashboard-instructions-clearance: calc(2 * var(--mds-scale-1600) + var(--mds-spacing-xl));
+    }
+
+    .core-my-dashboard-grid > * {
+        scroll-margin-bottom: var(--core-my-dashboard-instructions-clearance);
+    }
+}
+
 .core-my-dashboard-grid {
     // The grid's row unit and gutter, defined once. The server-rendered loading skeleton and the
     // React grid both size rows from this property, and the editor's pointer maths reads the
@@ -379,79 +396,6 @@ $core-my-dashboard-grid-max-width: 1921px !default;
     color: var(--mds-text-link-primary-default);
     background: var(--mds-bg-surface-default);
     border: var(--mds-stroke-weight-md) solid var(--mds-border-interactive-primary-default);
-}
-
-.core-my-grid-controls {
-    position: absolute;
-    inset: 0;
-    z-index: 4;
-    pointer-events: none;
-}
-
-.mds-btn.btn.core-my-grid-controls__direction {
-    position: absolute;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    width: var(--mds-scale-800);
-    min-width: var(--mds-scale-800);
-    height: var(--mds-scale-800);
-    min-height: var(--mds-scale-800);
-    padding: 0;
-    // A text token, not a background one: dark.scss remaps text tokens for dark mode, so the
-    // arrows keep their contrast against the tile there (a background token measured 1:1).
-    color: var(--mds-text-subtle);
-    pointer-events: auto;
-    background: transparent;
-    border: none;
-}
-
-.mds-btn.btn.core-my-grid-controls__direction:hover {
-    color: var(--mds-text-default);
-    background: transparent;
-}
-
-.mds-btn.btn.core-my-grid-controls__direction:active {
-    color: var(--mds-text-default);
-    background: transparent;
-}
-
-.mds-btn.btn.mds-btn--icon-only.mds-btn--size-sm.core-my-grid-controls__direction i {
-    display: block;
-    inline-size: var(--mds-icons-lg);
-    block-size: var(--mds-icons-lg);
-    width: var(--mds-icons-lg);
-    height: var(--mds-icons-lg);
-    font-size: var(--mds-icons-lg);
-    line-height: 1;
-}
-
-.mds-btn.btn.mds-btn--icon-only.mds-btn--size-sm.core-my-grid-controls__direction i::before {
-    font-size: var(--mds-icons-lg);
-}
-
-.core-my-grid-controls__direction--up {
-    bottom: calc(100% + var(--mds-spacing-xxs));
-    left: 50%;
-    transform: translateX(-50%);
-}
-
-.core-my-grid-controls__direction--down {
-    top: calc(100% + var(--mds-spacing-xxs));
-    left: 50%;
-    transform: translateX(-50%);
-}
-
-.core-my-grid-controls__direction--left {
-    top: 50%;
-    right: calc(100% + var(--mds-spacing-xxs));
-    transform: translateY(-50%);
-}
-
-.core-my-grid-controls__direction--right {
-    top: 50%;
-    left: calc(100% + var(--mds-spacing-xxs));
-    transform: translateY(-50%);
 }
 
 .core-my-dashboard-tile__content {

@@ -109,22 +109,21 @@ const labels: DashboardLabels = {
     confirmremove: 'Remove this block?',
     confirmreset: 'Reset this dashboard?',
     done: 'Done',
-    down: 'Down',
     emptycell: 'Empty cell',
-    left: 'Left',
     loading: 'Loading',
     gridcell: 'Row {$a->row}, column {$a->column}',
     move: 'Move {$a} block',
-    movecontrols: 'Move block controls',
+    movehere: 'Move here',
     moveinstructions: 'Use the arrow keys to move',
     remove: 'Delete {$a} block',
     removeheading: 'Remove block',
     reset: 'Reset page to default',
     resetheading: 'Reset dashboard',
     resize: 'Resize block',
-    resizecontrols: 'Resize block controls',
+    resizehere: 'Resize to here',
+    placemove: 'Move {$a->block} here: row {$a->row}, column {$a->column}',
+    placeresize: 'Resize {$a->block} to end here: row {$a->row}, column {$a->column}',
     resizeinstructions: 'Use the arrow keys to resize',
-    right: 'Right',
     retry: 'Retry',
     savefailed: 'Your changes could not be saved.',
     saveoffline: 'You are offline.',
@@ -155,7 +154,6 @@ const labels: DashboardLabels = {
     empty: 'Your dashboard is empty.',
     opensinnewwindow: 'Opens in new window',
     restoredefault: 'Restore the default dashboard',
-    up: 'Up',
 };
 
 const urls = {ownpage: 'https://example.com/my/index.php', sitedefault: 'https://example.com/my/indexsys.php'};
@@ -438,6 +436,27 @@ describe('core_my Dashboard application', () => {
         expect(updateCalls(fetchOneSpy)).toHaveLength(0);
     });
 
+    it('announces each arrow-key step: where the block is, or its new size', async() => {
+        mockDashboardApi({getResponses: [buildData()]});
+        const getStringSpy = jest.spyOn(StringUtils, 'getString');
+        render(<Dashboard />);
+        await screen.findByText('First block');
+        const firstTile = screen.getByRole('region', {name: 'First block block'});
+
+        const moveHandle = within(firstTile).getByRole('button', {name: 'Move First block block'});
+        fireEvent.keyDown(moveHandle, {key: ' '});
+        fireEvent.keyDown(moveHandle, {key: 'ArrowDown'});
+        await waitFor(() => expect(getStringSpy).toHaveBeenCalledWith('gridcellposition', 'my', {row: 2, column: 1}));
+        fireEvent.keyDown(moveHandle, {key: 'Escape'});
+
+        const resizeHandle = within(firstTile).getByRole('button', {name: 'Resize block'});
+        fireEvent.keyDown(resizeHandle, {key: ' '});
+        fireEvent.keyDown(resizeHandle, {key: 'ArrowRight'});
+        await waitFor(() => expect(getStringSpy)
+            .toHaveBeenCalledWith('dashboardresizesize', 'my', {columns: 3, rows: 2}));
+        getStringSpy.mockRestore();
+    });
+
     it('announces the block\'s own declared minimum when a resize reaches it', async() => {
         const data = buildData();
         // The first block is 2 rows tall and declares a 2 × 2 minimum of its own.
@@ -531,7 +550,7 @@ describe('core_my Dashboard application', () => {
 
             await pickUp('Move First block block');
             await act(async() => {
-                fireEvent.click(container.querySelector('.core-my-dashboard-grid')!, {clientX: cellX(1), clientY: cellY(2)});
+                fireEvent.click(container.querySelector('.core-my-dashboard-grid')!, {clientX: cellX(1), clientY: cellY(2), detail: 1});
             });
 
             await waitFor(() => expect(updateCalls(fetchOneSpy)).toHaveLength(1));
@@ -549,7 +568,7 @@ describe('core_my Dashboard application', () => {
             const handle = await pickUp('Move First block block');
             await act(async() => {
                 fireEvent.pointerDown(handle, {clientX: cellX(1), clientY: cellY(0)});
-                fireEvent.click(handle, {clientX: cellX(1), clientY: cellY(0)});
+                fireEvent.click(handle, {clientX: cellX(1), clientY: cellY(0), detail: 1});
             });
 
             await waitFor(() => expect(updateCalls(fetchOneSpy)).toHaveLength(1));
@@ -568,10 +587,51 @@ describe('core_my Dashboard application', () => {
             });
             await pickUp('Move First block block');
             await act(async() => {
-                fireEvent.click(document.body, {clientX: cellX(1), clientY: cellY(0)});
+                fireEvent.click(document.body, {clientX: cellX(1), clientY: cellY(0), detail: 1});
             });
 
             expect(updateCalls(fetchOneSpy)).toHaveLength(0);
+        });
+
+        it('lets assistive technology pick a block up and put it in a named empty space', async() => {
+            const fetchOneSpy = mockDashboardApi({getResponses: [buildData()]});
+            const getStringSpy = jest.spyOn(StringUtils, 'getString');
+            const {container} = render(<Dashboard />);
+            await screen.findByText('First block');
+            await waitFor(() => expect(container.querySelector('.core-my-dashboard-grid'))
+                .toHaveAttribute('data-columns', '6'));
+
+            // A screen reader's double-tap: a click with no detail and no key press.
+            const handle = screen.getByRole('button', {name: 'Move First block block'});
+            await act(async() => {
+                fireEvent.click(handle, {detail: 0});
+                await new Promise(resolve => setTimeout(resolve, 0));
+            });
+            await waitFor(() => expect(getStringSpy).toHaveBeenCalledWith('dashboardchoosemove', 'my', 'First block'));
+            // No direction buttons; empty spaces say they are places to put the block.
+            expect(screen.queryByRole('button', {name: 'Up'})).not.toBeInTheDocument();
+            const space = screen.getByRole('button', {name: 'Move First block here: row 3, column 4'});
+            await act(async() => {
+                fireEvent.click(space, {detail: 0});
+            });
+
+            await waitFor(() => expect(updateCalls(fetchOneSpy)).toHaveLength(1));
+            const args = (updateCalls(fetchOneSpy)[0][0] as {args: {layout: LayoutItem[]}}).args;
+            expect(args.layout.find(item => item.id === 101)).toMatchObject({column: 3, row: 2});
+            getStringSpy.mockRestore();
+        });
+
+        it('adds an empty row below the last block while one is picked up', async() => {
+            mockDashboardApi({getResponses: [buildData()]});
+            const {container} = render(<Dashboard />);
+            await screen.findByText('First block');
+            const grid = container.querySelector<HTMLElement>('.core-my-dashboard-grid')!;
+            expect(grid.style.gridTemplateRows).toMatch(/^repeat\(2,/);
+
+            await pickUp('Move First block block');
+
+            expect(grid.style.gridTemplateRows).toMatch(/^repeat\(3,/);
+            expect(screen.getAllByRole('button', {name: /^Move First block here: row 3,/}).length).toBeGreaterThan(0);
         });
     });
 

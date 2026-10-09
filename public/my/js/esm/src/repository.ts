@@ -85,22 +85,21 @@ export interface DashboardLabels {
     confirmremove: string;
     confirmreset: string;
     done: string;
-    down: string;
     emptycell: string;
-    left: string;
     loading: string;
     gridcell: string;
     move: string;
-    movecontrols: string;
+    movehere: string;
     moveinstructions: string;
+    placemove: string;
+    placeresize: string;
     remove: string;
     removeheading: string;
     reset: string;
     resetheading: string;
     resize: string;
-    resizecontrols: string;
+    resizehere: string;
     resizeinstructions: string;
-    right: string;
     retry: string;
     savefailed: string;
     saveoffline: string;
@@ -131,7 +130,6 @@ export interface DashboardLabels {
     emptyregion: string;
     tile: string;
     undo: string;
-    up: string;
 }
 
 export interface DashboardUrls {

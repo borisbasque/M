@@ -159,7 +159,6 @@ interface DashboardTileProps {
     // Picked up by a click: the next click places it, so its handles must not act on their own.
     tapping?: boolean;
     activeMode?: 'move' | 'resize';
-    showControls: boolean;
     drag?: PointerDrag;
     dragOrigin?: LayoutItem;
     shouldAnimatePosition?: boolean;
@@ -169,7 +168,6 @@ interface DashboardTileProps {
     onStart: (id: number, mode: 'move' | 'resize') => void;
     onKeyDown: (event: React.KeyboardEvent, id: number, mode: 'move' | 'resize') => void;
     onPointerDown: (event: React.PointerEvent, id: number, mode: 'move' | 'resize') => void;
-    onDirection: (horizontal: number, vertical: number) => void;
     onCommit: () => void;
     onRemove: (id: number) => void;
 }
@@ -182,7 +180,6 @@ const DashboardTile = ({
     hidden = false,
     tapping = false,
     activeMode,
-    showControls,
     drag,
     dragOrigin,
     shouldAnimatePosition = false,
@@ -191,7 +188,6 @@ const DashboardTile = ({
     onStart,
     onKeyDown,
     onPointerDown,
-    onDirection,
     onCommit,
     onRemove,
 }: DashboardTileProps) => {
@@ -290,6 +286,8 @@ const DashboardTile = ({
         data-instance-id={block.id}
         data-blockregion={narrow ? 'side-pre' : 'content'}
         data-bumped={isBumped || undefined}
+        data-grid-column={displayItem.column}
+        data-grid-row={displayItem.row}
         hidden={hidden || undefined}
         // Until its own content arrives, the block is marked busy and shows a placeholder.
         aria-busy={!block.loaded || undefined}
@@ -302,15 +300,12 @@ const DashboardTile = ({
             {editing && <DashboardHandle
                 mode="move"
                 label={labels.move.replace('{$a}', block.title)}
-                labels={labels}
                 instructionsId={moveInstructionsId}
                 active={activeMode === 'move'}
                 tapping={tapping}
-                showControls={showControls}
                 onStart={() => onStart(block.id, 'move')}
                 onKeyDown={event => onKeyDown(event, block.id, 'move')}
                 onPointerDown={event => onPointerDown(event, block.id, 'move')}
-                onDirection={onDirection}
                 onCommit={onCommit}
             />}
             {/* One line, cut short with an ellipsis; the full title shows on hover. */}
@@ -346,15 +341,12 @@ const DashboardTile = ({
             <DashboardHandle
                 mode="resize"
                 label={labels.resize}
-                labels={labels}
                 instructionsId={resizeInstructionsId}
                 active={activeMode === 'resize'}
                 tapping={tapping}
-                showControls={showControls}
                 onStart={() => onStart(block.id, 'resize')}
                 onKeyDown={event => onKeyDown(event, block.id, 'resize')}
                 onPointerDown={event => onPointerDown(event, block.id, 'resize')}
-                onDirection={onDirection}
                 onCommit={onCommit}
             />
         </div>}

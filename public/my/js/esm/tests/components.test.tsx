@@ -15,7 +15,6 @@
 import {fireEvent, render, screen} from '@testing-library/react';
 import type React from 'react';
 import GridCell from '../src/components/GridCell';
-import GridControls from '../src/components/GridControls';
 import ConfirmationDialog from '../src/components/ConfirmationDialog';
 import DashboardTile, {BlockActionsMenu} from '../src/components/DashboardTile';
 import DashboardHandle from '../src/components/DashboardHandle';
@@ -89,18 +88,12 @@ jest.mock('@moodlehq/design-system', () => {
 
 const labels = {
     blockactions: 'More actions for {$a}',
-    up: 'Up',
-    down: 'Down',
-    left: 'Left',
-    right: 'Right',
     retry: 'Retry',
     savefailed: 'Your changes could not be saved.',
     saveoffline: 'You are offline.',
     saveretrying: 'Trying again.',
     done: 'Done',
     cancel: 'Cancel',
-    movecontrols: 'Move block controls',
-    resizecontrols: 'Resize block controls',
     moveinstructions: 'Use the arrow keys to move',
     resizeinstructions: 'Use the arrow keys to resize',
     scopeown: 'Editing your dashboard',
@@ -129,11 +122,9 @@ describe('core_my grid components', () => {
                 tile: '{$a} block',
             } as DashboardLabels,
             editing: true,
-            showControls: false,
             onStart: jest.fn(),
             onKeyDown: jest.fn(),
             onPointerDown: jest.fn(),
-            onDirection: jest.fn(),
             onCommit: jest.fn(),
             onRemove: jest.fn(),
         };
@@ -200,27 +191,6 @@ describe('core_my grid components', () => {
         expect(container.firstChild).toHaveAttribute('aria-hidden', 'true');
     });
 
-    it('builds bespoke controls from MDS buttons and relays direction', () => {
-        const direction = jest.fn();
-        render(<GridControls
-            mode="move"
-            labels={labels}
-            onDirection={direction}
-        />);
-
-        expect(screen.getByRole('group', {name: 'Move block controls'})).toBeInTheDocument();
-        expect(screen.getAllByRole('button')).toHaveLength(4);
-        [
-            ['Up', 0, -1],
-            ['Left', -1, 0],
-            ['Right', 1, 0],
-            ['Down', 0, 1],
-        ].forEach(([name, horizontal, vertical]) => {
-            fireEvent.click(screen.getByRole('button', {name: String(name)}));
-            expect(direction).toHaveBeenLastCalledWith(horizontal, vertical);
-        });
-    });
-
     it('exposes an icon move handle to pointer and keyboard input', () => {
         const start = jest.fn();
         const pointerDown = jest.fn();
@@ -228,14 +198,11 @@ describe('core_my grid components', () => {
         render(<DashboardHandle
             mode="move"
             label="Move Course overview block"
-            labels={labels}
             instructionsId="move-instructions"
             active={false}
-            showControls={false}
             onStart={start}
             onKeyDown={keyDown}
             onPointerDown={pointerDown}
-            onDirection={jest.fn()}
             onCommit={jest.fn()}
         />);
 
@@ -250,51 +217,40 @@ describe('core_my grid components', () => {
         expect(keyDown).toHaveBeenCalled();
     });
 
-    it('displays clickable directional controls around an active handle', () => {
-        const direction = jest.fn();
+    it('picks a block up when assistive technology activates the handle, with no direction buttons', () => {
+        const start = jest.fn();
         const commit = jest.fn();
-        render(<DashboardHandle
+        const {rerender} = render(<DashboardHandle
             mode="resize"
             label="Resize Course overview block"
-            labels={labels}
             instructionsId="resize-instructions"
-            active
-            showControls
-            onStart={jest.fn()}
+            active={false}
+            onStart={start}
             onKeyDown={jest.fn()}
             onPointerDown={jest.fn()}
-            onDirection={direction}
             onCommit={commit}
         />);
 
-        expect(screen.getByRole('group', {name: 'Resize block controls'})).toBeInTheDocument();
-        const up = screen.getByRole('button', {name: 'Up'});
-        expect(up).toHaveAttribute('tabindex', '-1');
-        expect(up.querySelector('.fa-circle-arrow-up')).toBeInTheDocument();
-        fireEvent.click(up);
-        expect(direction).toHaveBeenCalledWith(0, -1);
-        fireEvent.pointerDown(screen.getByRole('button', {name: 'Resize Course overview block'}));
-        expect(commit).toHaveBeenCalled();
-        fireEvent.blur(screen.getByRole('button', {name: 'Resize Course overview block'}));
-        expect(commit).toHaveBeenCalledTimes(2);
-    });
+        // A screen reader's double-tap is a click with no detail, and no key press.
+        const handle = screen.getByRole('button', {name: 'Resize Course overview block'});
+        fireEvent.click(handle, {detail: 0});
+        expect(start).toHaveBeenCalledTimes(1);
 
-    it('hides directional controls during an active pointer interaction', () => {
-        render(<DashboardHandle
+        rerender(<DashboardHandle
             mode="resize"
             label="Resize Course overview block"
-            labels={labels}
             instructionsId="resize-instructions"
             active
-            showControls={false}
-            onStart={jest.fn()}
+            onStart={start}
             onKeyDown={jest.fn()}
             onPointerDown={jest.fn()}
-            onDirection={jest.fn()}
-            onCommit={jest.fn()}
+            onCommit={commit}
         />);
-
-        expect(screen.queryByRole('group', {name: 'Resize block controls'})).not.toBeInTheDocument();
+        expect(screen.getAllByRole('button')).toHaveLength(1);
+        fireEvent.pointerDown(handle);
+        expect(commit).toHaveBeenCalled();
+        fireEvent.blur(handle);
+        expect(commit).toHaveBeenCalledTimes(2);
     });
 
     it('renders an accessible full-viewport loading skeleton without an initial layout', () => {
@@ -334,11 +290,9 @@ describe('core_my grid components', () => {
             item={{id: 7, column: 0, row: 0, columns: 2, rows: 2}}
             labels={{...labels, tile: '{$a} block'} as DashboardLabels}
             editing={false}
-            showControls={false}
             onStart={jest.fn()}
             onKeyDown={jest.fn()}
             onPointerDown={jest.fn()}
-            onDirection={jest.fn()}
             onCommit={jest.fn()}
             onRemove={jest.fn()}
         />);
@@ -364,11 +318,9 @@ describe('core_my grid components', () => {
             item={item}
             labels={{...labels, tile: '{$a} block'} as DashboardLabels}
             editing={false}
-            showControls={false}
             onStart={jest.fn()}
             onKeyDown={jest.fn()}
             onPointerDown={jest.fn()}
-            onDirection={jest.fn()}
             onCommit={jest.fn()}
             onRemove={jest.fn()}
         />;
@@ -396,11 +348,9 @@ describe('core_my grid components', () => {
             item={{id: 12, column: 0, row: 0, columns: 2, rows: 2}}
             labels={{...labels, tile: '{$a} block'} as DashboardLabels}
             editing={false}
-            showControls={false}
             onStart={jest.fn()}
             onKeyDown={jest.fn()}
             onPointerDown={jest.fn()}
-            onDirection={jest.fn()}
             onCommit={jest.fn()}
             onRemove={jest.fn()}
         />);
@@ -427,11 +377,9 @@ describe('core_my grid components', () => {
             item={{id: 8, column: 0, row: 0, columns: 2, rows: 2}}
             labels={{...labels, tile: '{$a} block'} as DashboardLabels}
             editing={false}
-            showControls={false}
             onStart={jest.fn()}
             onKeyDown={jest.fn()}
             onPointerDown={jest.fn()}
-            onDirection={jest.fn()}
             onCommit={jest.fn()}
             onRemove={jest.fn()}
         />);
@@ -460,13 +408,11 @@ describe('core_my grid components', () => {
             item={{id: 9, column: 1, row: 1, columns: 2, rows: 2}}
             labels={{...labels, tile: '{$a} block'} as DashboardLabels}
             editing={false}
-            showControls={false}
             shouldAnimatePosition
             isBumped
             onStart={jest.fn()}
             onKeyDown={jest.fn()}
             onPointerDown={jest.fn()}
-            onDirection={jest.fn()}
             onCommit={jest.fn()}
             onRemove={jest.fn()}
         />);
@@ -498,11 +444,9 @@ describe('core_my grid components', () => {
                 tile: '{$a} block',
             } as DashboardLabels}
             editing
-            showControls
             onStart={jest.fn()}
             onKeyDown={jest.fn()}
             onPointerDown={jest.fn()}
-            onDirection={jest.fn()}
             onCommit={jest.fn()}
             onRemove={jest.fn()}
         />);
@@ -651,11 +595,9 @@ describe('core_my grid components', () => {
                 tile: '{$a} block',
             } as DashboardLabels}
             editing
-            showControls={false}
             onStart={jest.fn()}
             onKeyDown={jest.fn()}
             onPointerDown={jest.fn()}
-            onDirection={jest.fn()}
             onCommit={jest.fn()}
             onRemove={jest.fn()}
         />);
@@ -683,11 +625,9 @@ describe('core_my grid components', () => {
                 blockactions: 'More actions for {$a}',
             } as DashboardLabels}
             editing
-            showControls={false}
             onStart={jest.fn()}
             onKeyDown={jest.fn()}
             onPointerDown={jest.fn()}
-            onDirection={jest.fn()}
             onCommit={jest.fn()}
             onRemove={jest.fn()}
         />);

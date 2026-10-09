@@ -15,6 +15,7 @@ const GridCell = /* @__PURE__ */ __name(({
   rows = 1,
   label,
   addLabel,
+  placing = false,
   prospective = false,
   onActivate
 }) => {
@@ -25,7 +26,7 @@ const GridCell = /* @__PURE__ */ __name(({
   if (prospective) {
     return /* @__PURE__ */ jsxDEV("div", { className: "core-my-grid-cell core-my-grid-cell--prospective", style, "aria-hidden": "true" }, void 0, false, {
       fileName: "public/my/js/esm/src/components/GridCell.tsx",
-      lineNumber: 52,
+      lineNumber: 57,
       columnNumber: 16
     });
   }
@@ -35,18 +36,20 @@ const GridCell = /* @__PURE__ */ __name(({
       type: "button",
       className: "core-my-grid-cell core-my-grid-cell--available",
       style,
+      "data-grid-column": column,
+      "data-grid-row": row,
       "aria-label": label.replace("{$a->row}", String(row + 1)).replace("{$a->column}", String(column + 1)),
       onClick: () => onActivate?.(column, row, columns, rows),
       children: /* @__PURE__ */ jsxDEV("span", { className: "core-my-grid-cell__label", "aria-hidden": "true", children: [
-        /* @__PURE__ */ jsxDEV("i", { className: "fa fa-plus core-my-grid-cell__icon", "aria-hidden": "true" }, void 0, false, {
+        !placing && /* @__PURE__ */ jsxDEV("i", { className: "fa fa-plus core-my-grid-cell__icon", "aria-hidden": "true" }, void 0, false, {
           fileName: "public/my/js/esm/src/components/GridCell.tsx",
-          lineNumber: 62,
-          columnNumber: 13
+          lineNumber: 69,
+          columnNumber: 26
         }),
         addLabel
       ] }, void 0, true, {
         fileName: "public/my/js/esm/src/components/GridCell.tsx",
-        lineNumber: 61,
+        lineNumber: 68,
         columnNumber: 9
       })
     },
@@ -54,7 +57,7 @@ const GridCell = /* @__PURE__ */ __name(({
     false,
     {
       fileName: "public/my/js/esm/src/components/GridCell.tsx",
-      lineNumber: 54,
+      lineNumber: 59,
       columnNumber: 12
     }
   );

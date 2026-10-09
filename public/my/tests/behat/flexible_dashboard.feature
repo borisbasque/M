@@ -21,12 +21,11 @@ Feature: Arrange dashboard blocks in a responsive grid
     And I press the enter key
     Then I should see "Item moved to row"
     And I should not see "Course overview picked up"
-    # Keyboard activation shows the on-screen direction controls too.
+    # Keyboard activation uses the arrow keys alone: there are no on-screen direction buttons.
     When I click on "Resize block" "button" in the "Course overview" "block"
     And I press the escape key
     And I press the space key
-    Then "Up" "button" should exist in the "Course overview" "block"
-    And the resize directional controls are centred on the active resize handle
+    Then "Up" "button" should not exist in the "Course overview" "block"
     And I press the down key
     And I press the enter key
     Then I should see "Item resized to"
@@ -102,11 +101,17 @@ Feature: Arrange dashboard blocks in a responsive grid
     And dragging the "recentlyaccesseditems" dashboard block into an adjacent free column persists
 
   @javascript
+  Scenario: A block picked up with a click can be put in the empty row below the last block
+    When I turn editing mode on
+    Then putting the "Calendar" dashboard block in the empty row at the bottom moves it there
+    And I should see "Item moved to row"
+    And "Up" "button" should not exist
+
+  @javascript
   Scenario: Resize follows the pointer and previews its snap target
     When I turn editing mode on
     And I change viewport size to "2600x1000"
     Then "[data-columns='6']" "css_element" should exist
-    And keyboard activation shows resize directional controls
     And the mouse resize preview follows the pointer before snapping to a grid cell
 
   @javascript

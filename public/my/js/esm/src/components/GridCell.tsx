@@ -25,14 +25,18 @@ interface GridCellProps {
     label: string;
     // Shown on hover or focus.
     addLabel: string;
+    // Placing a picked-up block, not adding one: no plus sign.
+    placing?: boolean;
     prospective?: boolean;
     onActivate?: (column: number, row: number, columns: number, rows: number) => void;
 }
 
 /**
  * An empty region of the grid: a faint outline at rest that offers "Add a block here" on hover or
- * keyboard focus, one Tab stop for the whole region. During a move or resize, it can instead mark
- * the cells the block will take (prospective).
+ * keyboard focus, one Tab stop for the whole region. While a block is picked up by a click or by
+ * assistive technology, the same regions are named as places to put it, and the dashboard's click
+ * handler places it there. During a move or resize, it can instead mark the cells the block will
+ * take (prospective).
  */
 const GridCell = ({
     column,
@@ -41,6 +45,7 @@ const GridCell = ({
     rows = 1,
     label,
     addLabel,
+    placing = false,
     prospective = false,
     onActivate,
 }: GridCellProps) => {
@@ -55,11 +60,13 @@ const GridCell = ({
         type="button"
         className="core-my-grid-cell core-my-grid-cell--available"
         style={style}
+        data-grid-column={column}
+        data-grid-row={row}
         aria-label={label.replace('{$a->row}', String(row + 1)).replace('{$a->column}', String(column + 1))}
         onClick={() => onActivate?.(column, row, columns, rows)}
     >
         <span className="core-my-grid-cell__label" aria-hidden="true">
-            <i className="fa fa-plus core-my-grid-cell__icon" aria-hidden="true" />
+            {!placing && <i className="fa fa-plus core-my-grid-cell__icon" aria-hidden="true" />}
             {addLabel}
         </span>
     </button>;
