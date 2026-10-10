@@ -16,6 +16,7 @@ import {act, fireEvent, render, screen, waitFor, within} from '@testing-library/
 import type React from 'react';
 import * as Ajax from '@moodle/lms/core/ajax';
 import * as StringUtils from '@moodle/lms/core/stringUtils';
+import * as Location from '@moodle/lms/core/location';
 import {requireManyAsync} from '@moodle/lms/core/amd';
 import Dashboard from '../src/index';
 import type {DashboardData, DashboardLabels} from '../src/repository';
@@ -121,6 +122,8 @@ const labels: DashboardLabels = {
     resetheading: 'Reset dashboard',
     resize: 'Resize block',
     resizehere: 'Resize to here',
+    joinwillmoveone: '{$a} will move to join the other blocks when you finish editing.',
+    joinwillmovemany: '{$a} blocks will move to join the others when you finish editing.',
     placemove: 'Move {$a->block} here: row {$a->row}, column {$a->column}',
     placeresize: 'Resize {$a->block} to end here: row {$a->row}, column {$a->column}',
     resizeinstructions: 'Use the arrow keys to resize',
@@ -1164,6 +1167,213 @@ describe('core_my Dashboard application', () => {
         expect(screen.getByText('Editing your dashboard').closest('.core-my-dashboard-toolbar')).not.toBeNull();
         expectRedirect({urlContains: 'edit=0'});
         fireEvent.click(screen.getByRole('button', {name: 'Done'}));
+    });
+
+    describe('joining up blocks left on their own', () => {
+        // In the shared layout, the second block (columns 4-5) is a column away from the first (1-2).
+        const tileOf = (title: string) => screen.getByRole('region', {name: `${title} block`});
+
+        afterEach(() => {
+            window.sessionStorage.clear();
+        });
+
+        it('marks a block left on its own while editing, and says it will move', async() => {
+            mockDashboardApi({getResponses: [buildData()]});
+            render(<Dashboard />);
+            await screen.findByText('First block');
+
+            expect(tileOf('Second block')).toHaveClass('core-my-dashboard-tile--joining');
+            expect(tileOf('First block')).not.toHaveClass('core-my-dashboard-tile--joining');
+            expect(screen.getByText('Second block will move to join the other blocks when you finish editing.'))
+                .toBeInTheDocument();
+            // It stays where it was put while editing.
+            expect(tileOf('Second block').style.gridColumn).toBe('4 / span 2');
+        });
+
+        it('says nothing while editing when the blocks are already joined up', async() => {
+            const layout = [baseLayout[0], {...baseLayout[1], column: 2}];
+            mockDashboardApi({getResponses: [buildData({layout})]});
+            render(<Dashboard />);
+            await screen.findByText('First block');
+
+            expect(document.querySelector('.core-my-dashboard-tile--joining')).toBeNull();
+            expect(screen.queryByText(/when you finish editing/)).not.toBeInTheDocument();
+        });
+
+        it('joins up and saves before Done leaves Edit mode, then names the block that moved', async() => {
+            const order: string[] = [];
+            const fetchOneSpy = mockDashboardApi({
+                getResponses: [buildData()],
+                updateImpl: async() => {
+                    order.push('save');
+                    return {status: true, blockid: 0};
+                },
+            });
+            render(<Dashboard />);
+            await screen.findByText('First block');
+
+            expectRedirect({urlContains: 'edit=0'});
+            (Location.redirect as jest.Mock).mockImplementation(() => {
+                order.push('redirect');
+            });
+            fireEvent.click(screen.getByRole('button', {name: 'Done'}));
+
+            await waitFor(() => expect(order).toEqual(['save', 'redirect']));
+            const args = (updateCalls(fetchOneSpy)[0][0] as {args: {layout: LayoutItem[]}}).args;
+            expect(args.layout.find(item => item.id === 102)).toMatchObject({column: 2, row: 0});
+            expect(JSON.parse(window.sessionStorage.getItem('core_my_dashboard_joined') ?? '[]'))
+                .toEqual(['Second block']);
+        });
+
+        it('leaves Edit mode without saving when nothing needs joining up', async() => {
+            const layout = [baseLayout[0], {...baseLayout[1], column: 2}];
+            const fetchOneSpy = mockDashboardApi({getResponses: [buildData({layout})]});
+            render(<Dashboard />);
+            await screen.findByText('First block');
+
+            expectRedirect({urlContains: 'edit=0'});
+            await act(async() => {
+                fireEvent.click(screen.getByRole('button', {name: 'Done'}));
+            });
+
+            await waitFor(() => expect(Location.redirect).toHaveBeenCalled());
+            expect(updateCalls(fetchOneSpy)).toHaveLength(0);
+        });
+
+        it('stays in Edit mode when the server refuses the joined-up dashboard', async() => {
+            mockDashboardApi({
+                getResponses: [buildData(), buildData()],
+                updateImpl: () => Promise.reject({errorcode: 'dashboardchanged', message: 'Changed elsewhere.'}),
+            });
+            render(<Dashboard />);
+            await screen.findByText('First block');
+
+            await act(async() => {
+                fireEvent.click(screen.getByRole('button', {name: 'Done'}));
+            });
+
+            await waitFor(() => expect(screen.getByText('Changed elsewhere.')).toBeInTheDocument());
+            expect(Location.redirect).not.toHaveBeenCalled();
+            expect(screen.getByRole('button', {name: 'Done'})).toBeEnabled();
+        });
+
+        it('holds the page\'s Edit mode switch until the joined-up dashboard is saved', async() => {
+            const fetchOneSpy = mockDashboardApi({getResponses: [buildData()]});
+            render(<Dashboard />);
+            await screen.findByText('First block');
+
+            expectRedirect({url: 'https://example.com/my/index.php'});
+            const editSwitch = document.createElement('input');
+            editSwitch.dataset.pageurl = 'https://example.com/my/index.php';
+            document.body.append(editSwitch);
+            const event = new CustomEvent('core/edit_switch/editModeSet', {
+                bubbles: true,
+                cancelable: true,
+                detail: {editMode: false},
+            });
+            await act(async() => {
+                editSwitch.dispatchEvent(event);
+            });
+
+            expect(event.defaultPrevented).toBe(true);
+            await waitFor(() => expect(Location.redirect).toHaveBeenCalledWith('https://example.com/my/index.php'));
+            expect(updateCalls(fetchOneSpy)).toHaveLength(1);
+            editSwitch.remove();
+        });
+
+        it('waits for the connection before leaving Edit mode while offline', async() => {
+            const onLine = jest.spyOn(window.navigator, 'onLine', 'get').mockReturnValue(false);
+            let attempts = 0;
+            const fetchOneSpy = mockDashboardApi({
+                getResponses: [buildData()],
+                updateImpl: () => {
+                    attempts += 1;
+                    return attempts === 1
+                        ? Promise.reject(new TypeError('Failed to fetch'))
+                        : Promise.resolve({status: true, blockid: 0});
+                },
+            });
+            render(<Dashboard />);
+            await screen.findByText('First block');
+
+            expectRedirect({urlContains: 'edit=0'});
+            await act(async() => {
+                fireEvent.click(screen.getByRole('button', {name: 'Done'}));
+            });
+
+            expect(await screen.findByText('You are offline.')).toBeInTheDocument();
+            expect(Location.redirect).not.toHaveBeenCalled();
+            expect(screen.getByRole('button', {name: 'Done'})).toBeDisabled();
+
+            onLine.mockReturnValue(true);
+            await act(async() => {
+                window.dispatchEvent(new Event('online'));
+            });
+
+            await waitFor(() => expect(Location.redirect).toHaveBeenCalled());
+            expect(updateCalls(fetchOneSpy)).toHaveLength(2);
+            onLine.mockRestore();
+        });
+
+        it('shows why, instead of leaving, when the server refuses the save after the switch', async() => {
+            // The switch has already turned Edit mode off on the server, so the reload is out of Edit mode.
+            mockDashboardApi({
+                getResponses: [buildData(), buildData({editing: false})],
+                updateImpl: () => Promise.reject({errorcode: 'dashboardchanged', message: 'Changed elsewhere.'}),
+            });
+            render(<Dashboard />);
+            await screen.findByText('First block');
+
+            const event = new CustomEvent('core/edit_switch/editModeSet', {
+                bubbles: true,
+                cancelable: true,
+                detail: {editMode: false},
+            });
+            await act(async() => {
+                document.body.dispatchEvent(event);
+            });
+
+            await waitFor(() => expect(screen.getByText('Changed elsewhere.')).toBeInTheDocument());
+            expect(Location.redirect).not.toHaveBeenCalled();
+            expect(document.querySelector('.core-my-dashboard-toolbar')).toBeNull();
+        });
+
+        it('lets the switch go ahead untouched when nothing needs joining up', async() => {
+            const layout = [baseLayout[0], {...baseLayout[1], column: 2}];
+            mockDashboardApi({getResponses: [buildData({layout})]});
+            render(<Dashboard />);
+            await screen.findByText('First block');
+
+            const event = new CustomEvent('core/edit_switch/editModeSet', {
+                bubbles: true,
+                cancelable: true,
+                detail: {editMode: false},
+            });
+            document.body.dispatchEvent(event);
+
+            expect(event.defaultPrevented).toBe(false);
+        });
+
+        it('shows the dashboard joined up outside Edit mode, without saving', async() => {
+            const fetchOneSpy = mockDashboardApi({getResponses: [buildData({editing: false})]});
+            render(<Dashboard />);
+            await screen.findByText('First block');
+
+            expect(tileOf('Second block').style.gridColumn).toBe('3 / span 2');
+            expect(updateCalls(fetchOneSpy)).toHaveLength(0);
+        });
+
+        it('names the block that moved once Edit mode is off', async() => {
+            window.sessionStorage.setItem('core_my_dashboard_joined', JSON.stringify(['Second block']));
+            const getStringSpy = jest.spyOn(StringUtils, 'getString');
+            mockDashboardApi({getResponses: [buildData({editing: false})]});
+            render(<Dashboard />);
+            await screen.findByText('First block');
+
+            await waitFor(() => expect(getStringSpy).toHaveBeenCalledWith('dashboardjoinmovedone', 'my', 'Second block'));
+            expect(window.sessionStorage.getItem('core_my_dashboard_joined')).toBeNull();
+            getStringSpy.mockRestore();
+        });
     });
 
     it('opens the block browser straight away when Edit mode was turned on to add a block', async() => {

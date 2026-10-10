@@ -33,6 +33,8 @@ import {
     collapseEmptyRows,
     disturbedCount,
     fitMinimum,
+    joinUp,
+    MAX_COLUMNS,
     maxRow,
     measureNaturalHeight,
     packLayout,
@@ -135,6 +137,23 @@ type ConfirmAction = {type: 'reset'};
 
 /** How many changes Undo can reverse within one visit. */
 const HISTORY_LIMIT = 50;
+
+// Carries the names of blocks joined up when editing finished across to the page after Edit mode.
+const JOINED_STORAGE_KEY = 'core_my_dashboard_joined';
+// Fired by core/edit_switch when the page's Edit mode switch is used: eventTypes.editModeSet there.
+const EDIT_MODE_SET = 'core/edit_switch/editModeSet';
+
+/**
+ * The blocks that are in a different place in one layout than in another.
+ *
+ * @param before The layout before.
+ * @param after The layout after.
+ * @return Their ids.
+ */
+const movedIds = (before: LayoutItem[], after: LayoutItem[]): Set<number> => {
+    const places = new Map(before.map(item => [item.id, `${item.column}:${item.row}`]));
+    return new Set(after.filter(item => places.get(item.id) !== `${item.column}:${item.row}`).map(item => item.id));
+};
 
 // See the settling MutationObserver in the collected-JS effect below for what these guard.
 const DASHBOARD_SETTLE_QUIET_MS = 250;
@@ -413,6 +432,9 @@ const Dashboard = ({loadingLabel = '', initialLayout = [], openBrowser = false, 
     // Set just before the dashboard reloads itself on purpose, so that is not mistaken for the user
     // leaving with changes unsent.
     const reloadingRef = useRef(false);
+    // Set while leaving Edit mode waits for the joined-up dashboard to save (see finishEditing).
+    const finishingRef = useRef(false);
+    const [finishing, setFinishing] = useState(false);
     const siteDefault = isSiteDefault();
     // The revision of the dashboard this window last saw. Every change carries it, so the server
     // refuses one made from an out-of-date window rather than let it undo a newer change made
@@ -795,7 +817,24 @@ const Dashboard = ({loadingLabel = '', initialLayout = [], openBrowser = false, 
     }, [addedScripts, fitAutoHeights]);
     const [columnCount, columnCountRef] = useResponsiveColumnCount(gridRef, data);
 
-    const displayLayout = useMemo(() => packLayout(canonical, columnCount), [canonical, columnCount]);
+    // While editing, blocks stay exactly where they were put, so a layout can be built in any order.
+    // Outside Edit mode the dashboard is always shown joined up (see joinUp()): blocks left on their
+    // own, or gaps left by blocks this person can't see, close up on screen. Nothing is saved; that
+    // happens when someone finishes editing (see finishEditing()). It is joined up at full width
+    // first, so a narrower grid keeps the joined-up order, and again in case narrowing splits it.
+    const editing = Boolean(data?.editing);
+    const displayLayout = useMemo(() => editing
+        ? packLayout(canonical, columnCount)
+        : joinUp(packLayout(joinUp(canonical, MAX_COLUMNS), columnCount), columnCount),
+    [canonical, columnCount, editing]);
+    // The blocks that will move to join the others when editing finishes, marked while editing.
+    const joiningIds = useMemo(() => {
+        const joined = editing ? joinUp(canonical, MAX_COLUMNS) : canonical;
+        if (joined === canonical) {
+            return new Set<number>();
+        }
+        return movedIds(canonical, joined);
+    }, [canonical, editing]);
     displayLayoutRef.current = displayLayout;
     const previewLayout = useMemo(() => interaction
         ? packWithPinned(displayLayout, columnCount, interaction.draft,
@@ -861,6 +900,93 @@ const Dashboard = ({loadingLabel = '', initialLayout = [], openBrowser = false, 
         historyRef.current = [...historyRef.current, canonicalRef.current].slice(-HISTORY_LIMIT);
         setHistorySize(historyRef.current.length);
     }, [flushRemoval]);
+
+    /**
+     * Leave Edit mode, joining up the dashboard first.
+     *
+     * Blocks left on their own, or in a small group apart from the rest, slide back to join the
+     * others (see joinUp()), and that layout is saved before leaving. A removal still showing its
+     * Undo is sent first: the server only accepts a layout that has every block it has. While
+     * offline the save waits for the connection, and leaving waits with it; if the server refuses
+     * the save, the person stays to see why. The moved blocks are named once the page has left
+     * Edit mode (see the effect that reads JOINED_STORAGE_KEY).
+     *
+     * @param url Where to go once saved: Done's link, or the Edit mode switch's page.
+     */
+    const finishEditing = useCallback(async(url: string) => {
+        if (finishingRef.current) {
+            return;
+        }
+        finishingRef.current = true;
+        setFinishing(true);
+        try {
+            await flushRemoval();
+            const current = canonicalRef.current;
+            const joined = joinUp(current, MAX_COLUMNS);
+            if (joined !== current) {
+                const moved = movedIds(current, joined);
+                updateCanonical(joined);
+                await queue.saveLayout(joined);
+                const titles = (dataRef.current?.blocks ?? []).filter(block => moved.has(block.id)).map(block => block.title);
+                try {
+                    window.sessionStorage.setItem(JOINED_STORAGE_KEY, JSON.stringify(titles));
+                } catch {
+                    // Without storage, the message is simply not shown.
+                }
+            } else if (queue.busy) {
+                await queue.saveLayout(current);
+            }
+        } catch (caught) {
+            finishingRef.current = false;
+            setFinishing(false);
+            handleSyncFailure(caught);
+            return;
+        }
+        redirect(url);
+    }, [flushRemoval, handleSyncFailure, queue, updateCanonical]);
+
+    // The page's own Edit mode switch leaves Edit mode too. It has already told the server; it lets
+    // the dashboard hold the page while it joins up and saves, then goes where the switch would have.
+    useEffect(() => {
+        if (!editing) {
+            return undefined;
+        }
+        const onEditModeSet = (event: Event) => {
+            if ((event as CustomEvent<{editMode?: boolean}>).detail?.editMode !== false) {
+                return;
+            }
+            const current = canonicalRef.current;
+            if (joinUp(current, MAX_COLUMNS) === current && !queue.busy) {
+                return;
+            }
+            event.preventDefault();
+            const urls = dataRef.current?.urls;
+            const fallback = `${siteDefault ? urls?.sitedefault : urls?.ownpage}?edit=0`;
+            const target = event.target instanceof HTMLElement ? event.target : null;
+            void finishEditing(target?.dataset.pageurl || fallback);
+        };
+        document.addEventListener(EDIT_MODE_SET, onEditModeSet);
+        return () => document.removeEventListener(EDIT_MODE_SET, onEditModeSet);
+    }, [editing, finishEditing, queue, siteDefault]);
+
+    // After leaving Edit mode, say which blocks moved to join the others.
+    useEffect(() => {
+        if (!data || data.editing) {
+            return;
+        }
+        let titles: string[] = [];
+        try {
+            titles = JSON.parse(window.sessionStorage.getItem(JOINED_STORAGE_KEY) ?? '[]');
+            window.sessionStorage.removeItem(JOINED_STORAGE_KEY);
+        } catch {
+            return;
+        }
+        if (titles.length === 1) {
+            void toastString('dashboardjoinmovedone', titles[0]);
+        } else if (titles.length > 1) {
+            void toastString('dashboardjoinmovedmany', String(titles.length));
+        }
+    }, [data, toastString]);
 
     /**
      * Reverse the most recent change.
@@ -1620,6 +1746,7 @@ const Dashboard = ({loadingLabel = '', initialLayout = [], openBrowser = false, 
             dragOrigin={interaction?.id === item.id ? interaction.original : undefined}
             shouldAnimatePosition={interaction?.origin === 'pointer' && interaction.id !== item.id}
             isBumped={bumpedBlockIds.has(item.id)}
+            joining={joiningIds.has(item.id)}
             highlighted={highlightId === item.id}
             onStart={pickUp}
             onKeyDown={keyDown}
@@ -1696,6 +1823,11 @@ const Dashboard = ({loadingLabel = '', initialLayout = [], openBrowser = false, 
                 urls={data.urls}
                 labels={data.labels}
             />
+            {joiningIds.size > 0 && <p className="core-my-dashboard-toolbar__joining">
+                {joiningIds.size === 1
+                    ? data.labels.joinwillmoveone.replace('{$a}', blocksById.get([...joiningIds][0])?.title ?? '')
+                    : data.labels.joinwillmovemany.replace('{$a}', String(joiningIds.size))}
+            </p>}
             <div className="core-my-dashboard-toolbar__actions">
                 {!siteDefault && <Button
                     variant="ghost"
@@ -1712,7 +1844,8 @@ const Dashboard = ({loadingLabel = '', initialLayout = [], openBrowser = false, 
                 <Button
                     variant="secondary"
                     label={data.labels.done}
-                    onClick={() => redirect(doneUrl)}
+                    disabled={finishing}
+                    onClick={() => void finishEditing(doneUrl)}
                 />
                 <Button
                     ref={addButtonRef}

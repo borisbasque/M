@@ -163,6 +163,8 @@ interface DashboardTileProps {
     dragOrigin?: LayoutItem;
     shouldAnimatePosition?: boolean;
     isBumped?: boolean;
+    // Will move to join the other blocks when editing finishes.
+    joining?: boolean;
     // Just added: highlighted briefly so it is easy to spot.
     highlighted?: boolean;
     onStart: (id: number, mode: 'move' | 'resize') => void;
@@ -184,6 +186,7 @@ const DashboardTile = ({
     dragOrigin,
     shouldAnimatePosition = false,
     isBumped = false,
+    joining = false,
     highlighted = false,
     onStart,
     onKeyDown,
@@ -270,6 +273,7 @@ const DashboardTile = ({
             activeMode && 'core-my-dashboard-tile--active',
             drag && 'core-my-dashboard-tile--pointer-dragging',
             isBumped && 'core-my-dashboard-tile--bumped',
+            joining && 'core-my-dashboard-tile--joining',
             highlighted && 'core-my-dashboard-tile--new',
         ].filter(Boolean).join(' ')}
         style={{

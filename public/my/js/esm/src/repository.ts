@@ -88,6 +88,8 @@ export interface DashboardLabels {
     emptycell: string;
     loading: string;
     gridcell: string;
+    joinwillmoveone: string;
+    joinwillmovemany: string;
     move: string;
     movehere: string;
     moveinstructions: string;

@@ -36935,6 +36935,17 @@ body.editing#page-course-learningoutcomes .activity-item:hover:not(:has(.activit
   }
 }
 
+.core-my-dashboard-toolbar__joining {
+  margin: 0;
+  font-size: var(--mds-font-size-paragraph-small);
+  color: var(--mds-text-subtle);
+}
+
+.core-my-dashboard-tile.core-my-dashboard-tile--joining {
+  outline: var(--mds-stroke-weight-md) dashed var(--mds-text-feedback-warning);
+  outline-offset: var(--mds-spacing-xxs);
+}
+
 .core-my-dashboard-toolbar__actions {
   display: flex;
   flex-wrap: wrap;

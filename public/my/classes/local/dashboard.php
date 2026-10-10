@@ -201,6 +201,8 @@ final class dashboard {
                 'emptycell' => get_string('emptygridcell', 'my'),
                 'gridcell' => get_string('gridcellposition', 'my'),
                 'loading' => get_string('loading'),
+                'joinwillmoveone' => get_string('dashboardjoinwillmoveone', 'my'),
+                'joinwillmovemany' => get_string('dashboardjoinwillmovemany', 'my'),
                 'move' => get_string('moveblock', 'block'),
                 'movehere' => get_string('dashboardmovehere', 'my'),
                 'moveinstructions' => get_string('dashboardmovehandleinstructions', 'my'),

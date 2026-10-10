@@ -152,6 +152,20 @@ $core-my-dashboard-grid-max-width: 1921px !default;
     }
 }
 
+.core-my-dashboard-toolbar__joining {
+    margin: 0;
+    font-size: var(--mds-font-size-paragraph-small);
+    color: var(--mds-text-subtle);
+}
+
+// A block that will move to join the others when editing finishes (see joinUp() in core_my/layout).
+// A text token, not the warning border one: that is a pale tint, about 1.2:1 against the light page;
+// this is over 8:1 against the page in light and dark themes (dark.scss remaps text tokens).
+.core-my-dashboard-tile.core-my-dashboard-tile--joining {
+    outline: var(--mds-stroke-weight-md) dashed var(--mds-text-feedback-warning);
+    outline-offset: var(--mds-spacing-xxs);
+}
+
 .core-my-dashboard-toolbar__actions {
     display: flex;
     flex-wrap: wrap;

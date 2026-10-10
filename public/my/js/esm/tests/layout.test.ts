@@ -26,6 +26,9 @@ import {
     writeBack,
     collapseEmptyRows,
     emptyRegions,
+    blocksJoined,
+    joinedGroups,
+    joinUp,
     type LayoutItem,
 } from '../src/layout';
 
@@ -404,5 +407,96 @@ describe('writeBack and content-fit sizing', () => {
 
         expect(next.find(item => item.id === 1)?.autorows).toBe(false);
         expect(next.find(item => item.id === 2)?.autorows).toBe(true);
+    });
+
+    describe('joining up blocks left on their own', () => {
+        const block = (id: number, column: number, row: number, columns = 2, rows = 2): LayoutItem =>
+            ({id, column, row, columns, rows});
+        const overlaps = (items: LayoutItem[]) => items.some((left, index) => items.slice(index + 1).some(right =>
+            left.column < right.column + right.columns && right.column < left.column + left.columns
+            && left.row < right.row + right.rows && right.row < left.row + left.rows));
+
+        it('counts blocks sharing part of an edge as joined, but not a corner', () => {
+            expect(blocksJoined(block(1, 0, 0), block(2, 2, 0))).toBe(true);
+            expect(blocksJoined(block(1, 0, 0), block(2, 1, 2))).toBe(true);
+            expect(blocksJoined(block(1, 0, 0), block(2, 2, 2))).toBe(false);
+            expect(blocksJoined(block(1, 0, 0), block(2, 3, 0))).toBe(false);
+        });
+
+        it('finds groups joined directly or through other blocks', () => {
+            const groups = joinedGroups([block(1, 0, 0), block(2, 2, 0), block(3, 2, 2), block(4, 0, 6)]);
+            expect(groups.map(group => group.map(item => item.id))).toEqual([[1, 2, 3], [4]]);
+        });
+
+        it('leaves a joined-up layout as it is', () => {
+            const layout = [block(1, 0, 0), block(2, 2, 0), block(3, 0, 2)];
+            expect(joinUp(layout, 6)).toBe(layout);
+            expect(joinUp([], 6)).toEqual([]);
+            const single = [block(1, 4, 3)];
+            expect(joinUp(single, 6)).toBe(single);
+        });
+
+        it('slides a block towards the start of the row to rejoin the others', () => {
+            // A and B side by side, then B moved below A: C, on the far right, is on its own.
+            const joined = joinUp([block(1, 0, 0), block(2, 0, 2), block(3, 4, 0)], 6);
+            expect(joined.find(item => item.id === 3)).toMatchObject({column: 2, row: 0});
+            expect(joined.find(item => item.id === 1)).toMatchObject({column: 0, row: 0});
+            expect(joined.find(item => item.id === 2)).toMatchObject({column: 0, row: 2});
+        });
+
+        it('slides a block up first', () => {
+            const joined = joinUp([block(1, 0, 0), block(2, 2, 0), block(3, 4, 5)], 6);
+            // It rises from row 5 and stops at row 1, the first row where its side meets block 2's.
+            expect(joined.find(item => item.id === 3)).toMatchObject({column: 4, row: 1});
+            expect(joinedGroups(joined)).toHaveLength(1);
+        });
+
+        it('moves a small group as a whole, keeping its arrangement, and keeps the larger group still', () => {
+            const main = [block(1, 0, 0), block(2, 2, 0), block(3, 0, 2)];
+            const island = [block(4, 4, 6, 1, 1), block(5, 5, 6, 1, 1)];
+            const joined = joinUp([...main, ...island], 6);
+            main.forEach(item => expect(joined.find(candidate => candidate.id === item.id)).toEqual(item));
+            const four = joined.find(item => item.id === 4)!;
+            const five = joined.find(item => item.id === 5)!;
+            expect(five.column - four.column).toBe(1);
+            expect(five.row).toBe(four.row);
+            expect(joinedGroups(joined)).toHaveLength(1);
+        });
+
+        it('closes up rows left empty', () => {
+            const joined = joinUp([block(1, 0, 0), block(2, 4, 4)], 6);
+            expect(maxRow(joined)).toBe(2);
+        });
+
+        it('always ends with one group, no overlaps, and every block at its size', () => {
+            // A small deterministic generator, so a failure can be reproduced.
+            let seed = 42;
+            const random = (limit: number) => {
+                seed = (seed * 1103515245 + 12345) % 2147483648;
+                return seed % limit;
+            };
+            for (let run = 0; run < 300; run++) {
+                const columnCount = [1, 2, 4, 6][random(4)];
+                const layout: LayoutItem[] = [];
+                const count = 1 + random(8);
+                for (let id = 1; layout.length < count && id < 60; id++) {
+                    const columns = 1 + random(Math.min(3, columnCount));
+                    const candidate = block(id, random(columnCount - columns + 1), random(12), columns, 1 + random(3));
+                    if (!overlaps([...layout, candidate])) {
+                        layout.push(candidate);
+                    }
+                }
+                const joined = joinUp(layout, columnCount);
+                expect(joinedGroups(joined).length).toBeLessThanOrEqual(1);
+                expect(overlaps(joined)).toBe(false);
+                expect(joined.map(item => [item.id, item.columns, item.rows]))
+                    .toEqual(layout.map(item => [item.id, item.columns, item.rows]));
+                joined.forEach(item => {
+                    expect(item.column).toBeGreaterThanOrEqual(0);
+                    expect(item.column + item.columns).toBeLessThanOrEqual(columnCount);
+                    expect(item.row).toBeGreaterThanOrEqual(0);
+                });
+            }
+        });
     });
 });

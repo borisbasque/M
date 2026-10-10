@@ -108,6 +108,13 @@ Feature: Arrange dashboard blocks in a responsive grid
     And "Up" "button" should not exist
 
   @javascript
+  Scenario: A block left on its own joins the others when editing finishes
+    When I turn editing mode on
+    And I change viewport size to "2600x1000"
+    Then "[data-columns='6']" "css_element" should exist
+    And leaving the "Course overview" dashboard block on its own and clicking Done joins it to the others
+
+  @javascript
   Scenario: Resize follows the pointer and previews its snap target
     When I turn editing mode on
     And I change viewport size to "2600x1000"
