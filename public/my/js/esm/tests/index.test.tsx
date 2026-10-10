@@ -1268,6 +1268,68 @@ describe('core_my Dashboard application', () => {
                 .toEqual(['Second block']);
         });
 
+        it('leaves after Done without the unsaved-changes guard asking', async() => {
+            mockDashboardApi({getResponses: [buildData()]});
+            render(<Dashboard />);
+            await screen.findByText('First block');
+
+            const asked: boolean[] = [];
+            expectRedirect({urlContains: 'edit=0'});
+            (Location.redirect as jest.Mock).mockImplementation(() => {
+                // What the browser does as the page starts to go.
+                const leaving = new Event('beforeunload', {cancelable: true});
+                window.dispatchEvent(leaving);
+                asked.push(leaving.defaultPrevented);
+            });
+            await act(async() => {
+                fireEvent.click(screen.getByRole('button', {name: 'Done'}));
+            });
+
+            await waitFor(() => expect(asked).toEqual([false]));
+        });
+
+        it('still asks before leaving while a change is being saved', async() => {
+            mockDashboardApi({getResponses: [buildData()], updateImpl: () => new Promise(() => undefined)});
+            render(<Dashboard />);
+            await screen.findByText('First block');
+
+            const moveHandle = screen.getByRole('button', {name: 'Move First block block'});
+            fireEvent.keyDown(moveHandle, {key: ' '});
+            fireEvent.keyDown(moveHandle, {key: 'ArrowDown'});
+            await act(async() => {
+                fireEvent.keyDown(moveHandle, {key: ' '});
+            });
+            const leaving = new Event('beforeunload', {cancelable: true});
+            window.dispatchEvent(leaving);
+
+            expect(leaving.defaultPrevented).toBe(true);
+        });
+
+        it('lets the person carry on when leaving after Done doesn\'t happen', async() => {
+            mockDashboardApi({getResponses: [buildData()]});
+            render(<Dashboard />);
+            await screen.findByText('First block');
+
+            jest.useFakeTimers();
+            try {
+                // The browser stays, as when someone answers "Stay" to a leave-the-page question.
+                expectRedirect({urlContains: 'edit=0'});
+                (Location.redirect as jest.Mock).mockImplementation(() => undefined);
+                await act(async() => {
+                    fireEvent.click(screen.getByRole('button', {name: 'Done'}));
+                });
+                await waitFor(() => expect(Location.redirect).toHaveBeenCalled());
+                expect(screen.getByRole('button', {name: 'Done'})).toBeDisabled();
+
+                await act(async() => {
+                    jest.advanceTimersByTime(5000);
+                });
+                expect(screen.getByRole('button', {name: 'Done'})).toBeEnabled();
+            } finally {
+                jest.useRealTimers();
+            }
+        });
+
         it('leaves Edit mode without saving when nothing needs joining up', async() => {
             const layout = [baseLayout[0], {...baseLayout[1], column: 2}];
             const fetchOneSpy = mockDashboardApi({getResponses: [buildData({layout})]});

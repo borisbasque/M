@@ -140,6 +140,8 @@ const HISTORY_LIMIT = 50;
 
 // Carries the names of blocks joined up when editing finished across to the page after Edit mode.
 const JOINED_STORAGE_KEY = 'core_my_dashboard_joined';
+// How long to wait for the page to leave after finishing editing before letting the person carry on.
+const LEAVE_TIMEOUT_MS = 5000;
 // Fired by core/edit_switch when the page's Edit mode switch is used: eventTypes.editModeSet there.
 const EDIT_MODE_SET = 'core/edit_switch/editModeSet';
 
@@ -744,7 +746,9 @@ const Dashboard = ({loadingLabel = '', initialLayout = [], openBrowser = false, 
             if (reloadingRef.current) {
                 return;
             }
-            if (saveStatus === 'idle' && !unsaved) {
+            // The queue, not saveStatus: the status is React state, so for a moment after a save
+            // finishes it still says 'saving', and leaving straight after a save would wrongly ask.
+            if (!queue.busy && !unsaved) {
                 const pending = pendingRemovalRef.current;
                 if (pending) {
                     pendingRemovalRef.current = null;
@@ -756,7 +760,7 @@ const Dashboard = ({loadingLabel = '', initialLayout = [], openBrowser = false, 
         };
         window.addEventListener('beforeunload', beforeUnload);
         return () => window.removeEventListener('beforeunload', beforeUnload);
-    }, [saveStatus, siteDefault, unsaved]);
+    }, [queue, siteDefault, unsaved]);
 
     useEffect(() => {
         void load().then(response => {
@@ -974,7 +978,16 @@ const Dashboard = ({loadingLabel = '', initialLayout = [], openBrowser = false, 
             handleSyncFailure(caught);
             return;
         }
+        // Everything is saved, so leaving is not leaving with changes unsent (see the beforeunload
+        // effect). If the page is still here a while later, leaving didn't happen: let the person
+        // carry on, and try again.
+        reloadingRef.current = true;
         redirect(url);
+        window.setTimeout(() => {
+            reloadingRef.current = false;
+            finishingRef.current = false;
+            setFinishing(false);
+        }, LEAVE_TIMEOUT_MS);
     }, [flushRemoval, handleSyncFailure, queue, updateCanonical]);
 
     // The page's own Edit mode switch leaves Edit mode too. It has already told the server; it lets
