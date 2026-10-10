@@ -444,11 +444,31 @@ describe('writeBack and content-fit sizing', () => {
             expect(joined.find(item => item.id === 2)).toMatchObject({column: 0, row: 2});
         });
 
-        it('slides a block up first', () => {
-            const joined = joinUp([block(1, 0, 0), block(2, 2, 0), block(3, 4, 5)], 6);
-            // It rises from row 5 and stops at row 1, the first row where its side meets block 2's.
-            expect(joined.find(item => item.id === 3)).toMatchObject({column: 4, row: 1});
-            expect(joinedGroups(joined)).toHaveLength(1);
+        it('slides a block up as far as it can, so it lines up with the top', () => {
+            // Course overview, Calendar above Recently accessed, Timeline, and Tags below Recently
+            // accessed in the next column, touching it only at a corner.
+            const layout = [
+                block(1, 0, 0, 3, 7), block(2, 3, 0, 1, 5), block(3, 3, 5, 1, 4), block(4, 0, 7, 3, 4),
+                block(5, 4, 9, 1, 4),
+            ];
+            const joined = joinUp(layout, 6);
+            expect(joined.find(item => item.id === 5)).toMatchObject({column: 4, row: 0});
+            layout.slice(0, 4).forEach(item => expect(joined.find(candidate => candidate.id === item.id)).toEqual(item));
+        });
+
+        it('stops flush under a block in its way', () => {
+            const layout = [
+                block(1, 0, 0, 3, 7), block(2, 3, 0, 1, 5), block(3, 3, 5, 1, 4), block(4, 4, 0, 1, 3),
+                block(5, 4, 9, 1, 4),
+            ];
+            const joined = joinUp(layout, 6);
+            expect(joined.find(item => item.id === 5)).toMatchObject({column: 4, row: 3});
+        });
+
+        it('keeps to its columns, at the highest place that touches, when the top touches nothing', () => {
+            const layout = [block(1, 0, 0, 2, 2), block(2, 0, 2, 2, 2), block(3, 2, 2, 1, 2), block(4, 3, 6, 1, 2)];
+            const joined = joinUp(layout, 6);
+            expect(joined.find(item => item.id === 4)).toMatchObject({column: 3, row: 1});
         });
 
         it('moves a small group as a whole, keeping its arrangement, and keeps the larger group still', () => {

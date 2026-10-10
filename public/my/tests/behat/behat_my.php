@@ -115,8 +115,8 @@ class behat_my extends behat_base {
     }
 
     /**
-     * Move a block, with the keyboard, to a place where it touches no other block; check the dashboard
-     * says it will move; click Done; and check it joined the others and the message names it.
+     * Move a block, with the keyboard, to a place where it touches no other block; check a toast says
+     * it will move; click Done; and check it joined the others and the message names it.
      *
      * The place is found from the grid as it is: a free spot, within the rows already in use (so it
      * isn't simply closed up as an empty row), that shares no edge with another block. The other
@@ -208,8 +208,8 @@ class behat_my extends behat_base {
                 json_encode([$move['column'], $move['row']]) . '.');
         }
 
-        $this->execute('behat_general::assert_page_contains_text',
-            ["{$block} will move to join the other blocks when you finish editing."]);
+        $this->execute('behat_general::assert_element_contains_text',
+            ["{$block} will move to join the other blocks when you finish editing.", '.core-toast', 'css_element']);
         $this->execute('behat_general::i_click_on', ['Done', 'button']);
         $this->execute('behat_general::assert_page_contains_text', ["{$block} moved to join the other blocks."]);
 

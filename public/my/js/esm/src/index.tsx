@@ -435,6 +435,8 @@ const Dashboard = ({loadingLabel = '', initialLayout = [], openBrowser = false, 
     // Set while leaving Edit mode waits for the joined-up dashboard to save (see finishEditing).
     const finishingRef = useRef(false);
     const [finishing, setFinishing] = useState(false);
+    // Whether opening Edit mode has said which blocks will move (see joinWarning).
+    const warnedOnOpenRef = useRef(false);
     const siteDefault = isSiteDefault();
     // The revision of the dashboard this window last saw. Every change carries it, so the server
     // refuses one made from an out-of-date window rather than let it undo a newer change made
@@ -653,6 +655,36 @@ const Dashboard = ({loadingLabel = '', initialLayout = [], openBrowser = false, 
         value?: string | Record<string, unknown>,
         options?: Parameters<typeof showToast>[1],
     ): Promise<number> => showToast(await getString(key, 'my', value), options), [showToast]);
+
+    /**
+     * What to say when a change leaves a block on its own that wasn't before: it will move to join
+     * the others when editing finishes (see finishEditing()). Said once, with the change; the tile's
+     * marker stays until it is joined up.
+     *
+     * @param before The layout before the change.
+     * @param after The layout after it.
+     * @return The message, or '' when the change leaves no block newly on its own.
+     */
+    const joinWarning = useCallback((before: LayoutItem[], after: LayoutItem[]): string => {
+        const current = dataRef.current;
+        if (!current?.editing) {
+            return '';
+        }
+        const willMove = (layout: LayoutItem[]) => {
+            const joined = joinUp(layout, MAX_COLUMNS);
+            return joined === layout ? new Set<number>() : movedIds(layout, joined);
+        };
+        const was = willMove(before);
+        const now = willMove(after);
+        if (![...now].some(id => !was.has(id))) {
+            return '';
+        }
+        if (now.size === 1) {
+            const title = current.blocks.find(block => now.has(block.id))?.title ?? '';
+            return current.labels.joinwillmoveone.replace('{$a}', title);
+        }
+        return current.labels.joinwillmovemany.replace('{$a}', String(now.size));
+    }, []);
 
     /**
      * React to a change the server did not accept.
@@ -969,6 +1001,18 @@ const Dashboard = ({loadingLabel = '', initialLayout = [], openBrowser = false, 
         return () => document.removeEventListener(EDIT_MODE_SET, onEditModeSet);
     }, [editing, finishEditing, queue, siteDefault]);
 
+    // Opening Edit mode on a dashboard that already has a block on its own says so, once.
+    useEffect(() => {
+        if (!editing || warnedOnOpenRef.current || !canonical.length) {
+            return;
+        }
+        warnedOnOpenRef.current = true;
+        const warning = joinWarning([], canonical);
+        if (warning) {
+            showToast(warning);
+        }
+    }, [canonical, editing, joinWarning, showToast]);
+
     // After leaving Edit mode, say which blocks moved to join the others.
     useEffect(() => {
         if (!data || data.editing) {
@@ -1015,12 +1059,16 @@ const Dashboard = ({loadingLabel = '', initialLayout = [], openBrowser = false, 
         const added = canonicalRef.current.filter(item => !wanted.has(item.id)).map(item => item.id);
         const layout = previous.filter(item => existing.has(item.id));
 
+        const warning = joinWarning(canonicalRef.current, layout);
         updateCanonical(layout);
         if (added.length) {
             patchData({blocks: current.blocks.filter(block => !added.includes(block.id))});
         }
         hideToast();
         void announce('dashboardundone');
+        if (warning) {
+            showToast(warning);
+        }
 
         try {
             const removals = added.map(id => queue.call(() => send('remove', [], '', id), true));
@@ -1034,7 +1082,7 @@ const Dashboard = ({loadingLabel = '', initialLayout = [], openBrowser = false, 
         } catch (caught) {
             handleSyncFailure(caught);
         }
-    }, [announce, handleSyncFailure, hideToast, patchData, queue, siteDefault, updateCanonical]);
+    }, [announce, handleSyncFailure, hideToast, joinWarning, patchData, queue, showToast, siteDefault, updateCanonical]);
 
     // Ctrl+Z, or Cmd+Z, undoes the last change while editing, except while typing in a field or
     // while a block is picked up (Escape puts that back instead).
@@ -1228,8 +1276,12 @@ const Dashboard = ({loadingLabel = '', initialLayout = [], openBrowser = false, 
 
         // Optimistic: settle the tile where it was dropped straight away, and save in the
         // background. The layout is fully known client-side, so there is nothing to wait for.
+        const warning = joinWarning(currentCanonical, next);
         updateCanonical(next);
         endInteraction();
+        if (warning) {
+            showToast(warning);
+        }
         void announce(current.mode === 'move' ? 'dashboardmovecommitted' : 'dashboardresizecommitted', {
             row: item.row + 1,
             column: item.column + 1,
@@ -1243,7 +1295,7 @@ const Dashboard = ({loadingLabel = '', initialLayout = [], openBrowser = false, 
         } catch (caught) {
             handleSyncFailure(caught);
         }
-    }, [announce, endInteraction, handleSyncFailure, pushHistory, queue, updateCanonical]);
+    }, [announce, endInteraction, handleSyncFailure, joinWarning, pushHistory, queue, showToast, updateCanonical]);
 
     /** Abandon the in-progress interaction, discarding its draft rectangle unsaved. */
     const cancel = useCallback(() => {
@@ -1570,16 +1622,22 @@ const Dashboard = ({loadingLabel = '', initialLayout = [], openBrowser = false, 
         focusAfterRef.current = order[index + 1] ?? order[index - 1] ?? 'add';
 
         setHiddenIds(hidden => new Set([...hidden, id]));
-        updateCanonical(collapseEmptyRows(canonicalRef.current.filter(item => item.id !== id)));
+        const before = canonicalRef.current;
+        const after = collapseEmptyRows(before.filter(item => item.id !== id));
+        updateCanonical(after);
 
-        const text = await getString('dashboardblockremovednamed', 'my', block.title);
+        // Said in the same toast as Undo: a second toast would replace it, and Undo with it.
+        const text = [
+            await getString('dashboardblockremovednamed', 'my', block.title),
+            joinWarning(before, after),
+        ].filter(Boolean).join(' ');
         const pending = {id, toastId: 0};
         pendingRemovalRef.current = pending;
         pending.toastId = showToast(text, {
             action: {label: current.labels.undo, onClick: () => void undo()},
             onClose: () => void flushRemoval(),
         });
-    }, [flushRemoval, pushHistory, showToast, undo, updateCanonical]);
+    }, [flushRemoval, joinWarning, pushHistory, showToast, undo, updateCanonical]);
 
     /**
      * Add the block chosen in the block browser.
@@ -1650,12 +1708,15 @@ const Dashboard = ({loadingLabel = '', initialLayout = [], openBrowser = false, 
         const appended = [...others, item];
         const next = writeBack(appended,
             packWithPinned(packLayout(appended, columns), columns, pinned, fitMinimum(minimum, columns)), item.id, minimum);
+        const warning = joinWarning(canonicalRef.current, next);
         updateCanonical(next);
         newBlockRef.current = {id: item.id, pickUp: !targeted};
         if (targeted) {
-            void toastString('dashboardblockadded', block.title, {
-                action: {label: current.labels.undo, onClick: () => void undo()},
-            });
+            // One toast, so the warning doesn't replace the one with Undo.
+            void getString('dashboardblockadded', 'my', block.title).then(text => showToast(
+                [text, warning].filter(Boolean).join(' '),
+                {action: {label: current.labels.undo, onClick: () => void undo()}},
+            ));
         } else {
             // Picked up next (see the effect below), whose instructions are the toast.
             void announce('dashboardblockadded', block.title);
@@ -1665,7 +1726,7 @@ const Dashboard = ({loadingLabel = '', initialLayout = [], openBrowser = false, 
         } catch (caught) {
             handleSyncFailure(caught);
         }
-    }, [announce, handleSyncFailure, load, palette, patchData, pushHistory, queue, send, toastString, undo, updateCanonical]);
+    }, [announce, handleSyncFailure, joinWarning, load, palette, patchData, pushHistory, queue, send, showToast, toastString, undo, updateCanonical]);
 
     // Once a newly added block is on screen: scroll it into view, highlight it briefly, and pick it
     // up ready to move when it went in the first free space rather than one the person picked.
@@ -1823,11 +1884,6 @@ const Dashboard = ({loadingLabel = '', initialLayout = [], openBrowser = false, 
                 urls={data.urls}
                 labels={data.labels}
             />
-            {joiningIds.size > 0 && <p className="core-my-dashboard-toolbar__joining">
-                {joiningIds.size === 1
-                    ? data.labels.joinwillmoveone.replace('{$a}', blocksById.get([...joiningIds][0])?.title ?? '')
-                    : data.labels.joinwillmovemany.replace('{$a}', String(joiningIds.size))}
-            </p>}
             <div className="core-my-dashboard-toolbar__actions">
                 {!siteDefault && <Button
                     variant="ghost"

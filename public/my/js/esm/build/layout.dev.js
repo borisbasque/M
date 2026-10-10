@@ -318,19 +318,27 @@ const joinUp = /* @__PURE__ */ __name((items, columnCount) => {
 const placeGroup = /* @__PURE__ */ __name((group, others, columnCount) => {
   const taken = /* @__PURE__ */ new Set();
   others.forEach((item) => occupy(taken, item));
-  const shifted = /* @__PURE__ */ __name((columns2, rows2) => group.map((item) => ({ ...item, column: item.column + columns2, row: item.row + rows2 })), "shifted");
+  const shifted = /* @__PURE__ */ __name((columns, rows) => group.map((item) => ({ ...item, column: item.column + columns, row: item.row + rows })), "shifted");
   const free = /* @__PURE__ */ __name((candidate) => candidate.every((item) => item.row >= 0 && item.column >= 0 && item.column + item.columns <= columnCount && fits(taken, item.column, item.row, item.columns, item.rows)), "free");
   const touches = /* @__PURE__ */ __name((candidate) => candidate.some((item) => others.some((other) => blocksJoined(item, other))), "touches");
-  let columns = 0;
-  let rows = 0;
-  while (!touches(shifted(columns, rows)) && free(shifted(columns, rows - 1))) {
-    rows--;
+  const slide = /* @__PURE__ */ __name((columns, rows, stepColumns, stepRows) => {
+    let last = [columns, rows];
+    let touching = touches(shifted(columns, rows)) ? [columns, rows] : null;
+    while (free(shifted(last[0] + stepColumns, last[1] + stepRows))) {
+      last = [last[0] + stepColumns, last[1] + stepRows];
+      if (touches(shifted(...last))) {
+        touching = last;
+      }
+    }
+    return { end: last, touching: touches(shifted(...last)) ? last : touching };
+  }, "slide");
+  const up = slide(0, 0, 0, -1);
+  if (up.touching) {
+    return shifted(...up.touching);
   }
-  while (!touches(shifted(columns, rows)) && free(shifted(columns - 1, rows))) {
-    columns--;
-  }
-  if (touches(shifted(columns, rows))) {
-    return shifted(columns, rows);
+  const along = slide(up.end[0], up.end[1], -1, 0);
+  if (along.touching) {
+    return shifted(...along.touching);
   }
   const top = Math.min(...group.map((item) => item.row));
   const left = Math.min(...group.map((item) => item.column));

@@ -542,10 +542,12 @@ export const joinedGroups = <T extends LayoutItem>(items: T[]): T[][] => {
  *
  * The main group is the one with the most blocks; between groups of the same size, the one that
  * starts nearest the top-left. It never moves. Each other group moves as a whole, keeping its
- * arrangement: up a row at a time while nothing is in the way, stopping as soon as it touches another
- * block; then, if it hasn't, towards the start of the row the same way; then, if it still hasn't, to
- * the nearest place where it fits and touches. Blocks never overlap and keep their size. Rows left
- * empty close up afterwards.
+ * arrangement: up as far as it can go, until a block or the top of the grid stops it, so it ends
+ * flush under a block or at the top and lines up with what is there. If it touches nothing there, it
+ * takes the highest place on the way up that does touch, so it stays in the columns it was put in.
+ * Only if nothing on the way up touches does it go towards the start of the row, the same way. If
+ * that still doesn't touch, it goes to the nearest place where it fits and touches. Blocks never
+ * overlap and keep their size. Rows left empty close up afterwards.
  *
  * @param items Layout items, none overlapping.
  * @param columnCount The grid's column count.
@@ -588,17 +590,26 @@ const placeGroup = <T extends LayoutItem>(group: T[], others: T[], columnCount: 
         && item.column + item.columns <= columnCount && fits(taken, item.column, item.row, item.columns, item.rows));
     const touches = (candidate: T[]) => candidate.some(item => others.some(other => blocksJoined(item, other)));
 
-    // Up, then towards the start of the row, a cell at a time.
-    let columns = 0;
-    let rows = 0;
-    while (!touches(shifted(columns, rows)) && free(shifted(columns, rows - 1))) {
-        rows--;
+    // Slide one cell at a time as far as nothing is in the way. Where the slide ends touches if it
+    // can; otherwise the furthest place along it that touches; otherwise nothing does.
+    const slide = (columns: number, rows: number, stepColumns: number, stepRows: number) => {
+        let last: [number, number] = [columns, rows];
+        let touching: [number, number] | null = touches(shifted(columns, rows)) ? [columns, rows] : null;
+        while (free(shifted(last[0] + stepColumns, last[1] + stepRows))) {
+            last = [last[0] + stepColumns, last[1] + stepRows];
+            if (touches(shifted(...last))) {
+                touching = last;
+            }
+        }
+        return {end: last, touching: touches(shifted(...last)) ? last : touching};
+    };
+    const up = slide(0, 0, 0, -1);
+    if (up.touching) {
+        return shifted(...up.touching);
     }
-    while (!touches(shifted(columns, rows)) && free(shifted(columns - 1, rows))) {
-        columns--;
-    }
-    if (touches(shifted(columns, rows))) {
-        return shifted(columns, rows);
+    const along = slide(up.end[0], up.end[1], -1, 0);
+    if (along.touching) {
+        return shifted(...along.touching);
     }
 
     // The nearest place, by distance in cells from where the group was, where it fits and touches.

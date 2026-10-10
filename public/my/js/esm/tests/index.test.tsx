@@ -1177,15 +1177,16 @@ describe('core_my Dashboard application', () => {
             window.sessionStorage.clear();
         });
 
-        it('marks a block left on its own while editing, and says it will move', async() => {
+        it('marks a block left on its own, and says once in a toast that it will move', async() => {
             mockDashboardApi({getResponses: [buildData()]});
             render(<Dashboard />);
             await screen.findByText('First block');
 
             expect(tileOf('Second block')).toHaveClass('core-my-dashboard-tile--joining');
             expect(tileOf('First block')).not.toHaveClass('core-my-dashboard-tile--joining');
-            expect(screen.getByText('Second block will move to join the other blocks when you finish editing.'))
-                .toBeInTheDocument();
+            const toast = await screen.findByText('Second block will move to join the other blocks when you finish editing.');
+            expect(toast.closest('.core-toast')).not.toBeNull();
+            expect(document.querySelector('.core-my-dashboard-toolbar')!.textContent).not.toMatch(/finish editing/);
             // It stays where it was put while editing.
             expect(tileOf('Second block').style.gridColumn).toBe('4 / span 2');
         });
@@ -1198,6 +1199,48 @@ describe('core_my Dashboard application', () => {
 
             expect(document.querySelector('.core-my-dashboard-tile--joining')).toBeNull();
             expect(screen.queryByText(/when you finish editing/)).not.toBeInTheDocument();
+        });
+
+        it('says so in a toast when a move leaves a block on its own', async() => {
+            const layout = [baseLayout[0], {...baseLayout[1], column: 2}];
+            mockDashboardApi({getResponses: [buildData({layout})]});
+            render(<Dashboard />);
+            await screen.findByText('First block');
+
+            const moveHandle = screen.getByRole('button', {name: 'Move Second block block'});
+            fireEvent.keyDown(moveHandle, {key: ' '});
+            fireEvent.keyDown(moveHandle, {key: 'ArrowRight'});
+            await act(async() => {
+                fireEvent.keyDown(moveHandle, {key: ' '});
+            });
+
+            const toast = await screen.findByText('Second block will move to join the other blocks when you finish editing.');
+            expect(toast.closest('.core-toast')).not.toBeNull();
+        });
+
+        it('keeps Undo when removing a block leaves another on its own, by saying both in one toast', async() => {
+            const layout = [
+                {id: 101, column: 0, row: 0, columns: 2, rows: 2, autorows: false},
+                {id: 103, column: 2, row: 0, columns: 1, rows: 2, autorows: false},
+                {id: 102, column: 3, row: 0, columns: 2, rows: 2, autorows: false},
+            ];
+            const data = buildData({layout});
+            data.blocks = [...data.blocks, {...data.blocks[0], id: 103, title: 'Middle block'}];
+            mockString('dashboardblockremovednamed', 'my', 'Middle block removed.');
+            mockDashboardApi({getResponses: [data]});
+            render(<Dashboard />);
+            await screen.findByText('Middle block');
+
+            await act(async() => {
+                fireEvent.click(screen.getByRole('button', {name: 'Delete Middle block block'}));
+            });
+
+            const toast = await screen.findByText(
+                'Middle block removed. Second block will move to join the other blocks when you finish editing.',
+                {exact: false},
+            );
+            expect(within(toast.closest('.core-toast') as HTMLElement).getByRole('button', {name: 'Undo'}))
+                .toBeInTheDocument();
         });
 
         it('joins up and saves before Done leaves Edit mode, then names the block that moved', async() => {
