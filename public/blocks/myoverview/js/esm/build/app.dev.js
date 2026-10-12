@@ -27,6 +27,7 @@ import {
   PREF_CFVALUE
 } from "./repository";
 import { usePagedCourses } from "./hooks/usePagedCourses";
+import { useReportContentLoaded } from "./hooks/useReportContentLoaded";
 import {
   CourseCallbacksContext,
   CourseMembershipContext,
@@ -78,20 +79,20 @@ function EmptyStateChoice({ hasActiveQuery, isZeroState, zerostate, illustration
   if (hasActiveQuery) {
     return /* @__PURE__ */ jsxDEV(EmptyState, { variant: "no-results", illustrationurl }, void 0, false, {
       fileName: "public/blocks/myoverview/js/esm/src/app.tsx",
-      lineNumber: 125,
+      lineNumber: 126,
       columnNumber: 16
     }, this);
   }
   if (isZeroState) {
     return /* @__PURE__ */ jsxDEV(EmptyState, { zerostate, illustrationurl }, void 0, false, {
       fileName: "public/blocks/myoverview/js/esm/src/app.tsx",
-      lineNumber: 128,
+      lineNumber: 129,
       columnNumber: 16
     }, this);
   }
   return /* @__PURE__ */ jsxDEV(EmptyState, { variant: "all-hidden", illustrationurl }, void 0, false, {
     fileName: "public/blocks/myoverview/js/esm/src/app.tsx",
-    lineNumber: 130,
+    lineNumber: 131,
     columnNumber: 12
   }, this);
 }
@@ -100,13 +101,13 @@ function StringsFallback({ failed, errorText }) {
   if (failed) {
     return /* @__PURE__ */ jsxDEV("p", { className: "block-myoverview__error", role: "alert", children: errorText ?? "An error occurred while loading. Please reload the page." }, void 0, false, {
       fileName: "public/blocks/myoverview/js/esm/src/app.tsx",
-      lineNumber: 146,
+      lineNumber: 147,
       columnNumber: 13
     }, this);
   }
   return /* @__PURE__ */ jsxDEV("div", { className: "block-myoverview__loading", "aria-hidden": "true" }, void 0, false, {
     fileName: "public/blocks/myoverview/js/esm/src/app.tsx",
-    lineNumber: 154,
+    lineNumber: 155,
     columnNumber: 12
   }, this);
 }
@@ -116,32 +117,32 @@ function LiveRegion({ loading, error, announcement, strings }) {
     loading && /* @__PURE__ */ jsxDEV(Fragment, { children: [
       /* @__PURE__ */ jsxDEV("div", { className: "block-myoverview__loading", "aria-hidden": "true" }, void 0, false, {
         fileName: "public/blocks/myoverview/js/esm/src/app.tsx",
-        lineNumber: 179,
+        lineNumber: 180,
         columnNumber: 21
       }, this),
       /* @__PURE__ */ jsxDEV("span", { className: "visually-hidden", children: strings.loadingcourses }, void 0, false, {
         fileName: "public/blocks/myoverview/js/esm/src/app.tsx",
-        lineNumber: 180,
+        lineNumber: 181,
         columnNumber: 21
       }, this)
     ] }, void 0, true, {
       fileName: "public/blocks/myoverview/js/esm/src/app.tsx",
-      lineNumber: 178,
+      lineNumber: 179,
       columnNumber: 17
     }, this),
     error && /* @__PURE__ */ jsxDEV("p", { className: "block-myoverview__error", children: strings.errorloadingcourses }, void 0, false, {
       fileName: "public/blocks/myoverview/js/esm/src/app.tsx",
-      lineNumber: 184,
+      lineNumber: 185,
       columnNumber: 17
     }, this),
     !loading && !error && announcement && /* @__PURE__ */ jsxDEV("span", { className: "visually-hidden", children: announcement }, void 0, false, {
       fileName: "public/blocks/myoverview/js/esm/src/app.tsx",
-      lineNumber: 187,
+      lineNumber: 188,
       columnNumber: 17
     }, this)
   ] }, void 0, true, {
     fileName: "public/blocks/myoverview/js/esm/src/app.tsx",
-    lineNumber: 176,
+    lineNumber: 177,
     columnNumber: 9
   }, this);
 }
@@ -227,6 +228,7 @@ function App(props) {
     return () => clearTimeout(timer);
   }, [search]);
   const { searching, refetchAfterToggle } = usePagedCourses({ state, dispatch, config, debouncedSearch });
+  useReportContentLoaded(rootRef, loading, Boolean(error) || stringsFailed);
   useSkipFirstEffect(() => {
     setPreference(PREF_VIEW, view);
   }, [view]);
@@ -299,7 +301,7 @@ function App(props) {
   return /* @__PURE__ */ jsxDEV("section", { ref: rootRef, tabIndex: -1, className: `block-myoverview ${widthClasses}`.trim(), children: [
     !strings && /* @__PURE__ */ jsxDEV(StringsFallback, { failed: stringsFailed, errorText: stringsErrorText }, void 0, false, {
       fileName: "public/blocks/myoverview/js/esm/src/app.tsx",
-      lineNumber: 425,
+      lineNumber: 429,
       columnNumber: 26
     }, this),
     strings && /* @__PURE__ */ jsxDEV(StringsContext.Provider, { value: strings, children: /* @__PURE__ */ jsxDEV(CourseCallbacksContext.Provider, { value: callbacks, children: /* @__PURE__ */ jsxDEV(CourseMembershipContext.Provider, { value: memberships, children: /* @__PURE__ */ jsxDEV(Fragment, { children: [
@@ -327,7 +329,7 @@ function App(props) {
         false,
         {
           fileName: "public/blocks/myoverview/js/esm/src/app.tsx",
-          lineNumber: 434,
+          lineNumber: 438,
           columnNumber: 25
         },
         this
@@ -344,7 +346,7 @@ function App(props) {
         false,
         {
           fileName: "public/blocks/myoverview/js/esm/src/app.tsx",
-          lineNumber: 452,
+          lineNumber: 456,
           columnNumber: 25
         },
         this
@@ -361,7 +363,7 @@ function App(props) {
         false,
         {
           fileName: "public/blocks/myoverview/js/esm/src/app.tsx",
-          lineNumber: 459,
+          lineNumber: 463,
           columnNumber: 29
         },
         this
@@ -378,7 +380,7 @@ function App(props) {
           false,
           {
             fileName: "public/blocks/myoverview/js/esm/src/app.tsx",
-            lineNumber: 468,
+            lineNumber: 472,
             columnNumber: 33
           },
           this
@@ -394,36 +396,36 @@ function App(props) {
           false,
           {
             fileName: "public/blocks/myoverview/js/esm/src/app.tsx",
-            lineNumber: 473,
+            lineNumber: 477,
             columnNumber: 33
           },
           this
         )
       ] }, void 0, true, {
         fileName: "public/blocks/myoverview/js/esm/src/app.tsx",
-        lineNumber: 467,
+        lineNumber: 471,
         columnNumber: 29
       }, this)
     ] }, void 0, true, {
       fileName: "public/blocks/myoverview/js/esm/src/app.tsx",
-      lineNumber: 433,
+      lineNumber: 437,
       columnNumber: 21
     }, this) }, void 0, false, {
       fileName: "public/blocks/myoverview/js/esm/src/app.tsx",
-      lineNumber: 429,
+      lineNumber: 433,
       columnNumber: 17
     }, this) }, void 0, false, {
       fileName: "public/blocks/myoverview/js/esm/src/app.tsx",
-      lineNumber: 428,
+      lineNumber: 432,
       columnNumber: 13
     }, this) }, void 0, false, {
       fileName: "public/blocks/myoverview/js/esm/src/app.tsx",
-      lineNumber: 427,
+      lineNumber: 431,
       columnNumber: 9
     }, this)
   ] }, void 0, true, {
     fileName: "public/blocks/myoverview/js/esm/src/app.tsx",
-    lineNumber: 424,
+    lineNumber: 428,
     columnNumber: 9
   }, this);
 }

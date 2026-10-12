@@ -103,14 +103,41 @@ const pageAt = (offset: number, count: number) => ({
     nextoffset: offset + count,
 });
 
+/** core_block/events, which the block tells when its first page of courses is in place. */
+const mockTrackBlockContentLoading = jest.fn((_root: Element, loading: Promise<unknown>) => loading);
+
 describe("block_myoverview/app paging orchestration", () => {
     beforeEach(() => {
+        mockTrackBlockContentLoading.mockClear();
+        mockAmdModule("core_block/events", {trackBlockContentLoading: mockTrackBlockContentLoading});
         mockGetCourses.mockReset();
         mockSetPreference.mockReset();
         mockLoadStrings.mockReset();
         mockLoadStrings.mockImplementation(stringsResolvingToKeys);
         mockLoadErrorString.mockReset();
         mockLoadErrorString.mockImplementation(() => Promise.reject(new Error("nothing cached")));
+    });
+
+    it("tells the page once its first page of courses is in place", async() => {
+        mockGetCourses.mockImplementation(({offset}) =>
+            Promise.resolve(offset === 0 ? pageAt(0, 3) : pageAt(offset, 0)));
+
+        const {container} = render(<App {...PROPS} />);
+
+        await waitFor(() => expect(mockTrackBlockContentLoading).toHaveBeenCalledTimes(1));
+        const [root, loading] = mockTrackBlockContentLoading.mock.calls[0];
+        expect(root).toBe(container.querySelector("section.block-myoverview"));
+        await expect(loading).resolves.toBeUndefined();
+        expect(screen.getByText("Course 1")).toBeInTheDocument();
+    });
+
+    it("tells the page when its courses fail to load", async() => {
+        mockGetCourses.mockImplementation(() => Promise.reject(new Error("offline")));
+
+        render(<App {...PROPS} />);
+
+        await waitFor(() => expect(mockTrackBlockContentLoading).toHaveBeenCalledTimes(1));
+        await expect(mockTrackBlockContentLoading.mock.calls[0][1]).rejects.toThrow();
     });
 
     it("fetches page 1 then silently prefetches page 2 from the returned nextoffset", async() => {

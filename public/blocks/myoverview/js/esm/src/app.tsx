@@ -36,6 +36,7 @@ import {
     PREF_VIEW, PREF_FILTER, PREF_SORT, PREF_CFVALUE,
 } from "./repository";
 import {usePagedCourses} from "./hooks/usePagedCourses";
+import {useReportContentLoaded} from "./hooks/useReportContentLoaded";
 import {
     CourseCallbacksContext, CourseMembershipContext, StringsContext, hasNextPage, initState, reducer,
 } from "./state";
@@ -296,6 +297,9 @@ export default function App(props: AppProps) {
     // silent next-page prefetch with bounded retry, search/filter exclusivity, and the
     // post-toggle refetch that trues the cached pages up after a hide/star change.
     const {searching, refetchAfterToggle} = usePagedCourses({state, dispatch, config, debouncedSearch});
+
+    // The page hosting the block (the dashboard, for one) waits for this report rather than guessing.
+    useReportContentLoaded(rootRef, loading, Boolean(error) || stringsFailed);
 
     // Write preferences back to the server on real changes only — useSkipFirstEffect
     // prevents these from firing on initial mount (they would just re-write the value
