@@ -41,6 +41,12 @@ final readonly class grid_size {
     public const MAX_ROWS = 12;
 
     /**
+     * Returned from {@see \block_base::get_grid_maximum_rows()}: the block has no maximum height when it is
+     * sized to its content.
+     */
+    public const NO_MAXIMUM_ROWS = 0;
+
+    /**
      * Create a grid size.
      *
      * @param int $columns Width in grid columns.

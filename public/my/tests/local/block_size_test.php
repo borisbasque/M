@@ -48,16 +48,23 @@ final class block_size_test extends \advanced_testcase {
      * @param grid_size|null $minimum Declared minimum.
      * @param grid_size|null $preferred Declared preferred size.
      * @param \Throwable|null $throws Thrown from the minimum declaration instead of returning.
+     * @param int|null $maximum Declared maximum rows.
      * @return \block_base
      */
-    private function block(?grid_size $minimum = null, ?grid_size $preferred = null, ?\Throwable $throws = null): \block_base {
-        return new class ($minimum, $preferred, $throws) extends \block_base {
+    private function block(
+        ?grid_size $minimum = null,
+        ?grid_size $preferred = null,
+        ?\Throwable $throws = null,
+        ?int $maximum = null,
+    ): \block_base {
+        return new class ($minimum, $preferred, $throws, $maximum) extends \block_base {
             /**
              * Create the block.
              *
              * @param grid_size|null $minimum Declared minimum.
              * @param grid_size|null $preferred Declared preferred size.
              * @param \Throwable|null $throws Thrown from the minimum declaration.
+             * @param int|null $maximum Declared maximum rows.
              */
             public function __construct(
                 /** @var grid_size|null Declared minimum. */
@@ -66,6 +73,8 @@ final class block_size_test extends \advanced_testcase {
                 private ?grid_size $preferred,
                 /** @var \Throwable|null Thrown from the minimum declaration. */
                 private ?\Throwable $throws,
+                /** @var int|null Declared maximum rows. */
+                private ?int $maximum,
             ) {
                 parent::__construct();
             }
@@ -89,6 +98,11 @@ final class block_size_test extends \advanced_testcase {
             public function get_grid_preferred_size(): ?grid_size {
                 return $this->preferred;
             }
+
+            #[\Override]
+            public function get_grid_maximum_rows(): ?int {
+                return $this->maximum;
+            }
         };
     }
 
@@ -101,6 +115,8 @@ final class block_size_test extends \advanced_testcase {
 
         $this->assertNull($block->get_grid_minimum_size());
         $this->assertNull($block->get_grid_preferred_size());
+        $this->assertNull($block->get_grid_maximum_rows());
+        $this->assertSame(dashboard::AUTO_ROWS_CAP, dashboard::get_maximum_rows($block));
         $this->assertSame(dashboard::get_minimum_size(), dashboard::get_minimum_size($block));
         $this->assertSame(['columns' => 1, 'rows' => 2], dashboard::get_minimum_size($block));
         // A block declaring no preferred height follows its content.
@@ -219,6 +235,34 @@ final class block_size_test extends \advanced_testcase {
 
         $this->assertSame(dashboard::get_minimum_size(), dashboard::get_minimum_size($block));
         $this->assertDebuggingCalled(null, DEBUG_DEVELOPER);
+    }
+
+    /**
+     * A declared maximum is used; no maximum resolves to null; one below the minimum is raised to it.
+     */
+    public function test_a_declared_maximum_is_used(): void {
+        $this->assertSame(10, dashboard::get_maximum_rows($this->block(null, null, null, 10)));
+        $this->assertNull(dashboard::get_maximum_rows($this->block(null, null, null, grid_size::NO_MAXIMUM_ROWS)));
+        $this->assertSame(4, dashboard::get_maximum_rows($this->block(new grid_size(1, 4), null, null, 3)));
+        $this->assertDebuggingNotCalled();
+    }
+
+    /**
+     * An unusable maximum falls back to the default, with a developer warning.
+     */
+    public function test_an_invalid_maximum_falls_back_with_a_developer_warning(): void {
+        $this->assertSame(dashboard::AUTO_ROWS_CAP, dashboard::get_maximum_rows($this->block(null, null, null, -2)));
+        $this->assertDebuggingCalled(null, DEBUG_DEVELOPER);
+    }
+
+    /**
+     * Course overview declares no maximum: it shows a page of courses at a time.
+     */
+    public function test_course_overview_declares_no_maximum(): void {
+        $this->resetAfterTest();
+
+        $this->assertNull(dashboard::get_maximum_rows(block_instance('myoverview')));
+        $this->assertDebuggingNotCalled();
     }
 
     /**

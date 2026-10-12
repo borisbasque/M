@@ -299,7 +299,7 @@ export default function App(props: AppProps) {
     const {searching, refetchAfterToggle} = usePagedCourses({state, dispatch, config, debouncedSearch});
 
     // The page hosting the block (the dashboard, for one) waits for this report rather than guessing.
-    useReportContentLoaded(rootRef, loading, Boolean(error) || stringsFailed);
+    useReportContentLoaded(rootRef, loading, Boolean(error) || stringsFailed, `${view}:${page}`);
 
     // Write preferences back to the server on real changes only — useSkipFirstEffect
     // prevents these from firing on initial mount (they would just re-write the value

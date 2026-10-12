@@ -867,6 +867,43 @@ describe('core_my Dashboard application', () => {
             expect(container.querySelector('[data-block-id="101"]')).toHaveStyle({gridRow: '1 / span 8'});
         });
 
+        it('lets a block that declares no maximum open taller than the 8-row cap', async() => {
+            const data = buildData({layout: autoLayout, editing: false});
+            data.blocks[0] = {...data.blocks[0], maxrows: null};
+            const fetchOneSpy = mockDashboardApi({getResponses: [data]});
+
+            render(<Dashboard />);
+            await screen.findByText('First block');
+
+            await waitFor(() => expect(saves(fetchOneSpy)).toHaveLength(1));
+            expect(saves(fetchOneSpy)[0].layout.find(item => item.id === 101)!.rows).toBeGreaterThan(8);
+        });
+
+        it('fits a block again when it reports a change after its first load, without saving', async() => {
+            const fetchOneSpy = mockDashboardApi({getResponses: [buildData({layout: autoLayout, editing: false})]});
+            const {container} = render(<Dashboard />);
+            await screen.findByText('First block');
+            await waitFor(() => expect(saves(fetchOneSpy)).toHaveLength(1));
+            const tile = container.querySelector<HTMLElement>('[data-block-id="101"]')!;
+            expect(tile).toHaveStyle({gridRow: '1 / span 8'});
+
+            // Its content is now short, as after a filter that leaves few items.
+            const measure = Element.prototype.getBoundingClientRect as jest.Mock;
+            const tall = measure.getMockImplementation();
+            measure.mockImplementation(() => ({
+                width: 2000, height: 40, top: 0, left: 0, bottom: 40, right: 2000, x: 0, y: 0, toJSON: () => ({}),
+            }));
+            try {
+                await act(async() => {
+                    tile.dispatchEvent(new CustomEvent('core_block/contentLoaded', {bubbles: true, detail: {instanceId: 101}}));
+                });
+                await waitFor(() => expect(tile).toHaveStyle({gridRow: '1 / span 2'}));
+                expect(saves(fetchOneSpy)).toHaveLength(1);
+            } finally {
+                measure.mockImplementation(tall);
+            }
+        });
+
         it('measures each block once its own content has arrived, whatever order blocks load in', async() => {
             const data = buildData({layout: [autoLayout[0], {...autoLayout[1], autorows: true}], editing: false});
             data.blocks = data.blocks.map(block => ({...block, content: '', loaded: false}));

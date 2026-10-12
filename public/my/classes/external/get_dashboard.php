@@ -211,6 +211,13 @@ final class get_dashboard extends external_api {
                 null,
                 NULL_ALLOWED,
             ),
+            'maxrows' => new external_value(
+                PARAM_INT,
+                'The most rows the block opens at when sized to its content, or null for no maximum.',
+                VALUE_REQUIRED,
+                null,
+                NULL_ALLOWED,
+            ),
             'loaded' => new external_value(
                 PARAM_BOOL,
                 'Whether content and footer are filled in. A dashboard load sends none; '

@@ -1,12 +1,14 @@
-import{useEffect as s,useRef as u}from"react";import{requireAsync as d}from"@moodle/lms/core/amd";/**
- * Tell the page hosting the block when its first page of courses is in place.
+import{useEffect as i,useRef as t}from"react";import{requireAsync as E}from"@moodle/lms/core/amd";/**
+ * Tell the page hosting the block when its courses are in place.
  *
  * The block declares that it loads its content separately (block_myoverview::has_async_content()),
  * so pages that host blocks, such as the flexible dashboard, wait for it to report through
  * core_block/events instead of guessing. While the first load is outstanding the block's root is
  * marked busy and a core/pending key is held; when it settles, succeeded or failed, the
- * core_block/contentLoaded event fires. Reported once per mount.
+ * core_block/contentLoaded event fires. After that, the block reports again whenever what it shows
+ * changes: a later load finishing (filter, sort, search, a page not yet loaded) or a change of view
+ * or page, once the new content has rendered. A page can then fit the block to its content again.
  *
  * @module     block_myoverview/hooks/useReportContentLoaded
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
- */function k(t,o,c){const r=u(null),l=u(!1);s(()=>{const e=t.current;if(!e)return;const i=new Promise((n,f)=>{r.current={resolve:n,reject:f}});d("core_block/events").then(n=>n.trackBlockContentLoading(e,i)).catch(()=>null)},[t]),s(()=>{o&&(l.current=!0);const e=r.current;e&&(c?(r.current=null,e.reject(new Error("Course overview could not load its courses."))):l.current&&!o&&(r.current=null,e.resolve()))},[o,c])}export{k as useReportContentLoaded};
+ */function w(u,r,s,v){const o=t(null),a=t(!1),l=t(!1),f=t(!1),d=t(null),m=()=>{const e=u.current;if(!l.current||!e)return;const n=requestAnimationFrame(()=>d.current?.notifyBlockContentLoaded(e,s));return()=>cancelAnimationFrame(n)};i(()=>{const e=u.current;if(!e)return;const n=new Promise((c,k)=>{o.current={resolve:c,reject:k}});E("core_block/events").then(c=>(d.current=c,c.trackBlockContentLoading(e,n))).catch(()=>null)},[u]),i(()=>{const e=f.current&&!r;f.current=r,r&&(a.current=!0);const n=o.current;if(!n)return e?m():void 0;s?(o.current=null,l.current=!0,n.reject(new Error("Course overview could not load its courses."))):a.current&&!r&&(o.current=null,l.current=!0,n.resolve())},[r,s]),i(()=>m(),[v])}export{w as useReportContentLoaded};

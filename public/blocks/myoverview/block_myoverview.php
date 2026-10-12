@@ -158,6 +158,17 @@ class block_myoverview extends block_base {
         return true;
     }
 
+    /**
+     * No maximum height: the block shows a page of at most nine courses, so a full page shows
+     * without a scroll bar at any width.
+     *
+     * @return int
+     */
+    #[\Override]
+    public function get_grid_maximum_rows(): ?int {
+        return \core_block\grid_size::NO_MAXIMUM_ROWS;
+    }
+
     #[\Override]
     public function get_icon(): ?\core\output\pix_icon {
         return new \core\output\pix_icon('i/course', '', 'core');

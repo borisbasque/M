@@ -146,6 +146,20 @@ const LEAVE_TIMEOUT_MS = 5000;
 const EDIT_MODE_SET = 'core/edit_switch/editModeSet';
 
 /**
+ * The most rows a block opens at when it follows its content.
+ *
+ * @param block The block.
+ * @param fallback The grid's own maximum, for a payload without the block's.
+ * @return The most rows; Infinity for no maximum.
+ */
+const maximumRows = (block: {maxrows?: number | null}, fallback: number): number => {
+    if (block.maxrows === undefined) {
+        return fallback;
+    }
+    return block.maxrows ?? Infinity;
+};
+
+/**
  * The blocks that are in a different place in one layout than in another.
  *
  * @param before The layout before.
@@ -822,7 +836,7 @@ const Dashboard = ({loadingLabel = '', initialLayout = [], openBrowser = false, 
             }
             measuredRef.current.add(item.id);
             rows.set(item.id, block.preferredrows ?? rowsForHeight(
-                measureNaturalHeight(tile), metrics, block.minsize.rows, current.grid.autorowscap,
+                measureNaturalHeight(tile), metrics, block.minsize.rows, maximumRows(block, current.grid.autorowscap),
             ));
         });
         const next = applyRowSpans(canonicalRef.current, rows);
@@ -838,6 +852,41 @@ const Dashboard = ({loadingLabel = '', initialLayout = [], openBrowser = false, 
         }
     }, [queue, siteDefault]);
     useCollectedBlockJavascript(loadedScript, gridRef, fitAutoHeights);
+
+    // The grid is only in the page once the dashboard has loaded.
+    const gridMounted = data !== null;
+    // A block that reports its content again after its first load (core_block/contentLoaded), for
+    // example after the person filters it or changes its view, is fitted to its content again: only
+    // that block, only while it still follows its content, and not during a move or resize. Blocks
+    // below move down when it grows; when it shrinks, the rows it gives up stay empty. This doesn't
+    // save the dashboard or add an Undo step by itself; the next saved change carries it.
+    useEffect(() => {
+        const grid = gridRef.current;
+        if (!grid) {
+            return undefined;
+        }
+        const onContentLoaded = (event: Event) => {
+            const id = Number((event as CustomEvent<{instanceId: number | null}>).detail?.instanceId);
+            const current = dataRef.current;
+            const block = current?.blocks.find(candidate => candidate.id === id);
+            const item = canonicalRef.current.find(candidate => candidate.id === id);
+            const tile = grid.querySelector<HTMLElement>(`.core-my-dashboard-tile[data-instance-id="${id}"]`);
+            // Only later reports: the first is the block's first load, which fitAutoHeights() measures.
+            if (!current || !block || !item || !tile || item.autorows === false || block.preferredrows !== null
+                    || !measuredRef.current.has(id) || interactionRef.current) {
+                return;
+            }
+            const rows = rowsForHeight(measureNaturalHeight(tile), readGridMetrics(grid), block.minsize.rows,
+                maximumRows(block, current.grid.autorowscap));
+            const next = applyRowSpans(canonicalRef.current, new Map([[id, rows]]));
+            if (next !== canonicalRef.current) {
+                canonicalRef.current = next;
+                setCanonical(next);
+            }
+        };
+        grid.addEventListener(BLOCK_CONTENT_LOADED, onContentLoaded);
+        return () => grid.removeEventListener(BLOCK_CONTENT_LOADED, onContentLoaded);
+    }, [gridMounted]);
     // A newly added block's own JavaScript runs once its tile is in the DOM, after this render.
     // Each runs to completion: unlike a full reload, adding one block never invalidates another's.
     // Once it settles, auto heights are fitted again, which measures the new block too.

@@ -266,6 +266,7 @@ final class dashboard {
             'asynccontent' => $instance->has_async_content(),
             'minsize' => self::get_minimum_size($instance),
             'preferredrows' => self::get_preferred_size($instance)['rows'],
+            'maxrows' => self::get_maximum_rows($instance),
             'loaded' => true,
         ];
     }
@@ -295,6 +296,7 @@ final class dashboard {
             'asynccontent' => $instance->has_async_content(),
             'minsize' => self::get_minimum_size($instance),
             'preferredrows' => self::get_preferred_size($instance)['rows'],
+            'maxrows' => self::get_maximum_rows($instance),
             'loaded' => false,
         ];
     }
@@ -1146,6 +1148,34 @@ final class dashboard {
             return $default;
         }
         return ['columns' => $declared->columns, 'rows' => $rows];
+    }
+
+    /**
+     * Resolve the most rows a block opens at when it is sized to its content.
+     *
+     * @param \block_base $block The block.
+     * @return int|null The most rows, or null for no maximum.
+     */
+    public static function get_maximum_rows(\block_base $block): ?int {
+        try {
+            $declared = $block->get_grid_maximum_rows();
+        } catch (\Throwable $exception) {
+            self::warn_size_declaration($block, 'get_grid_maximum_rows', 'failed (' . $exception->getMessage() .
+                '), so the default is used');
+            return self::AUTO_ROWS_CAP;
+        }
+        if ($declared === null) {
+            return self::AUTO_ROWS_CAP;
+        }
+        if ($declared === grid_size::NO_MAXIMUM_ROWS) {
+            return null;
+        }
+        if ($declared < 0) {
+            self::warn_size_declaration($block, 'get_grid_maximum_rows', "declares an unusable maximum ({$declared}), " .
+                'so the default is used');
+            return self::AUTO_ROWS_CAP;
+        }
+        return max($declared, self::get_minimum_size($block)['rows']);
     }
 
     /**

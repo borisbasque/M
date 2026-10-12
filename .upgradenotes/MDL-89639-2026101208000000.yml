@@ -1,0 +1,14 @@
+issueNumber: MDL-89639
+notes:
+  core_block:
+    - message: >-
+        Blocks can now declare the most rows they open at on a block grid, such
+        as the flexible dashboard, when sized to their content, by overriding
+        the optional `block_base::get_grid_maximum_rows()`. Return a number of
+        rows, `\core_block\grid_size::NO_MAXIMUM_ROWS` for no maximum (only for
+        content that is naturally limited, such as a single page of results),
+        or null for the grid default. Content taller than the maximum scrolls
+        inside the block. A maximum below the block's minimum is raised to it,
+        and an unusable declaration is replaced by the default with a developer
+        debugging message.
+      type: improved

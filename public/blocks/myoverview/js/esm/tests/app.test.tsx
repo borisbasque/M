@@ -105,11 +105,16 @@ const pageAt = (offset: number, count: number) => ({
 
 /** core_block/events, which the block tells when its first page of courses is in place. */
 const mockTrackBlockContentLoading = jest.fn((_root: Element, loading: Promise<unknown>) => loading);
+const mockNotifyBlockContentLoaded = jest.fn();
 
 describe("block_myoverview/app paging orchestration", () => {
     beforeEach(() => {
         mockTrackBlockContentLoading.mockClear();
-        mockAmdModule("core_block/events", {trackBlockContentLoading: mockTrackBlockContentLoading});
+        mockNotifyBlockContentLoaded.mockClear();
+        mockAmdModule("core_block/events", {
+            trackBlockContentLoading: mockTrackBlockContentLoading,
+            notifyBlockContentLoaded: mockNotifyBlockContentLoaded,
+        });
         mockGetCourses.mockReset();
         mockSetPreference.mockReset();
         mockLoadStrings.mockReset();
@@ -129,6 +134,19 @@ describe("block_myoverview/app paging orchestration", () => {
         expect(root).toBe(container.querySelector("section.block-myoverview"));
         await expect(loading).resolves.toBeUndefined();
         expect(screen.getByText("Course 1")).toBeInTheDocument();
+    });
+
+    it("tells the page again when a later load finishes, but not before the first", async() => {
+        mockGetCourses.mockImplementation(({offset}) =>
+            Promise.resolve(offset === 0 ? pageAt(0, 3) : pageAt(offset, 0)));
+
+        render(<App {...PROPS} />);
+        await waitFor(() => expect(screen.getByText("Course 1")).toBeInTheDocument());
+        expect(mockNotifyBlockContentLoaded).not.toHaveBeenCalled();
+
+        fireEvent.change(screen.getByLabelText("searchcourses"), {target: {value: "Course 2"}});
+        await waitFor(() => expect(mockNotifyBlockContentLoaded).toHaveBeenCalled());
+        expect(mockNotifyBlockContentLoaded.mock.calls[0][0]).toBe(document.querySelector("section.block-myoverview"));
     });
 
     it("tells the page when its courses fail to load", async() => {

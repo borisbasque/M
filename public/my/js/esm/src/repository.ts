@@ -48,6 +48,9 @@ export interface DashboardBlock {
     minsize: GridSize;
     // The row span the block declares it prefers, or null to follow its content.
     preferredrows: number | null;
+    // The most rows the block opens at when it follows its content, or null for no maximum
+    // (block_base::get_grid_maximum_rows()). Absent from older payloads: the grid's autorowscap applies.
+    maxrows?: number | null;
     // Whether content and footer are filled in. A dashboard load sends every block without them;
     // each block's own then loads separately (see getDashboardBlock()).
     loaded: boolean;

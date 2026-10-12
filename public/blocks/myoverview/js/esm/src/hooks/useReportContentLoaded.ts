@@ -14,13 +14,15 @@
 // along with Moodle.  If not, see <http://www.gnu.org/licenses/>.
 
 /**
- * Tell the page hosting the block when its first page of courses is in place.
+ * Tell the page hosting the block when its courses are in place.
  *
  * The block declares that it loads its content separately (block_myoverview::has_async_content()),
  * so pages that host blocks, such as the flexible dashboard, wait for it to report through
  * core_block/events instead of guessing. While the first load is outstanding the block's root is
  * marked busy and a core/pending key is held; when it settles, succeeded or failed, the
- * core_block/contentLoaded event fires. Reported once per mount.
+ * core_block/contentLoaded event fires. After that, the block reports again whenever what it shows
+ * changes: a later load finishing (filter, sort, search, a page not yet loaded) or a change of view
+ * or page, once the new content has rendered. A page can then fit the block to its content again.
  *
  * @module     block_myoverview/hooks/useReportContentLoaded
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
@@ -31,19 +33,39 @@ import {requireAsync} from "@moodle/lms/core/amd";
 
 interface BlockEvents {
     trackBlockContentLoading: (root: Element, loading: Promise<unknown>) => Promise<unknown>;
+    notifyBlockContentLoaded: (element: Element, failed?: boolean) => unknown;
 }
 
 /**
- * Report the block's first load to the page.
+ * Report the block's courses to the page: the first load, then each change.
  *
  * @param rootRef The block's root element.
  * @param loading Whether courses are being fetched. It is false before the first fetch starts, so
  *     the first load has settled only once it has been true and is false again.
  * @param failed Whether loading has failed (courses or language strings).
+ * @param shown What is shown without loading, such as the view and page: a change is reported too.
  */
-export function useReportContentLoaded(rootRef: RefObject<HTMLElement | null>, loading: boolean, failed: boolean): void {
+export function useReportContentLoaded(
+    rootRef: RefObject<HTMLElement | null>,
+    loading: boolean,
+    failed: boolean,
+    shown: string,
+): void {
     const pending = useRef<{resolve: () => void; reject: (error: Error) => void} | null>(null);
     const started = useRef(false);
+    const reported = useRef(false);
+    const wasLoading = useRef(false);
+    const events = useRef<BlockEvents | null>(null);
+
+    // Report a change once the browser has laid it out, so a page measuring the block sees it.
+    const reportChange = () => {
+        const root = rootRef.current;
+        if (!reported.current || !root) {
+            return undefined;
+        }
+        const frame = requestAnimationFrame(() => events.current?.notifyBlockContentLoaded(root, failed));
+        return () => cancelAnimationFrame(frame);
+    };
 
     useEffect(() => {
         const root = rootRef.current;
@@ -54,25 +76,37 @@ export function useReportContentLoaded(rootRef: RefObject<HTMLElement | null>, l
             pending.current = {resolve, reject};
         });
         void requireAsync<BlockEvents>("core_block/events")
-            .then((events) => events.trackBlockContentLoading(root, firstLoad))
+            .then((module) => {
+                events.current = module;
+                return module.trackBlockContentLoading(root, firstLoad);
+            })
             // A failed load is reported through the event; nothing else needs the rejection.
             .catch(() => null);
     }, [rootRef]);
 
     useEffect(() => {
+        const finished = wasLoading.current && !loading;
+        wasLoading.current = loading;
         if (loading) {
             started.current = true;
         }
         const settle = pending.current;
         if (!settle) {
-            return;
+            // The first load is reported; a later one finishing is a change.
+            return finished ? reportChange() : undefined;
         }
         if (failed) {
             pending.current = null;
+            reported.current = true;
             settle.reject(new Error("Course overview could not load its courses."));
         } else if (started.current && !loading) {
             pending.current = null;
+            reported.current = true;
             settle.resolve();
         }
+        return undefined;
     }, [loading, failed]);
+
+    // A change of view or page shows other content without loading anything.
+    useEffect(() => reportChange(), [shown]);
 }

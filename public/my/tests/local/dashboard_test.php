@@ -82,19 +82,16 @@ final class dashboard_test extends \advanced_testcase {
         global $PAGE;
 
         $this->resetAfterTest();
-        $user = $this->getDataGenerator()->create_user();
-        // Course overview only starts its JavaScript when there are courses to show.
-        $this->getDataGenerator()->enrol_user($user->id, $this->getDataGenerator()->create_course()->id);
-        $this->setUser($user);
+        $this->setUser($this->getDataGenerator()->create_user());
         $byname = array_column(dashboard::get(false)['blocks'], null, 'name');
 
         $PAGE = new \moodle_page();
-        $overview = dashboard::get_block(false, $byname['myoverview']['id']);
+        $recent = dashboard::get_block(false, $byname['recentlyaccesseditems']['id']);
         $PAGE = new \moodle_page();
         $calendar = dashboard::get_block(false, $byname['calendar_month']['id']);
 
-        $this->assertStringContainsString('block_myoverview/main', $overview['javascript']);
-        $this->assertStringNotContainsString('block_myoverview/main', $calendar['javascript']);
+        $this->assertStringContainsString('block_recentlyaccesseditems/main', $recent['javascript']);
+        $this->assertStringNotContainsString('block_recentlyaccesseditems/main', $calendar['javascript']);
     }
 
     /**

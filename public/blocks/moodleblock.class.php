@@ -811,6 +811,24 @@ EOD;
     }
 
     /**
+     * This method can be overridden to declare the most rows this block opens at on a block grid,
+     * such as the flexible dashboard, when it is sized to its content.
+     *
+     * Content taller than this scrolls inside the block. Return
+     * {@see \core_block\grid_size::NO_MAXIMUM_ROWS} for no maximum, but only for content that is
+     * naturally limited, such as a list shown a page at a time: an unlimited block on a grid pushes
+     * everything below it off the screen. A maximum below the block's minimum is raised to the minimum.
+     * Declaring nothing is fully supported: the block then gets the grid's default maximum.
+     *
+     * @return int|null The most rows, {@see \core_block\grid_size::NO_MAXIMUM_ROWS}, or null to use the
+     *     grid's default.
+     * @since Moodle 6.0
+     */
+    public function get_grid_maximum_rows(): ?int {
+        return null;
+    }
+
+    /**
      * A short description of what this block does, for people choosing a block to add.
      *
      * Shown in the dashboard's block browser under the block's name, in two lines at most, so keep

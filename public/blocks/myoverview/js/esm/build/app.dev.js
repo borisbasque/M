@@ -228,7 +228,7 @@ function App(props) {
     return () => clearTimeout(timer);
   }, [search]);
   const { searching, refetchAfterToggle } = usePagedCourses({ state, dispatch, config, debouncedSearch });
-  useReportContentLoaded(rootRef, loading, Boolean(error) || stringsFailed);
+  useReportContentLoaded(rootRef, loading, Boolean(error) || stringsFailed, `${view}:${page}`);
   useSkipFirstEffect(() => {
     setPreference(PREF_VIEW, view);
   }, [view]);
