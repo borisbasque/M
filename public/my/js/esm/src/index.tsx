@@ -1710,9 +1710,11 @@ const Dashboard = ({loadingLabel = '', initialLayout = [], openBrowser = false, 
         const others = canonicalRef.current.filter(existing => existing.id !== item.id);
         const minimum = added.minsize ?? current.grid.minsize;
         const targeted = target?.column !== undefined && target.row !== undefined;
-        // A block added to an empty region fills its width, but never goes below its own minimum.
+        // A block takes its usual width: its preferred width, or the default the server gave it.
+        // Added to an empty region, it starts there and is narrowed to the region if that is
+        // narrower, but never below its own minimum.
         const width = Math.min(columns, targeted && target.columns
-            ? Math.max(target.columns, minimum.columns)
+            ? Math.max(Math.min(target.columns, item.columns), minimum.columns)
             : item.columns);
         const place = targeted
             ? {column: Math.min(target.column!, columns - width), row: target.row!}
@@ -1970,18 +1972,22 @@ const Dashboard = ({loadingLabel = '', initialLayout = [], openBrowser = false, 
                 prospective
             />}
         </div>
-        {data.editing && !empty && <div className="core-my-dashboard-toolbar core-my-dashboard-toolbar--bottom">
-            <Button
-                variant="secondary"
-                label={data.labels.addblock}
-                startIcon={<i className="fa fa-plus" aria-hidden="true" />}
-                onClick={() => setPalette({})}
-            />
-        </div>}
+        {/* Below the grid, styled as one of its empty regions: a faint outline at rest, the
+            "+ Add a block" cue on hover or keyboard focus. */}
+        {data.editing && !empty && <button
+            type="button"
+            className="core-my-grid-cell core-my-grid-cell--available core-my-dashboard-add-below"
+            aria-label={data.labels.addblock}
+            onClick={() => setPalette({})}
+        >
+            <span className="core-my-grid-cell__label" aria-hidden="true">
+                <i className="fa fa-plus core-my-grid-cell__icon" aria-hidden="true" />
+                {data.labels.addblock}
+            </span>
+        </button>}
         {palette && <BlockBrowser
             labels={data.labels}
             blocks={data.availableblocks}
-            targeted={palette.column !== undefined}
             discoverUrl={data.discoverurl}
             onInsert={block => void add(block)}
             onClose={() => setPalette(null)}

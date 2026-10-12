@@ -141,18 +141,13 @@ const labels: DashboardLabels = {
     dashboardblocks: 'Dashboard blocks',
     emptyregion: 'Empty space, row {$a->row}, column {$a->column}. Add a block here.',
     blockfailed: 'This block could not be loaded.',
-    browseralreadyadded: 'Already added blocks are not listed.',
     browserallpresent: 'Every block is already on your dashboard.',
     browserblocks: 'Blocks',
-    browsercount: '{$a} blocks you can add.',
-    browsercountone: '1 block you can add.',
     browserdiscover: 'Discover more blocks',
     browserfallbackdescription: 'Added to your site by an administrator.',
     browserinsert: 'Insert',
     browsernomatch: 'No blocks match "{$a}".',
     browsersearch: 'Search blocks',
-    browsertargetcell: 'Your block will go in the space you picked.',
-    browsertargetfree: 'Your block will go in the first free space.',
     clearsearch: 'Clear search input',
     empty: 'Your dashboard is empty.',
     opensinnewwindow: 'Opens in new window',
@@ -820,6 +815,30 @@ describe('core_my Dashboard application', () => {
         expect(fitted).toMatchObject({column: 2, row: 0, rows: 8, autorows: true});
         // Inserted from the add reply: the dashboard itself is never reloaded.
         expect(getCalls(fetchOneSpy)).toHaveLength(1);
+    });
+
+    it('keeps a block added to a wide empty region at its usual width, at the start of the region', async() => {
+        const data = buildData({layout: [{id: 101, column: 0, row: 0, columns: 2, rows: 2, autorows: false}]});
+        data.blocks = [data.blocks[0]];
+        const fetchOneSpy = mockDashboardApi({
+            getResponses: [data],
+            updateImpl: (action) => Promise.resolve(action === 'add'
+                ? addResult({id: 103, column: 0, row: 6, columns: 3, rows: 2})
+                : {status: true, blockid: 0}),
+        });
+        const {container} = render(<Dashboard />);
+        await screen.findByText('First block');
+        await waitFor(() => expect(container.querySelector('.core-my-dashboard-grid'))
+            .toHaveAttribute('data-columns', '6'));
+
+        // Columns 3 to 6 are one empty region, four columns wide.
+        fireEvent.click(screen.getByRole('button', {name: 'Empty space, row 1, column 3. Add a block here.'}));
+        fireEvent.click(await screen.findByRole('radio', {name: 'Calendar'}));
+        fireEvent.click(screen.getByRole('button', {name: 'Insert'}));
+
+        await waitFor(() => expect(updateCalls(fetchOneSpy).length).toBeGreaterThanOrEqual(2));
+        const args = (updateCalls(fetchOneSpy)[1][0] as {args: {layout: LayoutItem[]}}).args;
+        expect(args.layout.find(item => item.id === 103)).toMatchObject({column: 2, row: 0, columns: 3});
     });
 
     describe('content-fit sizing', () => {

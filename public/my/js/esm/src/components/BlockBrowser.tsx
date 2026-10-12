@@ -36,8 +36,6 @@ import type {AvailableBlock, DashboardLabels} from '../repository';
 interface BlockBrowserProps {
     labels: DashboardLabels;
     blocks: AvailableBlock[];
-    // Whether the block will fill a space the person picked, rather than go in the first free one.
-    targeted: boolean;
     // Where "Discover more blocks" links to, or null when the site does not use the Marketplace.
     discoverUrl: string | null;
     onInsert: (block: AvailableBlock) => void;
@@ -53,7 +51,7 @@ export const initialsFor = (title: string): string => title
     .join('')
     .toLocaleUpperCase();
 
-const BlockBrowser = ({labels, blocks, targeted, discoverUrl, onInsert, onClose}: BlockBrowserProps) => {
+const BlockBrowser = ({labels, blocks, discoverUrl, onInsert, onClose}: BlockBrowserProps) => {
     const dialogRef = useRef<HTMLDialogElement>(null);
     const searchRef = useRef<HTMLInputElement>(null);
     const groupRef = useRef<HTMLDivElement>(null);
@@ -101,7 +99,6 @@ const BlockBrowser = ({labels, blocks, targeted, discoverUrl, onInsert, onClose}
     const matching = useMemo(() => blocks.filter(block => !query
         || `${block.title} ${block.description}`.toLocaleLowerCase().includes(query)), [blocks, query]);
     const addable = matching.filter(block => !block.added);
-    const alreadyAdded = blocks.some(block => block.added);
     // The top result is always selected, so typing a name and pressing Enter adds it.
     const current = addable.find(block => block.name === selected) ?? addable[0] ?? null;
 
@@ -120,11 +117,6 @@ const BlockBrowser = ({labels, blocks, targeted, discoverUrl, onInsert, onClose}
         setSearch('');
         searchRef.current?.focus();
     };
-
-    let status = addable.length === 1 ? labels.browsercountone : labels.browsercount.replace('{$a}', String(addable.length));
-    if (alreadyAdded) {
-        status += ` ${labels.browseralreadyadded}`;
-    }
 
     return <dialog
         ref={dialogRef}
@@ -148,7 +140,6 @@ const BlockBrowser = ({labels, blocks, targeted, discoverUrl, onInsert, onClose}
                     className="form-control"
                     placeholder={labels.browsersearch}
                     aria-label={labels.browsersearch}
-                    aria-describedby="core-my-block-browser-where"
                     autoComplete="off"
                     value={search}
                     onChange={event => setSearch(event.target.value)}
@@ -169,10 +160,6 @@ const BlockBrowser = ({labels, blocks, targeted, discoverUrl, onInsert, onClose}
                     onClick={clearSearch}
                 ><i className="fa fa-xmark" aria-hidden="true" /></button>}
             </div>
-            <p id="core-my-block-browser-where" className="core-my-block-browser__where">
-                {targeted ? labels.browsertargetcell : labels.browsertargetfree}
-            </p>
-            <p className="core-my-block-browser__status" role="status">{status}</p>
             {addable.length ? <div
                 ref={groupRef}
                 className="core-my-block-browser__grid"

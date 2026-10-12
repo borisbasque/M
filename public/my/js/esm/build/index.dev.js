@@ -1186,7 +1186,7 @@ const Dashboard = /* @__PURE__ */ __name(({ loadingLabel = "", initialLayout = [
     const others = canonicalRef.current.filter((existing) => existing.id !== item.id);
     const minimum = added.minsize ?? current.grid.minsize;
     const targeted = target?.column !== void 0 && target.row !== void 0;
-    const width = Math.min(columns, targeted && target.columns ? Math.max(target.columns, minimum.columns) : item.columns);
+    const width = Math.min(columns, targeted && target.columns ? Math.max(Math.min(target.columns, item.columns), minimum.columns) : item.columns);
     const place = targeted ? { column: Math.min(target.column, columns - width), row: target.row } : firstFreeSpace(packLayout(others, columns), columns, width, item.rows);
     const pinned = { ...item, ...place, columns: width };
     const appended = [...others, item];
@@ -1252,11 +1252,11 @@ const Dashboard = /* @__PURE__ */ __name(({ loadingLabel = "", initialLayout = [
   if (!data) {
     return error ? /* @__PURE__ */ jsxDEV("div", { className: "core-my-dashboard-status alert alert-danger", role: "alert", children: error }, void 0, false, {
       fileName: "public/my/js/esm/src/index.tsx",
-      lineNumber: 1794,
+      lineNumber: 1796,
       columnNumber: 15
     }) : /* @__PURE__ */ jsxDEV(DashboardLoading, { label: loadingLabel, layout: initialLayout }, void 0, false, {
       fileName: "public/my/js/esm/src/index.tsx",
-      lineNumber: 1795,
+      lineNumber: 1797,
       columnNumber: 15
     });
   }
@@ -1294,7 +1294,7 @@ const Dashboard = /* @__PURE__ */ __name(({ loadingLabel = "", initialLayout = [
       false,
       {
         fileName: "public/my/js/esm/src/index.tsx",
-        lineNumber: 1810,
+        lineNumber: 1812,
         columnNumber: 16
       }
     );
@@ -1317,7 +1317,7 @@ const Dashboard = /* @__PURE__ */ __name(({ loadingLabel = "", initialLayout = [
       false,
       {
         fileName: "public/my/js/esm/src/index.tsx",
-        lineNumber: 1843,
+        lineNumber: 1845,
         columnNumber: 82
       }
     ) }))
@@ -1341,7 +1341,7 @@ const Dashboard = /* @__PURE__ */ __name(({ loadingLabel = "", initialLayout = [
       children: [
         error && /* @__PURE__ */ jsxDEV("div", { className: "alert alert-danger", role: "alert", children: error }, void 0, false, {
           fileName: "public/my/js/esm/src/index.tsx",
-          lineNumber: 1880,
+          lineNumber: 1882,
           columnNumber: 19
         }),
         unsaved && /* @__PURE__ */ jsxDEV("div", { className: "alert alert-warning core-my-dashboard-unsaved", role: "alert", children: [
@@ -1359,23 +1359,23 @@ const Dashboard = /* @__PURE__ */ __name(({ loadingLabel = "", initialLayout = [
             false,
             {
               fileName: "public/my/js/esm/src/index.tsx",
-              lineNumber: 1883,
+              lineNumber: 1885,
               columnNumber: 13
             }
           )
         ] }, void 0, true, {
           fileName: "public/my/js/esm/src/index.tsx",
-          lineNumber: 1881,
+          lineNumber: 1883,
           columnNumber: 21
         }),
         /* @__PURE__ */ jsxDEV("div", { className: "core-my-dashboard-savestatus", role: "status", children: statusMessages[saveStatus] }, void 0, false, {
           fileName: "public/my/js/esm/src/index.tsx",
-          lineNumber: 1891,
+          lineNumber: 1893,
           columnNumber: 9
         }),
         /* @__PURE__ */ jsxDEV("div", { className: "visually-hidden", "aria-live": "polite", "aria-atomic": "true", children: announcement }, void 0, false, {
           fileName: "public/my/js/esm/src/index.tsx",
-          lineNumber: 1892,
+          lineNumber: 1894,
           columnNumber: 9
         }),
         data.editing && /* @__PURE__ */ jsxDEV("div", { className: "core-my-dashboard-toolbar", children: [
@@ -1391,7 +1391,7 @@ const Dashboard = /* @__PURE__ */ __name(({ loadingLabel = "", initialLayout = [
             false,
             {
               fileName: "public/my/js/esm/src/index.tsx",
-              lineNumber: 1894,
+              lineNumber: 1896,
               columnNumber: 13
             }
           ),
@@ -1407,7 +1407,7 @@ const Dashboard = /* @__PURE__ */ __name(({ loadingLabel = "", initialLayout = [
               false,
               {
                 fileName: "public/my/js/esm/src/index.tsx",
-                lineNumber: 1901,
+                lineNumber: 1903,
                 columnNumber: 34
               }
             ),
@@ -1418,7 +1418,7 @@ const Dashboard = /* @__PURE__ */ __name(({ loadingLabel = "", initialLayout = [
                 label: data.labels.undo,
                 startIcon: /* @__PURE__ */ jsxDEV("i", { className: "fa fa-rotate-left", "aria-hidden": "true" }, void 0, false, {
                   fileName: "public/my/js/esm/src/index.tsx",
-                  lineNumber: 1909,
+                  lineNumber: 1911,
                   columnNumber: 32
                 }),
                 disabled: historySize === 0,
@@ -1428,7 +1428,7 @@ const Dashboard = /* @__PURE__ */ __name(({ loadingLabel = "", initialLayout = [
               false,
               {
                 fileName: "public/my/js/esm/src/index.tsx",
-                lineNumber: 1906,
+                lineNumber: 1908,
                 columnNumber: 17
               }
             ),
@@ -1444,7 +1444,7 @@ const Dashboard = /* @__PURE__ */ __name(({ loadingLabel = "", initialLayout = [
               false,
               {
                 fileName: "public/my/js/esm/src/index.tsx",
-                lineNumber: 1913,
+                lineNumber: 1915,
                 columnNumber: 17
               }
             ),
@@ -1456,7 +1456,7 @@ const Dashboard = /* @__PURE__ */ __name(({ loadingLabel = "", initialLayout = [
                 label: data.labels.addblock,
                 startIcon: /* @__PURE__ */ jsxDEV("i", { className: "fa fa-plus", "aria-hidden": "true" }, void 0, false, {
                   fileName: "public/my/js/esm/src/index.tsx",
-                  lineNumber: 1923,
+                  lineNumber: 1925,
                   columnNumber: 32
                 }),
                 onClick: () => setPalette({})
@@ -1465,34 +1465,34 @@ const Dashboard = /* @__PURE__ */ __name(({ loadingLabel = "", initialLayout = [
               false,
               {
                 fileName: "public/my/js/esm/src/index.tsx",
-                lineNumber: 1919,
+                lineNumber: 1921,
                 columnNumber: 17
               }
             )
           ] }, void 0, true, {
             fileName: "public/my/js/esm/src/index.tsx",
-            lineNumber: 1900,
+            lineNumber: 1902,
             columnNumber: 13
           })
         ] }, void 0, true, {
           fileName: "public/my/js/esm/src/index.tsx",
-          lineNumber: 1893,
+          lineNumber: 1895,
           columnNumber: 26
         }),
         empty && data.canedit && /* @__PURE__ */ jsxDEV("div", { className: "core-my-dashboard-empty", children: [
           /* @__PURE__ */ jsxDEV("p", { children: data.labels.empty }, void 0, false, {
             fileName: "public/my/js/esm/src/index.tsx",
-            lineNumber: 1929,
+            lineNumber: 1931,
             columnNumber: 13
           }),
           /* @__PURE__ */ jsxDEV("div", { className: "core-my-dashboard-empty__actions", children: [
             data.editing ? /* @__PURE__ */ jsxDEV(Button, { variant: "primary", label: data.labels.addblock, onClick: () => setPalette({}) }, void 0, false, {
               fileName: "public/my/js/esm/src/index.tsx",
-              lineNumber: 1932,
+              lineNumber: 1934,
               columnNumber: 23
             }) : /* @__PURE__ */ jsxDEV("a", { className: "btn btn-primary", href: addBlockUrl, children: data.labels.addblock }, void 0, false, {
               fileName: "public/my/js/esm/src/index.tsx",
-              lineNumber: 1933,
+              lineNumber: 1935,
               columnNumber: 23
             }),
             !siteDefault && /* @__PURE__ */ jsxDEV(
@@ -1506,18 +1506,18 @@ const Dashboard = /* @__PURE__ */ __name(({ loadingLabel = "", initialLayout = [
               false,
               {
                 fileName: "public/my/js/esm/src/index.tsx",
-                lineNumber: 1934,
+                lineNumber: 1936,
                 columnNumber: 34
               }
             )
           ] }, void 0, true, {
             fileName: "public/my/js/esm/src/index.tsx",
-            lineNumber: 1930,
+            lineNumber: 1932,
             columnNumber: 13
           })
         ] }, void 0, true, {
           fileName: "public/my/js/esm/src/index.tsx",
-          lineNumber: 1928,
+          lineNumber: 1930,
           columnNumber: 35
         }),
         /* @__PURE__ */ jsxDEV(
@@ -1550,7 +1550,7 @@ const Dashboard = /* @__PURE__ */ __name(({ loadingLabel = "", initialLayout = [
                 false,
                 {
                   fileName: "public/my/js/esm/src/index.tsx",
-                  lineNumber: 1962,
+                  lineNumber: 1964,
                   columnNumber: 29
                 }
               )
@@ -1560,40 +1560,43 @@ const Dashboard = /* @__PURE__ */ __name(({ loadingLabel = "", initialLayout = [
           true,
           {
             fileName: "public/my/js/esm/src/index.tsx",
-            lineNumber: 1941,
+            lineNumber: 1943,
             columnNumber: 9
           }
         ),
-        data.editing && !empty && /* @__PURE__ */ jsxDEV("div", { className: "core-my-dashboard-toolbar core-my-dashboard-toolbar--bottom", children: /* @__PURE__ */ jsxDEV(
-          Button,
+        data.editing && !empty && /* @__PURE__ */ jsxDEV(
+          "button",
           {
-            variant: "secondary",
-            label: data.labels.addblock,
-            startIcon: /* @__PURE__ */ jsxDEV("i", { className: "fa fa-plus", "aria-hidden": "true" }, void 0, false, {
+            type: "button",
+            className: "core-my-grid-cell core-my-grid-cell--available core-my-dashboard-add-below",
+            "aria-label": data.labels.addblock,
+            onClick: () => setPalette({}),
+            children: /* @__PURE__ */ jsxDEV("span", { className: "core-my-grid-cell__label", "aria-hidden": "true", children: [
+              /* @__PURE__ */ jsxDEV("i", { className: "fa fa-plus core-my-grid-cell__icon", "aria-hidden": "true" }, void 0, false, {
+                fileName: "public/my/js/esm/src/index.tsx",
+                lineNumber: 1984,
+                columnNumber: 17
+              }),
+              data.labels.addblock
+            ] }, void 0, true, {
               fileName: "public/my/js/esm/src/index.tsx",
-              lineNumber: 1977,
-              columnNumber: 28
-            }),
-            onClick: () => setPalette({})
+              lineNumber: 1983,
+              columnNumber: 13
+            })
           },
           void 0,
           false,
           {
             fileName: "public/my/js/esm/src/index.tsx",
-            lineNumber: 1974,
-            columnNumber: 13
+            lineNumber: 1977,
+            columnNumber: 36
           }
-        ) }, void 0, false, {
-          fileName: "public/my/js/esm/src/index.tsx",
-          lineNumber: 1973,
-          columnNumber: 36
-        }),
+        ),
         palette && /* @__PURE__ */ jsxDEV(
           BlockBrowser,
           {
             labels: data.labels,
             blocks: data.availableblocks,
-            targeted: palette.column !== void 0,
             discoverUrl: data.discoverurl,
             onInsert: (block) => void add(block),
             onClose: () => setPalette(null)
@@ -1602,7 +1605,7 @@ const Dashboard = /* @__PURE__ */ __name(({ loadingLabel = "", initialLayout = [
           false,
           {
             fileName: "public/my/js/esm/src/index.tsx",
-            lineNumber: 1981,
+            lineNumber: 1988,
             columnNumber: 21
           }
         ),
@@ -1623,13 +1626,13 @@ const Dashboard = /* @__PURE__ */ __name(({ loadingLabel = "", initialLayout = [
           false,
           {
             fileName: "public/my/js/esm/src/index.tsx",
-            lineNumber: 1989,
+            lineNumber: 1995,
             columnNumber: 27
           }
         ),
         /* @__PURE__ */ jsxDEV(Toast, { message: toast, closeLabel: data.labels.close, onClose: hideToast }, void 0, false, {
           fileName: "public/my/js/esm/src/index.tsx",
-          lineNumber: 2e3,
+          lineNumber: 2006,
           columnNumber: 9
         })
       ]
@@ -1638,7 +1641,7 @@ const Dashboard = /* @__PURE__ */ __name(({ loadingLabel = "", initialLayout = [
     true,
     {
       fileName: "public/my/js/esm/src/index.tsx",
-      lineNumber: 1873,
+      lineNumber: 1875,
       columnNumber: 12
     }
   );

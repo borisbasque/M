@@ -36947,10 +36947,9 @@ body.editing#page-course-learningoutcomes .activity-item:hover:not(:has(.activit
   align-items: center;
 }
 
-.core-my-dashboard-toolbar.core-my-dashboard-toolbar--bottom {
-  position: static;
-  justify-content: center;
-  border: 0;
+.core-my-grid-cell.core-my-dashboard-add-below {
+  height: var(--mds-scale-1700);
+  margin-block-start: var(--mds-spacing-md);
 }
 
 .core-my-dashboard-grid > * {
@@ -37128,13 +37127,6 @@ body.editing#page-course-learningoutcomes .activity-item:hover:not(:has(.activit
   border-radius: var(--mds-border-radius-sm);
 }
 
-.mds-btn.btn.core-my-dashboard-handle i,
-.mds-btn.btn.core-my-dashboard-remove i {
-  width: var(--mds-icons-sm);
-  height: var(--mds-icons-sm);
-  font-size: var(--mds-icons-sm);
-}
-
 .core-my-dashboard-handle {
   touch-action: none;
   user-select: none;
@@ -37206,7 +37198,7 @@ body.editing#page-course-learningoutcomes .activity-item:hover:not(:has(.activit
 }
 
 .core-my-grid-cell__icon {
-  font-size: var(--mds-icons-md);
+  font-size: var(--mds-icons-xs);
   color: var(--mds-text-subtle);
   transition: color 0.15s ease;
 }
@@ -37349,13 +37341,6 @@ body.editing#page-course-learningoutcomes .activity-item:hover:not(:has(.activit
 }
 .core-my-block-browser__clear:focus-visible {
   outline: var(--mds-stroke-weight-md) solid var(--mds-focus-default);
-}
-
-.core-my-block-browser__where,
-.core-my-block-browser__status {
-  margin: var(--mds-spacing-xs) 0 0;
-  font-size: var(--mds-font-size-paragraph-small);
-  color: var(--mds-text-subtle);
 }
 
 .core-my-block-browser__grid {

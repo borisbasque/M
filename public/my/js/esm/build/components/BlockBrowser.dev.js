@@ -19,7 +19,7 @@ import { jsxDEV } from "react/jsx-dev-runtime";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Button, Choicebox, CloseButton } from "@moodlehq/design-system";
 const initialsFor = /* @__PURE__ */ __name((title) => title.split(/\s+/).filter(Boolean).slice(0, 2).map((word) => Array.from(word)[0]).join("").toLocaleUpperCase(), "initialsFor");
-const BlockBrowser = /* @__PURE__ */ __name(({ labels, blocks, targeted, discoverUrl, onInsert, onClose }) => {
+const BlockBrowser = /* @__PURE__ */ __name(({ labels, blocks, discoverUrl, onInsert, onClose }) => {
   const dialogRef = useRef(null);
   const searchRef = useRef(null);
   const groupRef = useRef(null);
@@ -32,7 +32,7 @@ const BlockBrowser = /* @__PURE__ */ __name(({ labels, blocks, targeted, discove
     if (!block.iconhtml || failedIcons.has(block.name)) {
       return /* @__PURE__ */ jsxDEV("i", { className: "core-my-block-browser__initials", children: initialsFor(block.title) }, void 0, false, {
         fileName: "public/my/js/esm/src/components/BlockBrowser.tsx",
-        lineNumber: 74,
+        lineNumber: 72,
         columnNumber: 20
       });
     }
@@ -51,7 +51,7 @@ const BlockBrowser = /* @__PURE__ */ __name(({ labels, blocks, targeted, discove
       false,
       {
         fileName: "public/my/js/esm/src/components/BlockBrowser.tsx",
-        lineNumber: 76,
+        lineNumber: 74,
         columnNumber: 16
       }
     );
@@ -69,7 +69,6 @@ const BlockBrowser = /* @__PURE__ */ __name(({ labels, blocks, targeted, discove
   const query = search.trim().toLocaleLowerCase();
   const matching = useMemo(() => blocks.filter((block) => !query || `${block.title} ${block.description}`.toLocaleLowerCase().includes(query)), [blocks, query]);
   const addable = matching.filter((block) => !block.added);
-  const alreadyAdded = blocks.some((block) => block.added);
   const current = addable.find((block) => block.name === selected) ?? addable[0] ?? null;
   const insert = /* @__PURE__ */ __name((block) => {
     if (block && !block.added) {
@@ -85,10 +84,6 @@ const BlockBrowser = /* @__PURE__ */ __name(({ labels, blocks, targeted, discove
     setSearch("");
     searchRef.current?.focus();
   }, "clearSearch");
-  let status = addable.length === 1 ? labels.browsercountone : labels.browsercount.replace("{$a}", String(addable.length));
-  if (alreadyAdded) {
-    status += ` ${labels.browseralreadyadded}`;
-  }
   return /* @__PURE__ */ jsxDEV(
     "dialog",
     {
@@ -103,24 +98,24 @@ const BlockBrowser = /* @__PURE__ */ __name(({ labels, blocks, targeted, discove
         /* @__PURE__ */ jsxDEV("div", { className: "core-my-block-browser__header", children: [
           /* @__PURE__ */ jsxDEV("h2", { id: "core-my-block-browser-title", children: labels.addblock }, void 0, false, {
             fileName: "public/my/js/esm/src/components/BlockBrowser.tsx",
-            lineNumber: 139,
+            lineNumber: 131,
             columnNumber: 13
           }),
           /* @__PURE__ */ jsxDEV(CloseButton, { "aria-label": labels.close, title: labels.close, onClick: onClose }, void 0, false, {
             fileName: "public/my/js/esm/src/components/BlockBrowser.tsx",
-            lineNumber: 140,
+            lineNumber: 132,
             columnNumber: 13
           })
         ] }, void 0, true, {
           fileName: "public/my/js/esm/src/components/BlockBrowser.tsx",
-          lineNumber: 138,
+          lineNumber: 130,
           columnNumber: 9
         }),
         /* @__PURE__ */ jsxDEV("div", { className: "core-my-block-browser__body", children: [
           /* @__PURE__ */ jsxDEV("div", { className: "core-my-block-browser__search", children: [
             /* @__PURE__ */ jsxDEV("i", { className: "fa fa-magnifying-glass", "aria-hidden": "true" }, void 0, false, {
               fileName: "public/my/js/esm/src/components/BlockBrowser.tsx",
-              lineNumber: 144,
+              lineNumber: 136,
               columnNumber: 17
             }),
             /* @__PURE__ */ jsxDEV(
@@ -131,7 +126,6 @@ const BlockBrowser = /* @__PURE__ */ __name(({ labels, blocks, targeted, discove
                 className: "form-control",
                 placeholder: labels.browsersearch,
                 "aria-label": labels.browsersearch,
-                "aria-describedby": "core-my-block-browser-where",
                 autoComplete: "off",
                 value: search,
                 onChange: (event) => setSearch(event.target.value),
@@ -148,7 +142,7 @@ const BlockBrowser = /* @__PURE__ */ __name(({ labels, blocks, targeted, discove
               false,
               {
                 fileName: "public/my/js/esm/src/components/BlockBrowser.tsx",
-                lineNumber: 145,
+                lineNumber: 137,
                 columnNumber: 17
               }
             ),
@@ -162,7 +156,7 @@ const BlockBrowser = /* @__PURE__ */ __name(({ labels, blocks, targeted, discove
                 onClick: clearSearch,
                 children: /* @__PURE__ */ jsxDEV("i", { className: "fa fa-xmark", "aria-hidden": "true" }, void 0, false, {
                   fileName: "public/my/js/esm/src/components/BlockBrowser.tsx",
-                  lineNumber: 170,
+                  lineNumber: 161,
                   columnNumber: 18
                 })
               },
@@ -170,23 +164,13 @@ const BlockBrowser = /* @__PURE__ */ __name(({ labels, blocks, targeted, discove
               false,
               {
                 fileName: "public/my/js/esm/src/components/BlockBrowser.tsx",
-                lineNumber: 164,
+                lineNumber: 155,
                 columnNumber: 28
               }
             )
           ] }, void 0, true, {
             fileName: "public/my/js/esm/src/components/BlockBrowser.tsx",
-            lineNumber: 143,
-            columnNumber: 13
-          }),
-          /* @__PURE__ */ jsxDEV("p", { id: "core-my-block-browser-where", className: "core-my-block-browser__where", children: targeted ? labels.browsertargetcell : labels.browsertargetfree }, void 0, false, {
-            fileName: "public/my/js/esm/src/components/BlockBrowser.tsx",
-            lineNumber: 172,
-            columnNumber: 13
-          }),
-          /* @__PURE__ */ jsxDEV("p", { className: "core-my-block-browser__status", role: "status", children: status }, void 0, false, {
-            fileName: "public/my/js/esm/src/components/BlockBrowser.tsx",
-            lineNumber: 175,
+            lineNumber: 135,
             columnNumber: 13
           }),
           addable.length ? /* @__PURE__ */ jsxDEV(
@@ -218,7 +202,7 @@ const BlockBrowser = /* @__PURE__ */ __name(({ labels, blocks, targeted, discove
                 false,
                 {
                   fileName: "public/my/js/esm/src/components/BlockBrowser.tsx",
-                  lineNumber: 182,
+                  lineNumber: 169,
                   columnNumber: 39
                 }
               ))
@@ -227,28 +211,28 @@ const BlockBrowser = /* @__PURE__ */ __name(({ labels, blocks, targeted, discove
             false,
             {
               fileName: "public/my/js/esm/src/components/BlockBrowser.tsx",
-              lineNumber: 176,
+              lineNumber: 163,
               columnNumber: 31
             }
           ) : /* @__PURE__ */ jsxDEV("div", { className: "core-my-block-browser__none", children: [
             /* @__PURE__ */ jsxDEV("p", { children: query ? labels.browsernomatch.replace("{$a}", search.trim()) : labels.browserallpresent }, void 0, false, {
               fileName: "public/my/js/esm/src/components/BlockBrowser.tsx",
-              lineNumber: 200,
+              lineNumber: 187,
               columnNumber: 17
             }),
             query && /* @__PURE__ */ jsxDEV(Button, { variant: "secondary", label: labels.clearsearch, onClick: clearSearch }, void 0, false, {
               fileName: "public/my/js/esm/src/components/BlockBrowser.tsx",
-              lineNumber: 201,
+              lineNumber: 188,
               columnNumber: 27
             })
           ] }, void 0, true, {
             fileName: "public/my/js/esm/src/components/BlockBrowser.tsx",
-            lineNumber: 199,
+            lineNumber: 186,
             columnNumber: 22
           })
         ] }, void 0, true, {
           fileName: "public/my/js/esm/src/components/BlockBrowser.tsx",
-          lineNumber: 142,
+          lineNumber: 134,
           columnNumber: 9
         }),
         /* @__PURE__ */ jsxDEV("div", { className: "core-my-block-browser__footer", children: [
@@ -263,12 +247,12 @@ const BlockBrowser = /* @__PURE__ */ __name(({ labels, blocks, targeted, discove
                 labels.browserdiscover,
                 /* @__PURE__ */ jsxDEV("i", { className: "fa fa-arrow-up-right-from-square", "aria-hidden": "true" }, void 0, false, {
                   fileName: "public/my/js/esm/src/components/BlockBrowser.tsx",
-                  lineNumber: 212,
+                  lineNumber: 199,
                   columnNumber: 17
                 }),
                 /* @__PURE__ */ jsxDEV("span", { className: "visually-hidden", children: labels.opensinnewwindow }, void 0, false, {
                   fileName: "public/my/js/esm/src/components/BlockBrowser.tsx",
-                  lineNumber: 213,
+                  lineNumber: 200,
                   columnNumber: 17
                 })
               ]
@@ -277,13 +261,13 @@ const BlockBrowser = /* @__PURE__ */ __name(({ labels, blocks, targeted, discove
             true,
             {
               fileName: "public/my/js/esm/src/components/BlockBrowser.tsx",
-              lineNumber: 205,
+              lineNumber: 192,
               columnNumber: 29
             }
           ),
           /* @__PURE__ */ jsxDEV(Button, { variant: "secondary", label: labels.cancel, onClick: onClose }, void 0, false, {
             fileName: "public/my/js/esm/src/components/BlockBrowser.tsx",
-            lineNumber: 215,
+            lineNumber: 202,
             columnNumber: 13
           }),
           /* @__PURE__ */ jsxDEV(
@@ -298,13 +282,13 @@ const BlockBrowser = /* @__PURE__ */ __name(({ labels, blocks, targeted, discove
             false,
             {
               fileName: "public/my/js/esm/src/components/BlockBrowser.tsx",
-              lineNumber: 216,
+              lineNumber: 203,
               columnNumber: 13
             }
           )
         ] }, void 0, true, {
           fileName: "public/my/js/esm/src/components/BlockBrowser.tsx",
-          lineNumber: 204,
+          lineNumber: 191,
           columnNumber: 9
         })
       ]
@@ -313,7 +297,7 @@ const BlockBrowser = /* @__PURE__ */ __name(({ labels, blocks, targeted, discove
     true,
     {
       fileName: "public/my/js/esm/src/components/BlockBrowser.tsx",
-      lineNumber: 129,
+      lineNumber: 121,
       columnNumber: 12
     }
   );

@@ -110,18 +110,13 @@ export interface DashboardLabels {
     scopesitedefault: string;
     switchtoown: string;
     switchtositedefault: string;
-    browseralreadyadded: string;
     browserallpresent: string;
     browserblocks: string;
-    browsercount: string;
-    browsercountone: string;
     browserdiscover: string;
     browserfallbackdescription: string;
     browserinsert: string;
     browsernomatch: string;
     browsersearch: string;
-    browsertargetcell: string;
-    browsertargetfree: string;
     clearsearch: string;
     empty: string;
     opensinnewwindow: string;

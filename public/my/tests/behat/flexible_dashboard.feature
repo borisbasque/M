@@ -57,8 +57,8 @@ Feature: Arrange dashboard blocks in a responsive grid
   Scenario: Add a block from the block browser into the space picked for it
     When I turn editing mode on
     And I click on "Add a block" "button" in the ".core-my-dashboard-toolbar" "css_element"
-    Then I should see "Your block will go in the first free space" in the "Add a block" "dialogue"
-    And I should see "Shows a cloud of the tags used across the site." in the "Add a block" "dialogue"
+    Then I should see "Shows a cloud of the tags used across the site." in the "Add a block" "dialogue"
+    And I should not see "Your block will go" in the "Add a block" "dialogue"
     And I set the field "Search blocks" to "zzz"
     And I should see "No blocks match \"zzz\"." in the "Add a block" "dialogue"
     # In a search field, the first Escape clears the search and the second closes the browser.

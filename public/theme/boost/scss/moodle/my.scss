@@ -167,10 +167,10 @@ $core-my-dashboard-grid-max-width: 1921px !default;
     align-items: center;
 }
 
-.core-my-dashboard-toolbar.core-my-dashboard-toolbar--bottom {
-    position: static;
-    justify-content: center;
-    border: 0;
+// "+ Add a block" below the grid, styled as one of the grid's empty regions (.core-my-grid-cell).
+.core-my-grid-cell.core-my-dashboard-add-below {
+    height: var(--mds-scale-1700);
+    margin-block-start: var(--mds-spacing-md);
 }
 
 // Whatever gets focus scrolls clear of the sticky toolbar (WCAG 2.2 SC 2.4.11).
@@ -360,13 +360,6 @@ $core-my-dashboard-grid-max-width: 1921px !default;
     border-radius: var(--mds-border-radius-sm);
 }
 
-.mds-btn.btn.core-my-dashboard-handle i,
-.mds-btn.btn.core-my-dashboard-remove i {
-    width: var(--mds-icons-sm);
-    height: var(--mds-icons-sm);
-    font-size: var(--mds-icons-sm);
-}
-
 .core-my-dashboard-handle {
     touch-action: none;
     user-select: none;
@@ -441,7 +434,8 @@ $core-my-dashboard-grid-max-width: 1921px !default;
 }
 
 .core-my-grid-cell__icon {
-    font-size: var(--mds-icons-md);
+    // The size MDS gives an icon in a button, as on the toolbar's "+ Add a block".
+    font-size: var(--mds-icons-xs);
     color: var(--mds-text-subtle);
     transition: color 0.15s ease;
 }
@@ -598,13 +592,6 @@ $core-my-dashboard-grid-max-width: 1921px !default;
     &:focus-visible {
         outline: var(--mds-stroke-weight-md) solid var(--mds-focus-default);
     }
-}
-
-.core-my-block-browser__where,
-.core-my-block-browser__status {
-    margin: var(--mds-spacing-xs) 0 0;
-    font-size: var(--mds-font-size-paragraph-small);
-    color: var(--mds-text-subtle);
 }
 
 .core-my-block-browser__grid {

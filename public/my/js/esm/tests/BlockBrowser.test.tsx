@@ -61,18 +61,13 @@ HTMLDialogElement.prototype.showModal = jest.fn(function markOpen(this: HTMLDial
 
 const labels = {
     addblock: 'Add a block',
-    browseralreadyadded: 'Blocks already on your dashboard aren\'t listed.',
     browserallpresent: 'Every block is already on your dashboard.',
     browserblocks: 'Blocks',
-    browsercount: '{$a} blocks you can add.',
-    browsercountone: '1 block you can add.',
     browserdiscover: 'Discover more blocks on Moodle Marketplace',
     browserfallbackdescription: 'Added to your site by an administrator.',
     browserinsert: 'Insert',
     browsernomatch: 'No blocks match "{$a}".',
     browsersearch: 'Search blocks',
-    browsertargetcell: 'Your block will go in the space you picked.',
-    browsertargetfree: 'Your block will go in the first free space, ready for you to move.',
     cancel: 'Cancel',
     clearsearch: 'Clear search input',
     close: 'Close',
@@ -96,7 +91,6 @@ const renderBrowser = (overrides: Partial<React.ComponentProps<typeof BlockBrows
     render(<BlockBrowser
         labels={labels}
         blocks={blocks}
-        targeted={false}
         discoverUrl={null}
         onInsert={onInsert}
         onClose={onClose}
@@ -106,23 +100,22 @@ const renderBrowser = (overrides: Partial<React.ComponentProps<typeof BlockBrows
 };
 
 describe('core_my block browser', () => {
-    it('opens as a dialog with the search field focused, saying where the block will go', () => {
+    it('opens as a dialog with the search field focused, and no placement note or count', () => {
         renderBrowser();
 
         expect(screen.getByRole('dialog', {name: 'Add a block'})).toHaveAttribute('open');
         expect(screen.getByRole('searchbox', {name: 'Search blocks'})).toHaveFocus();
-        expect(screen.getByText(labels.browsertargetfree)).toBeInTheDocument();
+        expect(screen.queryByRole('status')).not.toBeInTheDocument();
+        expect(screen.queryByText(/will go in/)).not.toBeInTheDocument();
     });
 
-    it('lists the blocks that can be added as one radio group, and says how many', () => {
+    it('lists the blocks that can be added as one radio group', () => {
         renderBrowser();
 
         const group = screen.getByRole('radiogroup', {name: 'Blocks'});
         expect(within(group).getAllByRole('radio')).toHaveLength(3);
-        // A single-instance block already on the dashboard is not offered, and the status says why.
+        // A single-instance block already on the dashboard is not offered.
         expect(within(group).queryByRole('radio', {name: /^Timeline/})).not.toBeInTheDocument();
-        expect(screen.getByRole('status')).toHaveTextContent(
-            '3 blocks you can add. Blocks already on your dashboard aren\'t listed.');
     });
 
     it('shows a block\'s own icon in the card\'s icon slot', () => {
@@ -157,7 +150,6 @@ describe('core_my block browser', () => {
         const search = screen.getByRole('searchbox', {name: 'Search blocks'});
         fireEvent.change(search, {target: {value: 'online'}});
         expect(screen.getByRole('radio', {name: /^Online users/})).toBeChecked();
-        expect(screen.getByRole('status')).toHaveTextContent('1 block you can add.');
 
         fireEvent.keyDown(search, {key: 'Enter'});
         expect(onInsert).toHaveBeenCalledWith(expect.objectContaining({name: 'online_users'}));
