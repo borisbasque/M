@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>PROTOTYPE: Flexible dashboard, drag and drop (throwaway, not for merge)</title>
+<title>PROTOTYPE: Flexible dashboard, role dashboards (throwaway, not for merge)</title>
 <!-- The title a usability-test participant sees. proto-export.js swaps it in
      for the working <title> above, so it must read like a real Moodle page and
      say nothing about what is being studied. -->
@@ -104,7 +104,7 @@
     --btn:40px;
 
     /* dashboard additions: grid geometry and the extra MDS values the grid needs */
-    --dash-grid-max:1921px; /* the six-column threshold (TH.six); my.scss caps the grid there */
+    --dash-page-max:1920px; /* $core-my-dashboard-page-max-width (my.scss): the /my page column's cap */
     --row:96px; --gap:16px;                                                   /* 96px row unit from MDL-89636; gap = $mds-spacing-md */
     --accent:#0f6cbf;                                                         /* $mds-border-interactive-primary-default: lines and text that mean "interactive" */
     --success-text:#357a32;                                                   /* $mds-color-green-500 */
@@ -554,14 +554,13 @@
   body.dashboard{ background:var(--bg-subtle); }
   /* Boost-faithful page gutters (layout.scss, my.scss on the branch): #page.drawers pads 3rem each
      side from md; .main-inner (0.5rem) + div[role=main] (15px) pad the column; on /my the column is
-     capped at the six-column grid width + 1rem + 30px and centred, so the grid never outgrows six
-     columns. --dash-grid-max follows State > "Six columns from". */
+     capped at 1920px (border-box, so the grid inside is 1874px) and centred. */
   html body.dashboard .layout{ max-width:none; padding-inline:0; }
   @media (min-width:768px){ html body.dashboard .layout{ padding-inline:3rem; } }
   /* html-prefixed so these beat the shell's overlay-mode rules further down */
   html body.dashboard #drawer,
   html body.dashboard .toggle-col, html body.dashboard .toggle-col-right{ display:none; }
-  body.dashboard .content-col{ padding:0 0.5rem; max-width:calc(var(--dash-grid-max) + 1rem + 30px); }
+  body.dashboard .content-col{ padding:0 0.5rem; max-width:var(--dash-page-max); }
   @media (min-width:768px){ body.dashboard .content-col{ padding:0 calc(0.5rem + 15px); } }
   .dash a{ color:var(--accent); }
   .dash-greeting{ margin:0 0 var(--sp-md); font-size:var(--fs-h2); font-weight:var(--fw-medium); line-height:1.2; }
@@ -943,6 +942,110 @@
   .b-zero{ display:flex; flex-direction:column; align-items:center; justify-content:center; gap:var(--sp-xs); height:100%; min-height:64px; text-align:center; color:var(--text-muted); }
   .b-zero i{ font-size:var(--fs-h4); }
   .b-big{ font-size:var(--fs-h3); font-weight:var(--fw-semibold); font-variant-numeric:tabular-nums; line-height:1.2; }
+
+  /* ---- insight blocks (what Moodle already knows, shown where people look) ---- */
+  .ins-head{ display:flex; align-items:baseline; justify-content:space-between; gap:var(--sp-sm); margin-bottom:var(--sp-xs); }
+  .ins-sum{ font-weight:var(--fw-semibold); color:var(--text-default); }
+  .ins-sum b{ font-variant-numeric:tabular-nums; }
+  .ins-chips{ display:flex; flex-wrap:wrap; gap:var(--sp-xxs); margin-bottom:var(--sp-xs); }
+  .ins-chip{ height:28px; padding:0 var(--sp-sm); border-radius:var(--r-pill); border:1px solid var(--border-default); background:var(--surface); color:var(--text-subtle); font:inherit; font-size:var(--fs-sm); cursor:pointer; }
+  .ins-chip[aria-pressed="true"]{ background:var(--primary-light); border-color:var(--primary); color:var(--text-feedback-primary); font-weight:var(--fw-semibold); }
+  .ins-rows{ display:flex; flex-direction:column; }
+  .ins-row{ display:flex; align-items:center; gap:var(--sp-sm); padding:var(--sp-xs) 0; border-top:1px solid var(--border-subtle); }
+  .ins-row:first-child{ border-top:0; }
+  .ins-av{ flex:0 0 auto; width:32px; height:32px; border-radius:50%; display:grid; place-items:center; background:var(--bg-strong); color:var(--text-subtle); font-weight:var(--fw-semibold); }
+  .ins-main{ flex:1 1 auto; min-width:0; }
+  .ins-name{ display:block; font-weight:var(--fw-semibold); color:var(--text-default); overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .ins-why{ display:flex; flex-wrap:wrap; gap:var(--sp-xxs); margin-top:2px; color:var(--text-muted); }
+  .ins-tag{ display:inline-flex; align-items:center; gap:var(--sp-xxs); padding:0 var(--sp-xs); border-radius:var(--r-pill); background:var(--warning-light); color:var(--text-default); }
+  .ins-tag.is-high{ background:var(--danger-light); color:var(--danger-text); font-weight:var(--fw-semibold); }
+  .ins-acts{ flex:0 0 auto; display:flex; gap:var(--sp-xxs); }
+  .ins-btn{ height:28px; display:inline-flex; align-items:center; gap:var(--sp-xxs); padding:0 var(--sp-xs); border:1px solid var(--border-default); border-radius:var(--r-sm); background:var(--surface); color:var(--text-default); font:inherit; font-size:var(--fs-sm); cursor:pointer; }
+  .ins-btn:hover{ background:var(--hover-tint); }
+  .ins-btn.is-icon{ width:28px; justify-content:center; padding:0; color:var(--text-subtle); }
+  .ins-btn.is-primary{ background:var(--primary); border-color:var(--primary); color:var(--on-primary); }
+  .ins-btn.is-primary:hover{ background:var(--primary-dark); }
+  .ins-foot{ display:flex; align-items:center; justify-content:space-between; gap:var(--sp-sm); margin-top:var(--sp-sm); padding-top:var(--sp-xs); border-top:1px solid var(--border-subtle); color:var(--text-muted); }
+  .ins-foot a{ white-space:nowrap; }
+  .ins-kpis{ display:grid; grid-template-columns:repeat(auto-fit, minmax(110px, 1fr)); gap:var(--sp-sm); margin-bottom:var(--sp-sm); }
+  .ins-kpi .b-big{ font-size:var(--fs-h4); }
+  .ins-delta{ color:var(--success-text); font-weight:var(--fw-medium); }
+  .ins-delta.is-down{ color:var(--danger); }
+  .ins-table{ width:100%; border-collapse:collapse; font-variant-numeric:tabular-nums; }
+  .ins-table th, .ins-table td{ padding:var(--sp-xxs) var(--sp-xs); border-bottom:1px solid var(--border-subtle); text-align:right; }
+  .ins-table th:first-child, .ins-table td:first-child{ text-align:left; max-width:0; width:50%; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .ins-table th{ color:var(--text-subtle); font-weight:var(--fw-semibold); }
+  /* ---- message dialog: core's bulk "Send message" dialog (core_message/message_send_bulk),
+     plus recipients you can see and remove, a suggested message, a preview, and optional AI help ---- */
+  .msg-dialog{
+    width:min(720px, calc(100vw - 2 * var(--sp-xl))); max-height:calc(100vh - 2 * var(--sp-xl));
+    padding:0; border:1px solid var(--border-default); border-radius:var(--r-md);
+    background:var(--surface); color:var(--text-default); box-shadow:var(--shadow-lg); overflow:hidden;
+  }
+  .msg-dialog[open]{ display:grid; grid-template-rows:auto minmax(0, 1fr) auto; }
+  .msg-dialog::backdrop{ background:var(--overlay); }
+  .msg-body{ overflow:auto; padding:var(--sp-md); display:flex; flex-direction:column; gap:var(--sp-md); font-size:var(--fs-sm); }
+  .msg-label{ display:block; margin-bottom:var(--sp-xxs); font-weight:var(--fw-semibold); color:var(--text-default); }
+  .msg-to{ display:flex; flex-wrap:wrap; gap:var(--sp-xxs); }
+  .msg-chip{ display:inline-flex; align-items:center; gap:var(--sp-xxs); max-width:100%; height:28px; padding:0 var(--sp-xxs) 0 var(--sp-sm); border-radius:var(--r-pill); background:var(--bg-strong); color:var(--text-default); }
+  .msg-chip span{ overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .msg-chip button{ width:24px; height:24px; border:0; border-radius:50%; background:transparent; color:var(--text-subtle); cursor:pointer; }
+  .msg-chip button:hover{ background:var(--hover-tint-strong); }
+  .msg-chip.is-blocked{ background:var(--warning-light); }
+  .msg-chip.is-more{ padding-right:var(--sp-sm); color:var(--text-subtle); }
+  .msg-note{ margin:var(--sp-xxs) 0 0; color:var(--text-muted); }
+  .msg-text{ width:100%; min-height:132px; padding:var(--sp-xs) var(--sp-sm); border:1px solid var(--border-ring); border-radius:var(--r-sm); background:var(--surface); color:var(--text-default); font:inherit; font-size:var(--fs-md); line-height:var(--lh-md); resize:vertical; }
+  .msg-row{ display:flex; flex-wrap:wrap; align-items:center; gap:var(--sp-xs); margin-top:var(--sp-xs); }
+  .msg-ai{ display:inline-flex; align-items:center; gap:var(--sp-xxs); }
+  .msg-ai[hidden], .msg-ai-opts[hidden], .msg-ai-flag[hidden]{ display:none; }
+  .msg-ai-opts{ display:flex; flex-wrap:wrap; gap:var(--sp-xxs); }
+  .msg-ai-flag{ display:flex; align-items:center; gap:var(--sp-xs); padding:var(--sp-xs) var(--sp-sm); border-radius:var(--r-sm); background:var(--info-light); color:var(--text-default); }
+  .msg-ai-flag button{ border:0; background:none; padding:0; color:var(--primary); font:inherit; text-decoration:underline; cursor:pointer; }
+  .msg-preview{ border:1px solid var(--border-default); border-radius:var(--r-md); background:var(--bg-subtle); padding:var(--sp-sm); }
+  .msg-preview-head{ display:flex; align-items:center; justify-content:space-between; gap:var(--sp-xs); margin-bottom:var(--sp-xs); }
+  .msg-preview-head b{ overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .msg-bubble{ white-space:pre-wrap; padding:var(--sp-sm); border-radius:var(--r-lg); background:var(--surface); border:1px solid var(--border-subtle); line-height:var(--lh-md); font-size:var(--fs-md); }
+  .msg-from{ margin-top:var(--sp-xxs); color:var(--text-muted); }
+  .msg-check{ display:flex; align-items:center; gap:var(--sp-xs); }
+  .msg-check input{ width:16px; height:16px; }
+  .msg-check[hidden]{ display:none; }
+  .ins-role{ padding:0 var(--sp-xs); border-radius:var(--r-pill); background:var(--primary-light); color:var(--text-feedback-primary); }
+  .ins-rowbtn{ width:100%; border:0; border-top:1px solid var(--border-subtle); background:none; font:inherit; font-size:var(--fs-sm); color:inherit; text-align:left; cursor:pointer; }
+  .ins-rowbtn:first-child{ border-top:0; }
+  .ins-rowbtn:hover .ins-name{ text-decoration:underline; }
+  .ins-rowbtn .ins-name{ color:var(--primary); }
+  .ins-when{ flex:0 0 auto; display:inline-flex; align-items:center; gap:var(--sp-xxs); color:var(--text-muted); white-space:nowrap; }
+  .ins-when.is-hot{ color:var(--danger-text); font-weight:var(--fw-semibold); }
+  .ins-group{ display:flex; justify-content:space-between; gap:var(--sp-xs); margin-top:var(--sp-sm); padding-bottom:var(--sp-xxs); font-weight:var(--fw-semibold); color:var(--text-subtle); border-bottom:1px solid var(--border-default); }
+  .ins-group:first-child{ margin-top:0; }
+  .ins-group span{ font-weight:var(--fw-regular); color:var(--text-muted); }
+  .ins-group + .ins-row{ border-top:0; }
+  .ins-select{ height:28px; max-width:50%; padding:0 var(--sp-xs); border:1px solid var(--border-ring); border-radius:var(--r-sm); background:var(--surface); color:var(--text-default); font:inherit; font-size:var(--fs-sm); }
+  .ins-ready{ align-items:flex-start; }
+  .ins-flag{ flex:0 0 auto; color:var(--danger); padding-top:2px; }
+  .ins-what{ color:var(--text-default); }
+  .ins-fixrow{ display:flex; flex-wrap:wrap; gap:var(--sp-sm); margin-top:var(--sp-xxs); }
+  .ins-fixrow a{ font-weight:var(--fw-semibold); }
+  .ins-link{ border:0; background:none; padding:0; color:var(--text-muted); font:inherit; text-decoration:underline; cursor:pointer; }
+  .todo-sec + .todo-sec{ margin-top:var(--sp-md); }
+  .todo-head{ margin:0 0 var(--sp-xs); font-size:var(--fs-md); font-weight:var(--fw-semibold); color:var(--text-default); }
+  .ins-section{ margin-top:var(--sp-sm); }
+  .ins-section:first-child{ margin-top:0; }
+  .ins-sechead{ margin-bottom:var(--sp-xxs); color:var(--text-default); }
+  .ins-sechead a{ margin-left:var(--sp-xs); }
+  .ins-of{ font-size:var(--fs-md); font-weight:var(--fw-regular); color:var(--text-muted); }
+  .ins-meterbar{ height:8px; margin:var(--sp-xxs) 0; border-radius:var(--r-pill); background:var(--bg-strong); overflow:hidden; }
+  .ins-meterbar i{ display:block; height:100%; background:var(--danger); }
+  .ins-note{ margin-top:var(--sp-sm); padding:var(--sp-xs) var(--sp-sm); border-radius:var(--r-sm); background:var(--info-light); color:var(--text-default); }
+  .b-new{ display:inline-block; padding:0 var(--sp-xs); border-radius:var(--r-pill); background:var(--success-light); color:var(--success-text); font-weight:var(--fw-semibold); }
+  .tile-phase{ display:none; flex:0 0 auto; margin-left:var(--sp-xs); padding:0 var(--sp-xs); border-radius:var(--r-pill); border:1px dashed var(--border-ring); color:var(--text-subtle); font-size:var(--fs-sm); white-space:nowrap; }
+  body.show-phases .tile-phase{ display:inline-block; }
+  .ins-concept{ display:flex; align-items:center; gap:var(--sp-xs); margin-bottom:var(--sp-sm); padding:var(--sp-xxs) var(--sp-sm); border:1px dashed var(--border-ring); border-radius:var(--r-sm); color:var(--text-subtle); }
+  .ins-stats{ display:grid; grid-template-columns:repeat(auto-fit, minmax(180px, 1fr)); gap:var(--sp-md); }
+  .ins-stat .b-big{ font-size:var(--fs-h4); }
+  .ins-trend{ color:var(--text-muted); }
+  .ins-zero{ padding:var(--sp-md) 0; text-align:center; color:var(--text-muted); }
+  .ins-zero i{ display:block; margin-bottom:var(--sp-xxs); font-size:var(--fs-h4); color:var(--success-text); }
   .b-avatars{ display:flex; margin:var(--sp-xs) 0; }
   .b-avatars span{ width:28px; height:28px; border-radius:50%; margin-right:-6px; border:2px solid var(--surface); background:var(--gradient-avatar); }
   .b-text p{ margin:0 0 var(--sp-xs); line-height:var(--lh-md); }
@@ -979,13 +1082,19 @@
   body.hide-dev .debug{ display:none; }
 
   .devpanel{
-    position:fixed; bottom:16px; z-index:60; width:186px;
+    position:fixed; bottom:16px; z-index:60;
     /* bottom-left, aligned with the course index's left edge; 100% not 100vw
        so the centring ignores the scrollbar */
     left:max(12px, calc((100% - var(--shell-max)) / 2));
     background:#fff; border:1px solid var(--border-default); border-radius:var(--r-md);
     box-shadow:0 8px 28px rgba(0,0,0,.16); padding:var(--sp-sm);
+    /* Many state axes: two columns, and scroll rather than run off the top of the window. */
+    width:392px; column-count:2; column-gap:var(--sp-md);
+    max-height:calc(100vh - 32px); overflow-y:auto;
   }
+  .devpanel h5{ break-after:avoid; }
+  .devpanel .devrow{ break-inside:avoid; }
+  .devpanel.min{ column-count:1; }
   .devpanel h5{
     margin:0 0 6px; font-size:.625rem; text-transform:uppercase;
     letter-spacing:.5px; color:var(--text-muted); padding-right:26px;
@@ -1221,7 +1330,7 @@
         <div class="nav-divider"></div>
         <div class="profile">
           <span class="avatar">S</span>
-          <span class="pname">Sarah</span>
+          <span class="pname" id="dashUserName">Priya</span>
           <i class="fa-solid fa-chevron-down"></i>
         </div>
       </div>
@@ -1280,7 +1389,7 @@
     <main class="content-col">
       <div id="prototype-content">
         <div class="dash">
-          <h1 class="dash-greeting">Hi, Sarah! 👋</h1>
+          <h1 class="dash-greeting" id="dashGreeting">Hi, Priya! 👋</h1>
 
           <div class="dash-toolbar" id="dashToolbar" role="region" aria-label="Dashboard editing">
             <div class="tb-lead">
@@ -1292,8 +1401,7 @@
               <button class="btn btn-ghost" id="resetBtn">Reset page to default</button>
               <button class="btn btn-secondary" id="doneBtn">Done</button>
               <button class="btn btn-primary" id="addBtn"
-                      data-annot="Opens the block browser: search or browse, then Insert. State › Block library brings back the drawer."
-                      data-annot-side="bottom"><i class="fa-solid fa-plus" aria-hidden="true"></i>Add a block</button>
+><i class="fa-solid fa-plus" aria-hidden="true"></i>Add a block</button>
             </div>
           </div>
 
@@ -1327,6 +1435,55 @@
             <div class="dash-confirm-actions">
               <button class="btn btn-secondary" id="resetCancel">Cancel</button>
               <button class="btn btn-danger" id="resetConfirm">Reset dashboard</button>
+            </div>
+          </dialog>
+
+          <dialog class="msg-dialog" id="msgDialog" aria-labelledby="msgTitle">
+            <div class="blk-top">
+              <h2 id="msgTitle">Send message</h2>
+              <button class="blk-close" id="msgClose" aria-label="Close" title="Close"><i class="fa-solid fa-xmark" aria-hidden="true"></i></button>
+            </div>
+            <div class="msg-body">
+              <div>
+                <span class="msg-label" id="msgToLabel">To</span>
+                <div class="msg-to" id="msgTo" role="list" aria-labelledby="msgToLabel"></div>
+                <p class="msg-note" id="msgToNote"></p>
+              </div>
+              <div>
+                <label class="msg-label" for="msgText">Message</label>
+                <textarea class="msg-text" id="msgText"></textarea>
+                <p class="msg-note" id="msgHint">Use {first name} and each person sees their own name.</p>
+                <div class="msg-row">
+                  <button class="ins-btn msg-ai" id="msgAiBtn" aria-expanded="false"><i class="fa-solid fa-wand-magic-sparkles" aria-hidden="true"></i>Help me write this</button>
+                  <div class="msg-ai-opts" id="msgAiOpts" role="group" aria-label="Rewrite with AI" hidden>
+                    <button class="ins-chip" data-tone="warmer">Warmer</button>
+                    <button class="ins-chip" data-tone="shorter">Shorter</button>
+                    <button class="ins-chip" data-tone="formal">More formal</button>
+                  </div>
+                </div>
+                <div class="msg-ai-flag" id="msgAiFlag" role="status" hidden>
+                  <i class="fa-solid fa-wand-magic-sparkles" aria-hidden="true"></i>
+                  <span>Rewritten with AI. Check it before you send.</span>
+                  <button id="msgAiUndo">Undo</button>
+                </div>
+              </div>
+              <div class="msg-preview">
+                <div class="msg-preview-head">
+                  <b id="msgPreviewWho" aria-live="polite">Preview</b>
+                  <span>
+                    <button class="ins-btn is-icon" id="msgPrev" aria-label="Previous recipient"><i class="fa-solid fa-chevron-left" aria-hidden="true"></i></button>
+                    <button class="ins-btn is-icon" id="msgNext" aria-label="Next recipient"><i class="fa-solid fa-chevron-right" aria-hidden="true"></i></button>
+                  </span>
+                </div>
+                <div class="msg-bubble" id="msgBubble"></div>
+                <div class="msg-from" id="msgFrom"></div>
+              </div>
+              <p class="msg-note" id="msgDelivery"></p>
+              <label class="msg-check" id="msgAckWrap"><input type="checkbox" id="msgAck" checked> Mark these as acknowledged after sending</label>
+            </div>
+            <div class="blk-foot">
+              <button class="btn btn-secondary" id="msgCancel">Cancel</button>
+              <button class="btn btn-primary" id="msgSend">Send</button>
             </div>
           </dialog>
 
@@ -1411,15 +1568,37 @@
     <button class="devmin" id="devMin" aria-expanded="false" title="Restore the state switcher">
       <i class="fa-solid fa-flask" id="devMinIcon"></i><span id="devMinLabel">State</span>
     </button>
+    <h5>Role</h5>
+    <div class="devrow" id="roleSwitch">
+      <button class="devbtn" data-v="student">Student</button>
+      <button class="devbtn on" data-v="teacher">Teacher</button>
+      <button class="devbtn" data-v="admin">Administrator</button>
+    </div>
+    <h5>Phase</h5>
+    <div class="devrow" id="phaseSwitch">
+      <button class="devbtn" data-v="1">1 (today)</button>
+      <button class="devbtn" data-v="2">2</button>
+      <button class="devbtn on" data-v="3">3 (end)</button>
+    </div>
+    <h5>Insight data</h5>
+    <div class="devrow" id="dataSwitch">
+      <button class="devbtn on" data-v="typical">Typical</button>
+      <button class="devbtn" data-v="clear">All clear</button>
+    </div>
+    <h5>Phase labels</h5>
+    <div class="devrow" id="phaseTagSwitch">
+      <button class="devbtn on" data-v="hidden">Hidden</button>
+      <button class="devbtn" data-v="shown">Shown</button>
+    </div>
+    <h5>AI writing</h5>
+    <div class="devrow" id="aiSwitch">
+      <button class="devbtn on" data-v="on">Available</button>
+      <button class="devbtn" data-v="off">Off</button>
+    </div>
     <h5>Page width</h5>
     <div class="devrow" id="widthSwitch">
       <button class="devbtn" data-width="limited">Limited 830</button>
       <button class="devbtn on" data-width="full">Full</button>
-    </div>
-    <h5>Nav cap</h5>
-    <div class="devrow" id="capSwitch">
-      <button class="devbtn on" data-cap="1440px">1440 (design)</button>
-      <button class="devbtn" data-cap="1320px">1320 (current)</button>
     </div>
     <h5>Mode</h5>
     <div class="devrow" id="modeSwitch">
@@ -1431,30 +1610,10 @@
       <button class="devbtn on" data-v="default">Default</button>
       <button class="devbtn" data-v="empty">Empty</button>
     </div>
-    <h5>Theme</h5>
-    <div class="devrow" id="themeSwitch">
-      <button class="devbtn on" data-v="light">Light</button>
-      <button class="devbtn" data-v="dark">Dark</button>
-    </div>
-    <h5>Connection</h5>
-    <div class="devrow" id="netSwitch">
-      <button class="devbtn on" data-v="online">Online</button>
-      <button class="devbtn" data-v="offline">Offline</button>
-    </div>
-    <h5>Block library</h5>
-    <div class="devrow" id="libSwitch">
-      <button class="devbtn on" data-v="browser">Browser</button>
-      <button class="devbtn" data-v="drawer">Drawer</button>
-    </div>
-    <h5>Marketplace</h5>
-    <div class="devrow" id="marketSwitch">
-      <button class="devbtn on" data-v="on">Reachable</button>
-      <button class="devbtn" data-v="off">Unreachable</button>
-    </div>
     <h5>Six columns from</h5>
     <div class="devrow" id="sixSwitch">
       <button class="devbtn" data-v="1180">1180px</button>
-      <button class="devbtn on" data-v="1921">1921px (branch)</button>
+      <button class="devbtn on" data-v="1600">1600px (branch)</button>
     </div>
     <h5>Review aids</h5>
     <div class="devrow">
@@ -1720,7 +1879,7 @@
      from the previous frame, so a wobbly drag cannot accumulate changes.
      ============================================================ */
   var ROW = 96, GAP = 16, NAV_H = 64;
-  var TH = { six:1921, four:720, two:480 };   // grid-width thresholds (six is switchable in State)
+  var TH = { six:1600, four:920, two:690 };   // grid-width thresholds (six is switchable in State)
   var DEFAULT_MIN = { w:1, h:2 };            // one default minimum for every block (MDL-89636)
   var reduceMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
 
@@ -1729,8 +1888,9 @@
   var CATALOG = {
     myoverview:           { title:"Course overview", icon:"fa-solid fa-graduation-cap", w:4, h:5, min:{ w:2, h:3 },
                             desc:"All your courses with progress bars, plus filters and search to find the one you need." },
-    timeline:             { title:"Timeline", icon:"fa-regular fa-clock", w:4, h:4, min:{ w:2, h:3 },
-                            desc:"What's due next and what's overdue, across every course, sorted by date or by course." },
+    timeline:             { title:"To do", icon:"fa-solid fa-list-check", w:4, h:4, min:{ w:2, h:3 },
+                            why:"Replaces Timeline for everyone. Teachers see marking, replies and approvals first, kept until done; deadlines follow, looking back 14 days as now. Why: 3 research sources name grading and unread posts as what teachers check first, and one list means one place to look.",
+                            desc:"Marking, replies and approvals waiting on you, then what's due next and what's overdue, across every course." },
     calendar_month:       { title:"Calendar", icon:"fa-regular fa-calendar", w:2, h:4, min:{ w:2, h:4 },
                             desc:"This month at a glance, with course, group and site events you can open in one click." },
     recentlyaccesseditems:{ title:"Recently accessed items", icon:"fa-solid fa-clock-rotate-left", w:2, h:3,
@@ -1753,6 +1913,20 @@
        its icon and summary from the Marketplace (see MARKET below) when the
        site can reach it; the other two are in-house blocks a university might
        build, which are on no marketplace. */
+    /* Role blocks by phase (dashboard-block-concepts.md). Each is built from data
+       Moodle already holds; phase says when it arrives, roles who it is offered to. */
+    teachcourses:         { title:"Courses I work on", why:"Lets teachers and designers get straight back to their courses. Why: 2 studies found the dashboard doesn't help staff, and one university built its own version.", icon:"fa-solid fa-chalkboard-user", w:3, h:5, min:{ w:2, h:2 }, roles:["teacher","admin"], phase:2,
+                            desc:"Courses where you're a teacher or learning designer, whether or not you're enrolled. Most recently viewed first." },
+    attention:            { title:"Students who need attention", why:"Lets teachers spot students falling behind and message them early. Why: 3 customers in 2 studies asked for this without prompting.", icon:"fa-solid fa-user-clock", w:4, h:6, min:{ w:3, h:3 }, roles:["teacher"], phase:3,
+                            desc:"Students who've been inactive, or whose completion is below the class. Message them from here." },
+    readiness:            { title:"Course readiness", why:"Lets teachers fix setup problems before students hit them. Why: nobody asked for this. It comes from support stories, like a teacher reporting every week that their forum doesn't work. To test: does it read as help or nagging?", icon:"fa-solid fa-clipboard-check", w:2, h:5, min:{ w:2, h:2 }, roles:["teacher"], phase:3,
+                            desc:"Settings that look fine to you but stop students taking part, with a link to fix each one." },
+    access:               { title:"Access and enrolment", why:"Lets admins find students who can't get into a new course or group, and sort it out before they ask for help. Why: they're the 2 biggest causes of service desk calls at term start, from our research.", icon:"fa-solid fa-door-closed", w:3, h:5, min:{ w:3, h:2 }, roles:["admin"], phase:3,
+                            desc:"New students who've never opened their course, and students left out of groups." },
+    storage:              { title:"Storage", why:"Lets admins see where storage is going and find old courses. Why: a 2025 study of 6 universities in 6 countries found admins can't see what's using storage or what's out of date.", icon:"fa-solid fa-hard-drive", w:3, h:5, min:{ w:2, h:2 }, roles:["admin"], phase:3,
+                            desc:"Storage used and its trend, the largest courses, and courses nobody has changed in years." },
+    siteactivity:         { title:"Engagement overview", why:"Shows how much the site is used, as a starting point for talking with admins. Why: no research yet. It's the block most often assumed, but we've never asked admins what site data they need.", icon:"fa-solid fa-chart-column", w:6, h:3, min:{ w:2, h:2 }, roles:["admin"], phase:3,
+                            desc:"A concept to shape with administrators: how much the site is used, and where." },
     completion_progress:  { title:"Completion Progress", thirdparty:true },
     libraryhours:         { title:"Library opening hours", thirdparty:true },
     wellbeing:            { title:"Student wellbeing check-in for first-year undergraduate programmes", thirdparty:true }
@@ -1781,16 +1955,30 @@
           ["t3", "fa-landmark", "World History II", "Humanities", 85],
           ["t4", "fa-flask", "Chemistry Lab Skills", "Science", 12]
         ];
+        var fresh = PHASE >= 2 ? [
+          ["t2", "fa-seedling", "BIO-2150: Field Ecology and Conservation Practice", "Biology", "Starts 14 October"],
+          ["t3", "fa-scale-balanced", "ETH-1001: Ethics in Science", "Humanities", "Started this week"]
+        ] : [];
         return '<div class="b-filters"><span class="b-chip">All <i class="fa-solid fa-chevron-down" aria-hidden="true"></i></span>'
           + '<span class="b-chip"><i class="fa-solid fa-magnifying-glass" aria-hidden="true"></i> Search</span>'
-          + '<span class="b-chip">Course name <i class="fa-solid fa-chevron-down" aria-hidden="true"></i></span></div>'
-          + '<div class="b-list">' + courses.map(function(c){
+          + '<span class="b-chip">' + (PHASE >= 2 ? 'Last accessed' : 'Course name') + ' <i class="fa-solid fa-chevron-down" aria-hidden="true"></i></span></div>'
+          + '<div class="b-list">' + fresh.map(function(c, i){
+            return '<div class="b-course"><span class="b-thumb ' + c[0] + '" aria-hidden="true"><i class="fa-solid ' + c[1] + '"></i></span>'
+              + '<div class="b-main"><a class="b-name" href="#" title="' + esc(c[2]) + '">' + esc(c[2]) + '</a>'
+              + '<div class="b-meta"><span class="b-new"' + (i === 0 ? ' data-annot="Courses you\'ve never opened show first, labelled New, so a new enrolment can\'t hide at the bottom." data-annot-side="right"' : '') + '>New</span> ' + c[3] + ' · ' + c[4] + '</div></div></div>';
+          }).join("") + courses.map(function(c){
             return '<div class="b-course"><span class="b-thumb ' + c[0] + '" aria-hidden="true"><i class="fa-solid ' + c[1] + '"></i></span>'
               + '<div class="b-main"><a class="b-name" href="#" title="' + esc(c[2]) + '">' + esc(c[2]) + '</a>'
               + '<div class="b-meta">' + c[3] + ' · ' + c[4] + '% complete</div>'
               + '<div class="b-bar" aria-hidden="true"><i style="width:' + c[4] + '%"></i></div></div></div>';
           }).join("") + '</div>';
       case "timeline":
+        if(ROLE === "teacher" && PHASE >= 2) return '<div class="todo-sec"><h3 class="todo-head">Waiting on you</h3>' + waitingHTML() + '</div>'
+          + '<div class="todo-sec"><h3 class="todo-head">Due dates</h3>'
+          + '<div class="b-filters"><span class="b-chip">Next 7 days <i class="fa-solid fa-chevron-down" aria-hidden="true"></i></span>'
+          + '<span class="b-chip">Sort by dates <i class="fa-solid fa-chevron-down" aria-hidden="true"></i></span></div>'
+          + '<div class="b-day">Thursday, 15 October</div>'
+          + ev("Module 3 quiz: giving feedback online", "Teaching with Moodle (staff development)", "17:00") + '</div>';
         return '<div class="b-filters"><span class="b-chip">Next 7 days <i class="fa-solid fa-chevron-down" aria-hidden="true"></i></span>'
           + '<span class="b-chip">Sort by dates <i class="fa-solid fa-chevron-down" aria-hidden="true"></i></span></div>'
           + '<div class="b-day">Overdue</div>'
@@ -1816,6 +2004,12 @@
         return '<div class="b-big">' + AWKWARD.bigCount.toLocaleString("en") + '</div><div class="b-meta">online in the last 5 minutes</div>'
           + '<div class="b-avatars" aria-hidden="true"><span></span><span></span><span></span><span></span><span></span></div>'
           + '<div class="b-meta">Including 14 people from your courses</div>';
+      case "teachcourses": return teachHTML();
+      case "attention": return attentionHTML();
+      case "readiness": return readinessHTML();
+      case "access": return accessHTML();
+      case "storage": return storageHTML();
+      case "siteactivity": return siteActivityHTML();
       case "html":
         return '<div class="b-text"><p>Fieldwork week runs 12 to 16 October. Transport leaves the main gate at 8:00 each day.</p><p><a href="#">Read the fieldwork safety guidance</a></p></div>';
       default:
@@ -1830,6 +2024,219 @@
         + '<span class="b-due">' + due + '</span></div>';
     }
   }
+
+  /* ---------- role blocks, by phase ----------
+     Data is invented, but every number stands for something Moodle already holds.
+     Phase 1 is the grid with today's blocks; phase 2 gives each role a dashboard
+     that fits their work; phase 3 adds progress and support content. */
+  var ROLE = "teacher", PHASE = 3;   // the end state by default; State › Phase shows phases 1 and 2
+  var DATA_CLEAR = false;            // State › Insight data › All clear: nothing needs attention
+  var ROLE_NAMES = { student:"Sarah", teacher:"Priya", admin:"Jordan" };
+  function available(t){
+    var d = CATALOG[t];
+    return (!d.roles || d.roles.indexOf(ROLE) > -1) && PHASE >= (d.phase || 1);
+  }
+
+  /* B1: courses where you hold a course contact role (Site administration >
+     Appearance > Courses > Course contacts), at course or category level,
+     whether or not you are enrolled. Recently viewed first, six then View all. */
+  var TEACH = [
+    { name:"BIO-2041: Photosynthesis, Cellular Respiration and Plant Physiology (Semester 2, 2026)", cat:"Biology › Second year", role:"Teacher", seen:"Viewed today", star:true },
+    { name:"Introduction to Statistics", cat:"Mathematics", role:"Teacher", seen:"Viewed yesterday" },
+    { name:"Chemistry Lab Skills", cat:"Science", role:"Non-editing teacher", seen:"Viewed 3 days ago" },
+    { name:"Postgraduate Certificate in Higher Education Practice: Module 3, Assessment Design and Feedback Literacy", cat:"Academic Development", role:"Learning designer", seen:"Viewed last week", notenrolled:true },
+    { name:"BIO-3050: Plant Ecology (Semester 1, 2027)", cat:"Biology › Third year", role:"Learning designer", seen:"Viewed 2 weeks ago", hidden:true, notenrolled:true },
+    { name:"Fieldwork Safety Induction", cat:"Faculty of Science", role:"Manager (category)", seen:"Viewed last month", notenrolled:true }
+  ];
+  function teachHTML(){
+    return '<div class="ins-rows">' + TEACH.map(function(c, i){
+      return '<div class="ins-row"><div class="ins-main"><a class="ins-name" href="#" title="' + esc(c.name) + '">' + esc(c.name) + '</a>'
+        + '<div class="ins-why"><span>' + esc(c.cat) + '</span><span class="ins-role">' + esc(c.role) + '</span>'
+        + (c.hidden ? '<span class="ins-tag"><i class="fa-regular fa-eye-slash" aria-hidden="true"></i>Hidden from students</span>' : '')
+        + '<span>' + c.seen + '</span></div></div>'
+        + '<div class="ins-acts"><button class="ins-btn is-icon" data-ins="star" data-i="' + i + '" aria-pressed="' + !!c.star + '" aria-label="' + (c.star ? 'Unstar ' : 'Star ') + esc(c.name) + '" title="' + (c.star ? 'Starred' : 'Star') + '"><i class="fa-' + (c.star ? 'solid' : 'regular') + ' fa-star" aria-hidden="true"></i></button>'
+        + '<a class="ins-btn is-icon" href="#" data-ins="settings" aria-label="Settings for ' + esc(c.name) + '" title="Course settings"><i class="fa-solid fa-gear" aria-hidden="true"></i></a></div></div>';
+    }).join("") + '</div>'
+    + '<div class="ins-foot"><span>Courses where you\'re a course contact</span><a href="#">View all 34</a></div>';
+  }
+
+  /* B2, now the "Waiting on you" section of To do (teachers only): the alerts each activity already counts on the Activities overview page
+     (assignment needs grading, forum unread, database and glossary to approve),
+     gathered across courses; quiz manual grading and workshop phase are new. */
+  var WAIT = [
+    { id:"w1", icon:"fa-file-pen", t:"t4", act:"Lab report 3", course:"Chemistry Lab Skills", what:"18 submissions need grading", when:"Due 19 days ago", type:"grade", hot:true },
+    { id:"w2", icon:"fa-comments", t:"t1", act:"Week 7 Q&A", course:"BIO-2041", what:"3 questions waiting for a reply · 7 unread posts", when:"Last post 2 hours ago", type:"reply", hot:true },
+    { id:"w3", icon:"fa-list-check", t:"t2", act:AWKWARD.longName, course:"BIO-2041", what:"11 answers need manual grading", when:"Closed yesterday", type:"grade" },
+    { id:"w4", icon:"fa-file-pen", t:"t4", act:"Essay 1: interpreting a dataset", course:"Introduction to Statistics", what:(1148).toLocaleString("en") + " submissions need grading", when:"Due Friday", type:"grade" },
+    { id:"w5", icon:"fa-database", t:"t3", act:"Field observations", course:"BIO-2041", what:"4 entries to approve", when:"Oldest 2 days ago", type:"approve" }
+  ];
+  var waitFilter = "all";
+  function waitingHTML(){
+    var wait = DATA_CLEAR ? [] : WAIT;
+    var count = function(k){ return wait.filter(function(w){ return k === "all" || w.type === k; }).length; };
+    var chip = function(k, label){ return '<button class="ins-chip" data-ins="wfilter" data-v="' + k + '" aria-pressed="' + (waitFilter === k) + '">' + label + ' (' + count(k) + ')</button>'; };
+    var shown = wait.filter(function(w){ return waitFilter === "all" || w.type === waitFilter; });
+    return '<div class="ins-chips" role="group" aria-label="Filter by what is needed">'
+      + chip("all", "All") + chip("grade", "To grade") + chip("reply", "To reply") + chip("approve", "To approve") + '</div>'
+      + '<div class="ins-rows">' + shown.map(function(w){
+        return '<button class="ins-row ins-rowbtn" data-ins="open" data-name="' + esc(w.act) + '" data-type="' + w.type + '">'
+          + '<span class="b-thumb ' + w.t + '" aria-hidden="true"><i class="fa-solid ' + w.icon + '"></i></span>'
+          + '<span class="ins-main"><span class="ins-name" title="' + esc(w.act) + '">' + esc(w.act) + '</span>'
+          + '<span class="ins-why"><span>' + esc(w.course) + '</span><span>' + esc(w.what) + '</span></span></span>'
+          + '<span class="ins-when' + (w.hot ? ' is-hot' : '') + '">' + (w.hot ? '<i class="fa-solid fa-circle-exclamation" aria-hidden="true"></i>' : '') + esc(w.when) + '</span></button>';
+      }).join("") + (shown.length ? '' : '<div class="ins-zero"><i class="fa-solid fa-circle-check" aria-hidden="true"></i>Nothing is waiting on you.</div>') + '</div>';
+  }
+
+  /* B4: behind means inactive (no access for 7+ days, or never since the course
+     started) or completion below the class average. Grouped by course. */
+  var COURSES4 = { bio:{ name:"BIO-2041", total:9, avg:6 }, stats:{ name:"Introduction to Statistics", total:8, avg:5 }, chem:{ name:"Chemistry Lab Skills", total:6, avg:4 } };
+  var ATTENTION = [
+    { id:"s1", name:AWKWARD.longPerson, first:"Wilhelmina", c:"bio", idle:"No access for 16 days", done:3 },
+    { id:"s3", name:"Mei Tanaka", first:"Mei", c:"bio", done:2 },
+    { id:"s6", name:"Noah Williams", first:"Noah", c:"bio", idle:"No access for 21 days", done:7 },
+    { id:"s2", name:"Liam O'Connor", first:"Liam", c:"stats", idle:"Not opened since the course started", done:0 },
+    { id:"s5", name:"Sofia Rossi", first:"Sofia", c:"stats", done:1, blocked:true },
+    { id:"s4", name:"Ahmed Hassan", first:"Ahmed", c:"chem", done:1 }
+  ];
+  ATTENTION.forEach(function(a){
+    var c = COURSES4[a.c]; a.course = c.name; a.total = c.total; a.avg = c.avg;
+    a.behind = a.done < c.avg; a.inactive = !!a.idle;
+    a.kind = a.inactive && !a.behind ? "inactive" : !a.inactive ? "behind" : "mixed";
+  });
+  var attnFilter = "all", attnCourse = "all";
+  function attnMatches(a){
+    return !a.ack && (attnCourse === "all" || a.c === attnCourse)
+      && (attnFilter === "all" || (attnFilter === "inactive" ? a.inactive : a.behind));
+  }
+  function attentionHTML(){
+    var list = DATA_CLEAR ? [] : ATTENTION;
+    var base = list.filter(function(a){ return !a.ack && (attnCourse === "all" || a.c === attnCourse); });
+    var n = { all:base.length, inactive:base.filter(function(a){ return a.inactive; }).length, behind:base.filter(function(a){ return a.behind; }).length };
+    var chip = function(k, label){ return '<button class="ins-chip" data-ins="filter" data-v="' + k + '" aria-pressed="' + (attnFilter === k) + '">' + label + ' (' + n[k] + ')</button>'; };
+    var shown = list.filter(attnMatches), html = "", last = null;
+    shown.forEach(function(a){
+      if(a.c !== last){ html += '<div class="ins-group">' + esc(COURSES4[a.c].name) + '<span>class average ' + COURSES4[a.c].avg + ' of ' + COURSES4[a.c].total + ' activities</span></div>'; last = a.c; }
+      var initials = a.name.split(/\s+/).filter(function(w){ return /^[A-Z]/.test(w); }).slice(0, 2).map(function(w){ return w[0]; }).join("");
+      html += '<div class="ins-row" data-row="' + a.id + '"><span class="ins-av" aria-hidden="true">' + initials + '</span>'
+        + '<div class="ins-main"><a class="ins-name" href="#" title="' + esc(a.name) + '">' + esc(a.name) + '</a>'
+        + '<div class="ins-why">'
+        + (a.inactive ? '<span class="ins-tag is-high"><i class="fa-solid fa-circle-exclamation" aria-hidden="true"></i>' + esc(a.idle) + '</span>' : '')
+        + (a.behind ? '<span class="ins-tag"><i class="fa-solid fa-arrow-trend-down" aria-hidden="true"></i>' + a.done + ' of ' + a.total + ' activities done</span>' : '<span>' + a.done + ' of ' + a.total + ' activities done</span>')
+        + '</div></div>'
+        + '<div class="ins-acts"><button class="ins-btn" data-ins="message"><i class="fa-regular fa-envelope" aria-hidden="true"></i>Message</button>'
+        + '<button class="ins-btn is-icon" data-ins="report" data-name="' + esc(a.name) + '" data-course="' + esc(a.course) + '" title="Open course report" aria-label="Open the course report for ' + esc(a.name) + '"><i class="fa-solid fa-chart-simple" aria-hidden="true"></i></button>'
+        + '<button class="ins-btn is-icon" data-ins="ack" title="Acknowledged" aria-label="Mark ' + esc(a.name) + ' as acknowledged"><i class="fa-solid fa-check" aria-hidden="true"></i></button></div></div>';
+    });
+    return '<div class="ins-head"><span class="ins-sum"><b>' + n.all + '</b> students need attention</span>'
+      + '<select class="ins-select" data-ins-select="course" aria-label="Course"><option value="all">All courses</option>'
+      + Object.keys(COURSES4).map(function(k){ return '<option value="' + k + '"' + (attnCourse === k ? ' selected' : '') + '>' + esc(COURSES4[k].name) + '</option>'; }).join("") + '</select></div>'
+      + '<div class="ins-chips" role="group" aria-label="Filter by reason">' + chip("all", "All") + chip("inactive", "Inactive") + chip("behind", "Behind the class") + '</div>'
+      + '<div class="ins-rows">' + html + (shown.length ? '' : '<div class="ins-zero"><i class="fa-solid fa-circle-check" aria-hidden="true"></i>All students are on track.</div>') + '</div>'
+      + '<div class="ins-foot"><span>Inactive 7+ days, or below the class average · updated daily</span>'
+      + '<button class="ins-btn is-primary" data-ins="messageall"><i class="fa-regular fa-envelope" aria-hidden="true"></i>Message all</button></div>';
+  }
+
+  /* B5: checks drawn from documented support problems; each row links to the
+     exact setting that fixes it. "Not a problem" mutes a false positive. */
+  var READY = [
+    { id:"r1", course:"BIO-2041", what:"Q&A forum “Week 8 questions” has no question yet, so students can't post", fix:"Add a question" },
+    { id:"r2", course:"Introduction to Statistics", what:"“Group project discussion” isn't posted to all groups. Students in 3 groups have no Reply button", fix:"Post to all groups" },
+    { id:"r3", course:"Chemistry Lab Skills", what:"4 students aren't in a group, and the course uses separate groups, so they can't post", fix:"Add them to groups" }
+  ];
+  function readinessHTML(){
+    var shown = (DATA_CLEAR ? [] : READY).filter(function(r){ return !r.muted; });
+    return '<div class="ins-rows">' + shown.map(function(r, i){
+      return '<div class="ins-row ins-ready" data-row="' + r.id + '"><span class="ins-flag" aria-hidden="true"><i class="fa-solid fa-triangle-exclamation"></i></span>'
+        + '<div class="ins-main"><div class="ins-what">' + esc(r.what) + '</div><div class="ins-why"><span>' + esc(r.course) + '</span></div>'
+        + '<div class="ins-fixrow"><a href="#" data-ins="fix" data-fix="' + esc(r.fix) + '"' + '' + '>' + esc(r.fix) + '</a>'
+        + '<button class="ins-link" data-ins="mute">Not a problem</button></div></div></div>';
+    }).join("") + (shown.length ? '' : '<div class="ins-zero"><i class="fa-solid fa-circle-check" aria-hidden="true"></i>No issues found in your courses.</div>') + '</div>';
+  }
+
+  /* B6: built from the service desk queue. Two lists, both with counts. */
+  var ACCESS = {
+    never:{ label:"Enrolled in the last 7 days, never opened the course", total:142, courses:23, rows:[
+      { id:"c1", name:"BIO-2041: Photosynthesis, Cellular Respiration and Plant Physiology (Semester 2, 2026)", n:31 },
+      { id:"c2", name:"MATH-1101: Introduction to Statistics", n:24 },
+      { id:"c3", name:"LAW-3010: Contract Law", n:17 } ] },
+    nogroup:{ label:"Not in a group, in courses that use groups", total:37, courses:9, rows:[
+      { id:"c5", name:"CHEM-1200: Chemistry Lab Skills", n:12 },
+      { id:"c4", name:"HIST-2200: World History II", n:9 } ] }
+  };
+  function accessHTML(){
+    if(DATA_CLEAR) return '<div class="ins-zero"><i class="fa-solid fa-circle-check" aria-hidden="true"></i>Every new student has opened their course, and everyone is in a group.</div>'
+      + '<div class="ins-foot"><span>Updated hourly</span><a href="#">View all</a></div>';
+    return ["never", "nogroup"].map(function(k, si){
+      var sec = ACCESS[k];
+      return '<div class="ins-section"><div class="ins-sechead"' + '' + '><b>' + sec.total + ' students</b> in ' + sec.courses + ' courses<div class="b-meta">' + esc(sec.label) + '</div></div>'
+        + '<div class="ins-rows">' + sec.rows.map(function(r){
+          return '<div class="ins-row" data-row="' + r.id + '" data-reason="' + k + '"><div class="ins-main"><a class="ins-name" href="#" title="' + esc(r.name) + '">' + esc(r.name) + '</a><div class="ins-why">' + r.n + ' students</div></div>'
+            + '<div class="ins-acts"><button class="ins-btn is-icon" data-ins="msgstudents" title="Message students" aria-label="Message the ' + r.n + ' students in ' + esc(r.name) + '"><i class="fa-regular fa-envelope" aria-hidden="true"></i></button>'
+            + '<button class="ins-btn" data-ins="nudge"><i class="fa-regular fa-paper-plane" aria-hidden="true"></i>Notify teachers</button></div></div>';
+        }).join("") + '</div></div>';
+    }).join("") + '<div class="ins-foot"><span>Updated hourly</span><a href="#">View all</a></div>';
+  }
+
+  /* B7: file sizes come from Report builder's Files source; retention needs a
+     rule Moodle doesn't have yet (no archive state), so it says so. */
+  function storageHTML(){
+    return '<div class="ins-kpi"><div class="b-big">1.82 TB <span class="ins-of">used</span></div>'
+      + '<div class="b-meta"><span class="ins-delta is-down">+64 GB</span> in the last 30 days</div></div>'
+      + '<div class="ins-section"><div class="ins-sechead"><b>Largest courses</b></div><table class="ins-table"><tbody>'
+      + [["MED-4100: Clinical Skills Video Library", "212 GB"], ["ARCH-3300: Design Studio Portfolio", "148 GB"], ["BIO-2041: Photosynthesis and Plant Physiology", "96 GB"]]
+        .map(function(r){ return '<tr><td title="' + esc(r[0]) + '">' + esc(r[0]) + '</td><td>' + r[1] + '</td></tr>'; }).join("") + '</tbody></table></div>'
+      + '<div class="ins-section"><div class="ins-sechead"><b>412 courses</b> not changed in 3 years or more <a href="#">Review</a></div></div>'
+      + '<div class="ins-foot"><span>Updated daily</span><a href="#">Open the files report</a></div>';
+  }
+  /* Site activity: a concept, not a design. Nothing in the research says what
+     administrators need yet, so it says so on the block. Every number is labelled. */
+  function siteActivityHTML(){
+    var rows = [
+      ["Students active this week", (18432).toLocaleString("en"), "68% of enrolled students", "+4% on last week"],
+      ["Courses with activity this week", (1904).toLocaleString("en"), "of 2,418 visible courses", "+2% on last week"],
+      ["Teachers active this week", (1126).toLocaleString("en"), "of 1,310 teachers", "−1% on last week"],
+      ["Busiest time", "Mon 10:00", "to 12:00, this week", "same as last week"]
+    ];
+    return '<div class="ins-concept"><i class="fa-regular fa-lightbulb" aria-hidden="true"></i>Concept, to shape with administrators before it\'s designed</div>'
+      + '<div class="ins-stats">' + rows.map(function(r){
+        return '<div class="ins-stat"><div class="b-meta">' + esc(r[0]) + '</div><div class="b-big">' + r[1] + '</div>'
+          + '<div class="b-meta">' + esc(r[2]) + '</div><div class="ins-trend">' + esc(r[3]) + '</div></div>';
+      }).join("") + '</div>'
+      + '<div class="ins-foot"><span>Updated daily</span></div>';
+  }
+
+  /* The end state for each role: every phase's blocks together. */
+  var END_STATE = {
+    teacher:[
+      { type:"timeline",       c:0, r:0, w:4, h:7 },
+      { type:"readiness",      c:4, r:0, w:2, h:5 },
+      { type:"calendar_month", c:4, r:5, w:2, h:4 },
+      { type:"attention",      c:0, r:7, w:4, h:6 },
+      { type:"teachcourses",   c:4, r:9, w:2, h:6 }
+    ],
+    admin:[
+      { type:"access",         c:0, r:0, w:3, h:5 },
+      { type:"storage",        c:3, r:0, w:3, h:5 },
+      { type:"siteactivity",   c:0, r:5, w:6, h:3 },
+      { type:"teachcourses",   c:0, r:8, w:4, h:5 },
+      { type:"online_users",   c:4, r:8, w:2, h:3 }
+    ]
+  };
+  /* Phase 2: B1 for teachers and administrators, B2 in To do for teachers. Phase 1 is today's blocks on the grid,
+     the site default for every role. Students get the site default in every phase. */
+  var PHASE2 = {
+    teacher:[
+      { type:"timeline",       c:0, r:0, w:4, h:7 },
+      { type:"teachcourses",   c:4, r:0, w:2, h:6 },
+      { type:"calendar_month", c:4, r:6, w:2, h:4 }
+    ],
+    admin:[
+      { type:"teachcourses",   c:0, r:0, w:4, h:5 },
+      { type:"calendar_month", c:4, r:0, w:2, h:4 },
+      { type:"online_users",   c:4, r:4, w:2, h:3 }
+    ]
+  };
+  function layoutFor(){ return PHASE < 2 ? null : ((PHASE === 2 ? PHASE2 : END_STATE)[ROLE] || null); }
 
   /* The site-default arrangement, at six columns. */
   var DEFAULT_ITEMS = [
@@ -1938,6 +2345,7 @@
       '<header class="tile-head">'
       + '<button class="btn-icon tile-grip" aria-pressed="false" aria-describedby="gripHelp" aria-label="Move ' + esc(title) + '"><i class="fa-solid fa-grip-vertical" aria-hidden="true"></i></button>'
       + '<h2 class="tile-title" id="tt-' + id + '" title="' + esc(title) + '">' + esc(title) + '</h2>'
+      + (t.phase ? '<span class="tile-phase">Phase ' + t.phase + '</span>' : (PHASE >= 2 && (b.type === "myoverview" || b.type === "timeline")) ? '<span class="tile-phase">Improved, phase 2</span>' : '')
       + '<div class="tile-actions">'
       + '<button class="btn-icon tile-more" aria-haspopup="menu" aria-expanded="false" aria-label="More actions for ' + esc(title) + '"><i class="fa-solid fa-ellipsis-vertical" aria-hidden="true"></i></button>'
       + '<button class="btn-icon tile-remove" aria-label="Remove ' + esc(title) + '"><i class="fa-solid fa-xmark" aria-hidden="true"></i></button>'
@@ -1945,6 +2353,7 @@
       + '<div class="tile-body">' + blockHTML(b.type) + '</div>'
       + '<button class="tile-resize" aria-pressed="false" aria-describedby="resizeHelp" aria-label="Resize ' + esc(title) + '"></button>'
       + '<span class="size-badge" aria-hidden="true"></span>';
+    if(t.why) s.querySelector(".tile-title").setAttribute("data-annot", t.why);
     if(b.type === "myoverview") s.querySelector(".tile-grip").setAttribute("data-annot",
       "Drag to move a block, or click the grip and then click where it should go. Keyboard: Space, then arrow keys.");
     if(b.type === "calendar_month") s.querySelector(".tile-resize").setAttribute("data-annot",
@@ -2488,7 +2897,7 @@
   }
   function renderSheet(){
     var q = el.sheetSearch.value.trim().toLowerCase();
-    var types = Object.keys(CATALOG).sort(function(a, b){ return CATALOG[a].title.localeCompare(CATALOG[b].title); })
+    var types = Object.keys(CATALOG).filter(available).sort(function(a, b){ return CATALOG[a].title.localeCompare(CATALOG[b].title); })
       .filter(function(t){ var d = CATALOG[t]; return !q || (d.title + " " + d.desc).toLowerCase().indexOf(q) > -1; });
     var card = function(t, on){
       var d = CATALOG[t];
@@ -2533,6 +2942,234 @@
     var more = e.target.closest(".tile-more"); if(more) return toggleMenu(more);
   });
 
+  /* ---------- role block interactions ---------- */
+  function rerenderType(type){
+    Object.keys(state.blocks).forEach(function(id){
+      if(state.blocks[id].type === type && tiles[id]) tiles[id].querySelector(".tile-body").innerHTML = blockHTML(type);
+    });
+    if(typeof buildAnnots === "function" && body.classList.contains("annot-on")) buildAnnots();
+  }
+  function say(m){ toast(m, false); announce(m); }
+  var NAME_POOL = ["Jack Brennan", "Olivia Chen", "Grace Ahmed", "Ethan Park", "Zara Hussain", "Lucas Silva", "Chloe Martin", "Isaac Levy", "Hannah Novak", "Arjun Mehta", "Maya Johansson", "Leo Rossi"];
+  function sampleStudents(n, course){
+    var out = [];
+    for(var x = 0; x < n; x++){ var nm = NAME_POOL[x % NAME_POOL.length]; out.push({ name:nm, first:nm.split(" ")[0], course:course }); }
+    return out;
+  }
+  el.grid.addEventListener("change", function(e){
+    var sel = e.target.closest("[data-ins-select=course]"); if(!sel) return;
+    attnCourse = sel.value; rerenderType("attention");
+    var again = el.grid.querySelector("[data-ins-select=course]"); if(again) again.focus();
+  });
+  el.grid.addEventListener("click", function(e){
+    var b = e.target.closest("[data-ins]"); if(!b || b.disabled) return;
+    var act = b.dataset.ins, row = b.closest("[data-row]");
+    e.preventDefault();
+    if(act === "wfilter"){ waitFilter = b.dataset.v; return rerenderType("timeline"); }
+    if(act === "open"){
+      var verb = { grade:"grading page", reply:"discussion, ready to reply", approve:"entries waiting for approval" }[b.dataset.type];
+      return say("Opens the " + verb + " for " + b.dataset.name + ".");
+    }
+    if(act === "star"){ var c = TEACH[+b.dataset.i]; c.star = !c.star; rerenderType("teachcourses"); return say(c.star ? "Starred." : "Unstarred."); }
+    if(act === "settings"){ return say("Opens course settings."); }
+    if(act === "filter"){ attnFilter = b.dataset.v; return rerenderType("attention"); }
+    if(act === "report"){ return say("Opens Activity completion for " + b.dataset.course + ", showing " + b.dataset.name + "."); }
+    if(act === "message"){ return openMessage("students", ATTENTION.filter(function(a){ return a.id === row.dataset.row; }), b, "attention"); }
+    if(act === "messageall"){ var who = ATTENTION.filter(attnMatches); return who.length ? openMessage("students", who, b, "attention") : null; }
+    if(act === "ack"){
+      var item = ATTENTION.filter(function(a){ return a.id === row.dataset.row; })[0];
+      item.ack = true; rerenderType("attention");
+      toast("Marked as acknowledged.", false, { label:"Undo", fn:function(){ item.ack = false; rerenderType("attention"); hideToast(); } });
+      return announce("Marked as acknowledged.");
+    }
+    if(act === "fix"){ return say("Opens the setting: " + b.dataset.fix + "."); }
+    if(act === "mute"){
+      var r = READY.filter(function(x){ return x.id === row.dataset.row; })[0];
+      r.muted = true; rerenderType("readiness");
+      toast("Won't flag this again.", false, { label:"Undo", fn:function(){ r.muted = false; rerenderType("readiness"); hideToast(); } });
+      return announce("Won't flag this again.");
+    }
+    if(act === "msgstudents" || act === "nudge"){
+      var reason = row.dataset.reason, crow = ACCESS[reason].rows.filter(function(x){ return x.id === row.dataset.row; })[0];
+      var short = crow.name.split(":")[0];
+      if(act === "msgstudents") return openMessage("students", sampleStudents(crow.n, short).map(function(st){ st.kind = reason; return st; }), b, "access");
+      return openMessage("teachers", [{ id:crow.id, course:short, reason:reason }], b, "access");
+    }
+  });
+
+  /* ---------- message dialog ----------
+     Sends through core messaging (core_message_send_instant_messages): one private
+     message per recipient, each with its own text, so {first name}, progress and a
+     teacher's own list of students are filled in per person. Nothing is drafted by
+     AI unless the sender asks; the starting text is a plain suggestion per reason. */
+  var COURSE_TEACHERS = {
+    c1:[{ name:"Dr Amara Okafor", first:"Amara", students:["Jack Brennan", "Olivia Chen", "Grace Ahmed", "Ethan Park", "Zara Hussain"], more:26 },
+        { name:"Tom Becker (Lab group B only)", first:"Tom", students:["Olivia Chen", "Ethan Park"], more:5 }],
+    c2:[{ name:"Prof. Daniel Kim", first:"Daniel", students:["Lucas Silva", "Chloe Martin", "Isaac Levy"], more:21 }],
+    c3:[{ name:"Rachel Moore", first:"Rachel", students:["Hannah Novak", "Arjun Mehta", "Maya Johansson"], more:14 }],
+    c4:[{ name:"Dr Samuel Adeyemi", first:"Samuel", students:["Leo Rossi", "Grace Ahmed"], more:7 }],
+    c5:[{ name:"Dr Lena Fischer", first:"Lena", students:["Jack Brennan", "Zara Hussain", "Isaac Levy", "Maya Johansson"], more:8 }]
+  };
+  var SUGGEST = {
+    inactive:"Hi {first name},\n\nI noticed you haven't been into {course} for a while. Is everything OK? If you're falling behind, reply to this message and we'll work out a plan together.",
+    behind:"Hi {first name},\n\nYou've done {done} of {total} activities in {course} so far, so you're a little behind. That's easy to fix. Reply if you'd like help planning the next week.",
+    mixed:"Hi {first name},\n\nI wanted to check in on how {course} is going for you. If anything is getting in the way, reply to this message and I'll help where I can.",
+    never:"Hi {first name},\n\nYou've been enrolled in {course}, but you haven't opened it yet. You'll find it under My courses on your dashboard. Reply if you can't get in.",
+    nogroup:"Hi {first name},\n\nYou're not in a group yet in {course}, so you can't post in its group forums. Your teacher is adding you now. Reply if you need to take part sooner.",
+    teachers_never:"Hi {first name},\n\nThese students were enrolled in {course} in the last 7 days and haven't opened it yet:\n{students}\n\nCould you check in with them? It often means they can't find the course.",
+    teachers_nogroup:"Hi {first name},\n\nThese students in {course} aren't in a group, so they can't post in its group forums:\n{students}\n\nCould you add them to groups?"
+  };
+  var AI = {
+    warmer:{
+      inactive:"Hi {first name},\n\nI hope you're doing OK! I've missed seeing you in {course} lately. There's no pressure, but if anything's making it hard to keep up, just reply and we'll sort it out together.",
+      behind:"Hi {first name},\n\nYou're doing well to keep going with {course}. You've done {done} of {total} activities, and I'd love to help you catch up. Just reply and we'll make a plan.",
+      mixed:"Hi {first name},\n\nJust checking in to see how you're finding {course}. If anything's getting in the way, reply anytime. I'm happy to help.",
+      never:"Hi {first name},\n\nWelcome! You're enrolled in {course}, and it's ready for you. You'll find it under My courses. If you can't get in, just reply and we'll fix it.",
+      nogroup:"Hi {first name},\n\nGood news, you're nearly set up in {course}. We're just adding you to a group so you can join the discussions. Reply if you need anything sooner.",
+      teachers_never:"Hi {first name},\n\nA few new students in {course} haven't found their way in yet:\n{students}\n\nA quick welcome from you could make all the difference.",
+      teachers_nogroup:"Hi {first name},\n\nSome students in {course} can't join the group forums yet:\n{students}\n\nWould you mind adding them to groups when you get a moment?"
+    },
+    shorter:{
+      inactive:"Hi {first name}, you haven't been into {course} for a while. Everything OK? Reply if you need help catching up.",
+      behind:"Hi {first name}, you've done {done} of {total} activities in {course}. Reply if you'd like help catching up.",
+      mixed:"Hi {first name}, how's {course} going? Reply if you need a hand.",
+      never:"Hi {first name}, you're enrolled in {course} but haven't opened it yet. It's under My courses.",
+      nogroup:"Hi {first name}, you're being added to a group in {course} so you can post. Reply if it's urgent.",
+      teachers_never:"Hi {first name}, these new students haven't opened {course}:\n{students}\nCould you check in?",
+      teachers_nogroup:"Hi {first name}, these students in {course} aren't in a group:\n{students}\nCould you add them?"
+    },
+    formal:{
+      inactive:"Dear {first name},\n\nI note that you have not accessed {course} recently. Please contact me if anything is preventing you from participating, so that we can discuss suitable support.",
+      behind:"Dear {first name},\n\nYou have completed {done} of {total} activities in {course}. Please contact me if you would like support in catching up.",
+      mixed:"Dear {first name},\n\nI am writing to ask how you are progressing in {course}. Please contact me if you would like any support.",
+      never:"Dear {first name},\n\nYou are enrolled in {course} but have not yet accessed it. The course is available under My courses. Please contact us if you are unable to access it.",
+      nogroup:"Dear {first name},\n\nYou are being added to a group in {course}, after which you will be able to post in its group forums.",
+      teachers_never:"Dear {first name},\n\nThe following students, enrolled in {course} within the last 7 days, have not yet accessed it:\n{students}\n\nI would be grateful if you could contact them.",
+      teachers_nogroup:"Dear {first name},\n\nThe following students in {course} are not members of any group:\n{students}\n\nI would be grateful if you could add them to groups."
+    }
+  };
+  var msg = { mode:null, source:null, recipients:[], kind:"mixed", idx:0, opener:null, beforeAi:null, aiOn:true };
+  var mEl = {
+    dlg:document.getElementById("msgDialog"), title:document.getElementById("msgTitle"), to:document.getElementById("msgTo"),
+    toNote:document.getElementById("msgToNote"), text:document.getElementById("msgText"), hint:document.getElementById("msgHint"),
+    aiBtn:document.getElementById("msgAiBtn"), aiOpts:document.getElementById("msgAiOpts"), aiFlag:document.getElementById("msgAiFlag"),
+    who:document.getElementById("msgPreviewWho"), bubble:document.getElementById("msgBubble"), from:document.getElementById("msgFrom"),
+    delivery:document.getElementById("msgDelivery"), ackWrap:document.getElementById("msgAckWrap"), ack:document.getElementById("msgAck"),
+    send:document.getElementById("msgSend")
+  };
+  function sendable(){ return msg.recipients.filter(function(r){ return !r.blocked; }); }
+  function fill(text, r){
+    var list = r.students ? r.students.map(function(n){ return "• " + n; }).join("\n") + (r.more ? "\n• and " + r.more + " more" : "") : "";
+    return text.replace(/\{first name\}/g, r.first).replace(/\{course\}/g, r.course || "")
+      .replace(/\{done\}/g, r.done == null ? "" : r.done).replace(/\{total\}/g, r.total || "").replace(/\{students\}/g, list);
+  }
+  function openMessage(mode, items, opener, source){
+    msg.mode = mode; msg.source = source; msg.opener = opener; msg.idx = 0; msg.beforeAi = null;
+    if(mode === "students"){
+      msg.recipients = items.map(function(a){ return { id:a.id, name:a.name, first:a.first, course:a.course, done:a.done, total:a.total, blocked:a.blocked }; });
+      var kinds = items.map(function(a){ return a.kind; }).filter(function(x, n, all){ return all.indexOf(x) === n; });
+      msg.kind = kinds.length === 1 ? kinds[0] : "mixed";
+    } else {
+      var it = items[0];
+      msg.recipients = (COURSE_TEACHERS[it.id] || []).map(function(t){ return { name:t.name, first:t.first, course:it.course, students:t.students, more:t.more }; });
+      msg.kind = "teachers_" + it.reason;
+    }
+    mEl.text.value = SUGGEST[msg.kind];
+    mEl.hint.textContent = mode === "students" ? "Use {first name} and {course}; each student sees their own." : "Use {first name}, {course} and {students}; each teacher sees their own.";
+    mEl.ackWrap.hidden = source !== "attention";
+    mEl.aiFlag.hidden = true; mEl.aiOpts.hidden = true; mEl.aiBtn.setAttribute("aria-expanded", "false");
+    mEl.aiBtn.hidden = !msg.aiOn;
+    renderMessage();
+    mEl.dlg.showModal(); mEl.text.focus();
+  }
+  function renderMessage(){
+    var send = sendable(), n = send.length, noun = msg.mode === "students" ? (n === 1 ? "student" : "students") : (n === 1 ? "teacher" : "teachers");
+    mEl.title.textContent = n === 1 ? "Send message to 1 person" : "Send message to " + n + " people";
+    var MAX = 5, shown = msg.recipients.slice(0, MAX);
+    mEl.to.innerHTML = shown.map(function(r, x){
+      return '<span class="msg-chip' + (r.blocked ? ' is-blocked' : '') + '" role="listitem">'
+        + (r.blocked ? '<i class="fa-solid fa-triangle-exclamation" aria-hidden="true"></i>' : '')
+        + '<span title="' + esc(r.name) + '">' + esc(r.name) + '</span>'
+        + '<button data-rm="' + x + '" aria-label="Remove ' + esc(r.name) + '" title="Remove"><i class="fa-solid fa-xmark" aria-hidden="true"></i></button></span>';
+    }).join("") + (msg.recipients.length > MAX ? '<span class="msg-chip is-more" role="listitem">and ' + (msg.recipients.length - MAX) + ' more</span>' : '');
+    var blocked = msg.recipients.filter(function(r){ return r.blocked; });
+    mEl.toNote.textContent = blocked.length ? blocked.map(function(r){ return r.name; }).join(", ") + " only accepts messages from contacts, so won't receive this." : "";
+    var r = send[Math.min(msg.idx, Math.max(0, n - 1))];
+    mEl.who.textContent = r ? "Preview as " + r.name + (n > 1 ? " (" + (Math.min(msg.idx, n - 1) + 1) + " of " + n + ")" : "") : "Nobody to preview";
+    mEl.bubble.textContent = r ? fill(mEl.text.value, r) : "";
+    mEl.from.textContent = "From " + ROLE_NAMES[ROLE] + " · Moodle messages";
+    mEl.delivery.textContent = msg.mode === "students"
+      ? "Each student gets a private message from you. They'll see it in Messages, and get a notification or email depending on their settings. Replies come to you."
+      : "Each teacher gets a private message from you, listing only the students they can see in that course. Replies come to you.";
+    document.getElementById("msgPrev").disabled = n < 2; document.getElementById("msgNext").disabled = n < 2;
+    mEl.send.textContent = n ? "Send to " + n + " " + noun : "Send";
+    mEl.send.disabled = !n || !mEl.text.value.trim();
+  }
+  mEl.text.addEventListener("input", renderMessage);
+  mEl.to.addEventListener("click", function(e){
+    var b = e.target.closest("[data-rm]"); if(!b) return;
+    msg.recipients.splice(+b.dataset.rm, 1); msg.idx = 0; renderMessage();
+    (mEl.to.querySelector("[data-rm]") || mEl.text).focus();
+  });
+  document.getElementById("msgPrev").addEventListener("click", function(){ var n = sendable().length; msg.idx = (msg.idx - 1 + n) % n; renderMessage(); });
+  document.getElementById("msgNext").addEventListener("click", function(){ var n = sendable().length; msg.idx = (msg.idx + 1) % n; renderMessage(); });
+  mEl.aiBtn.addEventListener("click", function(){
+    var open = mEl.aiOpts.hidden; mEl.aiOpts.hidden = !open; mEl.aiBtn.setAttribute("aria-expanded", String(open));
+  });
+  mEl.aiOpts.addEventListener("click", function(e){
+    var b = e.target.closest("[data-tone]"); if(!b) return;
+    if(msg.beforeAi === null) msg.beforeAi = mEl.text.value;
+    mEl.text.value = AI[b.dataset.tone][msg.kind];
+    mEl.aiFlag.hidden = false; renderMessage();
+  });
+  document.getElementById("msgAiUndo").addEventListener("click", function(){
+    if(msg.beforeAi !== null) mEl.text.value = msg.beforeAi;
+    msg.beforeAi = null; mEl.aiFlag.hidden = true; renderMessage(); mEl.text.focus();
+  });
+  function closeMessage(){ mEl.dlg.close(); }
+  document.getElementById("msgClose").addEventListener("click", closeMessage);
+  document.getElementById("msgCancel").addEventListener("click", closeMessage);
+  mEl.dlg.addEventListener("close", function(){ if(msg.opener && document.contains(msg.opener)) msg.opener.focus(); });
+  mEl.send.addEventListener("click", function(){
+    var send = sendable(), total = msg.recipients.length;
+    var text = total > send.length ? "Message sent to " + send.length + " of " + total + " people"
+      : send.length === 1 ? "Message sent to 1 person" : "Message sent to " + send.length + " people";
+    if(msg.source === "attention" && mEl.ack.checked){
+      send.forEach(function(r){ ATTENTION.forEach(function(a){ if(a.id === r.id) a.ack = true; }); });
+      rerenderType("attention");
+    }
+    closeMessage(); say(text + ".");
+  });
+
+  function resetBlockState(){
+    attnFilter = "all"; attnCourse = "all"; waitFilter = "all";
+    ATTENTION.forEach(function(a){ a.ack = false; }); READY.forEach(function(r){ r.muted = false; });
+  }
+  function setRole(r){
+    ROLE = r; resetBlockState();
+    document.getElementById("dashGreeting").textContent = "Hi, " + ROLE_NAMES[r] + "! 👋";
+    document.getElementById("dashUserName").textContent = ROLE_NAMES[r];
+    seed("default"); refresh({ animate:false });
+    if(typeof buildAnnots === "function" && body.classList.contains("annot-on")) buildAnnots();
+  }
+  /* State › Phase: 1 is today's blocks (Timeline and Course overview as they are), 2 adds B1 and To do's
+     "Waiting on you", 3 is the end state. The block browser offers only the blocks the phase has. */
+  var TIMELINE_TODO = { title:CATALOG.timeline.title, icon:CATALOG.timeline.icon, desc:CATALOG.timeline.desc, why:CATALOG.timeline.why };
+  var TIMELINE_TODAY = { title:"Timeline", icon:"fa-regular fa-clock", why:undefined,
+                         desc:"What's due next and what's overdue, across every course, sorted by date or by course." };
+  function setPhase(p){
+    PHASE = p; resetBlockState();
+    var t = p >= 2 ? TIMELINE_TODO : TIMELINE_TODAY;
+    CATALOG.timeline.title = t.title; CATALOG.timeline.icon = t.icon; CATALOG.timeline.desc = t.desc; CATALOG.timeline.why = t.why;
+    seed("default"); refresh({ animate:false });
+    if(typeof buildAnnots === "function" && body.classList.contains("annot-on")) buildAnnots();
+  }
+  /* State › Insight data › All clear: every insight block shows its designed "nothing to do" state. */
+  function setData(v){
+    DATA_CLEAR = v === "clear"; resetBlockState();
+    ["timeline", "attention", "readiness", "access"].forEach(rerenderType);
+  }
+
 
   /* ---------- block browser (the alternative to the drawer) ----------
      Opened through openSheet(), so every "Add a block" entry point and every
@@ -2566,7 +3203,7 @@
   }
   function renderBrowser(){
     var q = el.brSearch.value.trim();
-    var all = Object.keys(CATALOG).sort(function(a, b){ return CATALOG[a].title.localeCompare(CATALOG[b].title); });
+    var all = Object.keys(CATALOG).filter(available).sort(function(a, b){ return CATALOG[a].title.localeCompare(CATALOG[b].title); });
     var shown = all.filter(brMatches);
     // Like Moodle's own addable list: a block that allows one instance and is already here isn't offered.
     var free = shown.filter(brCanAdd), used = shown.filter(function(t){ return !brCanAdd(t); });
@@ -2731,7 +3368,7 @@
     state.blocks = {}; state.nextId = 1; state.history = []; el.undo.disabled = true;
     Object.keys(tiles).forEach(function(id){ tiles[id].remove(); }); tiles = {};
     var items = [];
-    if(kind !== "empty") DEFAULT_ITEMS.forEach(function(d){
+    if(kind !== "empty") (layoutFor() || DEFAULT_ITEMS).forEach(function(d){
       var id = "b" + (state.nextId++); state.blocks[id] = { id:id, type:d.type, title:d.type === "html" ? HTML_TITLE : "" };
       items.push({ id:id, c:d.c, r:d.r, w:d.w, h:d.h });
     });
@@ -2774,7 +3411,7 @@
 
   seed("default");
   state.cols = colsForWidth(el.canvas.getBoundingClientRect().width);
-  setEdit(true);
+  setEdit(false);
 
   // dev:start
   /* State panel wiring for the dashboard: mode, content, theme, connection and
@@ -2790,17 +3427,17 @@
       });
       return g;
     }
-    var net = group("netSwitch", function(v){ setOnline(v === "online"); });
     function sync(){
       document.querySelectorAll("#modeSwitch .devbtn").forEach(function(x){ x.classList.toggle("on", (x.dataset.v === "edit") === state.edit); });
-      net.querySelectorAll(".devbtn").forEach(function(x){ x.disabled = !state.edit; });
     }
+    group("roleSwitch", function(v){ setRole(v); });
+    group("phaseSwitch", function(v){ setPhase(+v); });
+    group("dataSwitch", function(v){ setData(v); });
+    group("phaseTagSwitch", function(v){ body.classList.toggle("show-phases", v === "shown"); });
+    group("aiSwitch", function(v){ msg.aiOn = v === "on"; });
     group("modeSwitch", function(v){ setEdit(v === "edit"); });
     group("contentSwitch", function(v){ seed(v); refresh({ animate:false }); });
-    group("themeSwitch", function(v){ body.classList.toggle("theme-dark", v === "dark"); });
-    group("libSwitch", function(v){ closeSheet(true); libraryMode = v; });
-    group("marketSwitch", function(v){ setMarketplace(v === "on"); });
-    group("sixSwitch", function(v){ TH.six = +v; document.documentElement.style.setProperty("--dash-grid-max", v + "px"); state.cols = 0; measureCols(); });
+    group("sixSwitch", function(v){ TH.six = +v; state.cols = 0; measureCols(); });
     onEditChange = sync; sync();
   })();
   // dev:end
@@ -3106,17 +3743,6 @@
     updateDebug();
   });
 
-  /* ---- nav cap switcher: 1440 (design) vs 1320 (current container) ----
-     The shell token drives BOTH the nav contents and the page row, so flipping
-     it shows the whole composition at each cap. */
-  var capSwitch = document.getElementById("capSwitch");
-  capSwitch.addEventListener("click", function(e){
-    var btn = e.target.closest(".devbtn"); if(!btn) return;
-    capSwitch.querySelectorAll(".devbtn").forEach(function(b){ b.classList.toggle("on", b === btn); });
-    document.documentElement.style.setProperty("--shell-max", btn.dataset.cap);
-    updateDebug();
-  });
-
   /* ---- minimise/restore the state switcher ---- */
   (function(){
     var panel = document.getElementById("devPanel");
@@ -3182,12 +3808,44 @@
      participant, and proto-lint fails any file that carries a research
      question or a conclusion for exactly that reason.
 
-Fidelity:  considered
+Fidelity:  rough (insight blocks added to the considered flexible-dashboard build)
 Figma nodes: none (Boost-loose; built to MDS tokens and the MDL-89636 branch's grid numbers)
 Decisions:
+  - State › Role (Student, Teacher, Administrator) × State › Phase. Phase 3 (default) is the end state: every phase's blocks.
+    Phase 2: To do with "Waiting on you" and Courses I work on (teacher); Courses I work on, Calendar, Online users (admin);
+    Course overview with New courses first (student). Phase 1 is today: the site default, Timeline and Course overview as they
+    are, for every role. Blocks carry roles[] and phase; available() limits the block browser to the role and phase.
+    State › Phase labels tags each block with when it arrives (Phase 2 or 3; Course overview and To do "Improved, phase 2").
+    End state: Teacher: To do, Course readiness, Students who need attention, Courses I work on. Administrator: Access and
+    enrolment, Storage, Engagement overview (a labelled concept: no research yet says what administrators need), Courses I work on.
+  - State › Insight data › All clear shows each insight block's designed "nothing to do" state (never a deficit): Nothing is
+    waiting on you; All students are on track; No issues found; every new student has opened their course. Storage, Engagement
+    overview and Courses I work on always have data.
+  - Courses I work on: course contact roles (core's coursecontact setting) at course or category level, recent first,
+    six then View all. To do replaces Timeline for everyone (one block, renamed). Teachers get a "Waiting on you" section first: the
+    Activities overview alerts (assignment, forum, database, glossary) across courses, plus quiz manual grading. These
+    have no date, so they stay until done; "Due dates" below is Timeline's list, unchanged, with its 14-day look-back.
+    Assignment grading moves into Waiting on you so it isn't shown twice. The Moodle app's Timeline needs matching work.
+  - Descoped as unrealistic for now: a storage limit meter (Moodle doesn't know the server's limit), retention dates
+    (no archive state), the "hidden soon after editing" readiness check (needs logs, prone to false alarms), the workshop
+    row in To do, and a learner progress block (Course overview already shows completion). Cross-course figures
+    say when they were updated (B4 daily, B6 hourly, B7 and Engagement overview daily); To do stays live.
+  - Students who need attention: behind = no access for 7+ days, or fewer activities done than the class average; grouped by
+    course; Message, course report, Acknowledged. Course readiness rows link to the fixing setting and can be muted.
+  - Urgency is an icon plus weight, not colour alone, so it survives Wireframe.
+  - The State panel has many axes, so it is two columns and scrolls within the window. It has no nav cap, theme, connection,
+    block library or Marketplace switches: this file assumes a 1440 nav cap, light theme, online, the block browser and a
+    reachable Marketplace (their code paths remain).
+  - Messaging opens core's bulk "Send message" dialog shape (core_message/message_send_bulk: title "Send message to N people",
+    core's sent strings incl. "N of M") with removable recipients, a suggested message per reason, a per-recipient preview,
+    and "Mark as acknowledged" (Insights marks an actioned prediction). core_message_send_instant_messages takes one text per
+    recipient, so {first name} and each teacher's own student list need no API change. Admins can message any teacher
+    (site admins have all capabilities; managers have moodle/site:messageanyuser).
+  - AI writing is opt-in only: the starting text is a plain template; "Help me write this" rewrites only when asked, flags it,
+    and can be undone. State > AI writing > Off hides it, as when a site has no AI provider.
   - /my has no course index or block drawer (MDL-89636), so the shell's drawers are hidden, not removed: the shell JS needs them.
-  - Grid numbers are the branch's: 96px rows, 16px gap, 6/4/2/1 columns from the GRID's width. Six columns start at the branch's
-    1921px; State > "Six columns from" switches to 1180px, where a 1440 desktop gets six.
+  - Grid numbers are the branch's: 96px rows, 16px gap, 6/4/2/1 columns from the GRID's width. Six columns from a 1600px grid,
+    four from 920px, two from 690px (layout.ts); State > "Six columns from" switches to 1180px, where a 1440 desktop gets six.
   - Least disturbance, not gravity: a moved or resized block goes exactly where it is put; others move only if in the way, and only
     down. Nothing floats up behind you. Fully empty rows close on drop. (A gravity first build reshuffled 4 blocks on one move.)
   - Previews resolve from the drag-start snapshot every frame, so a wobbly drag cannot accumulate changes; Escape restores it.
@@ -3202,13 +3860,8 @@ Decisions:
     the grid is a labelled group. axe-core: 0 violations.
   - Drop preview: solid 2px accent outline + hatch, 5.1:1 (light) and 6.3:1 (dark) against the page. Never colour alone.
   - Remove is one click with Undo in a toast, not a confirm dialog. Undo also in the toolbar and on Ctrl/Cmd+Z.
-  - Saving is optimistic and silent: no Save button and no status line. The only message is a toast when offline
-    (State > Connection > Offline), and another when the queued changes go through.
-  - Add a block opens the existing block drawer, always in Boost's overlay behaviour (slides over the page, no push) and only while
-    adding. No backdrop on desktop so blocks can be dragged out onto the grid; below 992px the shell's backdrop applies as in Boost.
-    Entries reuse the drawer's own block card. Blocks already on the dashboard are grouped last.
+  - Saving is optimistic and silent: no Save button and no status line.
   - Per-block minimum sizes (Calendar 2x4, Course overview and Timeline 2x3) stand in for MDL-89639; everything else uses 1x2.
-  - Dark theme uses the MDS colour-ramp values Boost's [data-bs-theme=dark] maps to on the branch (MDS has light tokens only).
   - When the column count differs from the one the layout was saved at, it is derived (span kept, clamped, reading order). An edit
     at that width becomes the saved layout. The real model for per-width layouts is still open on the ticket.
   - Single-pointer alternative to dragging (WCAG 2.2 SC 2.5.7), deliberately no more than AA: click a handle without dragging to
@@ -3220,10 +3873,10 @@ Decisions:
   - Drag-time cell guides are --text-muted at full opacity (4.6:1 light); the 55% guides measured 1.7:1.
   - Reset asks first and has no undo: on the server it deletes the page and its blocks (my_reset_page).
   - Page gutters match Boost: 3rem each side from 768px, plus .main-inner's 0.5rem and the main region's 15px. The column is
-    capped at the six-column width + 1rem + 30px and centred (1967px with the branch's 1921px threshold), so the grid never
-    grows past six columns; the cap follows State > "Six columns from". Only the top navigation keeps the shell's 1440 cap.
-  - Block library has two forms, switched in State: a Confluence-style browser (default) and the earlier drawer. Both open
-    through openSheet(), so every Add entry point and every empty cell reaches whichever is on.
+    capped at 1920px and centred (a 1874px grid: one of six columns is 299px, about a block in Boost's drawer). Only the top
+    navigation keeps the shell's 1440 cap.
+  - Add a block opens a Confluence-style block browser through openSheet(), so every Add entry point and every empty cell
+    reaches it.
   - Browser: one block at a time. Click selects, Insert / Enter / double-click adds; the top match is always selected, so
     type then Enter works. Opened from a cell it fills that cell; from the toolbar it takes the first free space and is picked
     up (kbStart) so arrows move it at once. A modal covers the grid, so there is no drag-out from the browser.
@@ -3236,12 +3889,10 @@ Decisions:
   - Third-party examples: Completion Progress uses its Plugins directory icon and summary (listing 2571). The icon is the file's
     one remote load, set from JS after render; offline or emailed, the card falls back to initials, so the file still works.
     (The real build must store the icon on the site: a learner's browser never contacts the Marketplace.)
-  - State > Marketplace: Unreachable is a site that doesn't contact the Marketplace. Completion Progress drops to initials and
-    the fallback line, and the Discover link is hidden. Core blocks are unchanged: they declare their own. Marketplace icons aren't square (100x38 here), so the tile fits, not crops.
-    Two invented in-house blocks show the no-icon, no-description case.
+  - Marketplace icons aren't square (100x38 here), so the tile fits, not crops. Two invented in-house blocks show the no-icon,
+    no-description case.
   - Fallback for a block that declares nothing (most in-house blocks): initials on a neutral tile, "Added to your site by an
-    administrator." for a description, default size 2x3. Applied
-    once to CATALOG, so the drawer and the tile content get the same fallbacks.
+    administrator." for a description, default size 2x3. Applied once to CATALOG, so every surface gets the same fallbacks.
   - MDS and core mirror (2026-09-30), so each piece ports as the real component:
     buttons = MDS Button (.btn-primary/secondary/ghost/danger, .btn-sm, .btn-icon = icon-only ghost, 28px) with custom hovers
     (a light tint, and square icon buttons, by review choice); tile menu = MDS
