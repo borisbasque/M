@@ -112,7 +112,7 @@ final class get_dashboard_test extends \advanced_testcase {
         $byname = array_column($result['blocks'], null, 'name');
         // The copy is now the user's own stored dashboard.
         $this->assertTrue($result['ownlayout']);
-        $this->assertSame(['columns' => 1, 'rows' => 4], $byname['calendar_month']['minsize']);
+        $this->assertSame(['columns' => 2, 'rows' => 4], $byname['calendar_month']['minsize']);
         $this->assertSame(\core_my\local\dashboard::get_minimum_size(), $byname['timeline']['minsize']);
 
         // Store the drawer stack with the calendar squeezed to 2 rows and the next block directly below it.
@@ -146,8 +146,8 @@ final class get_dashboard_test extends \advanced_testcase {
         $layout = array_column($result['layout'], null, 'id');
         $calendar = $layout[$byname['calendar_month']['id']];
         $recent = $layout[$byname['recentlyaccesseditems']['id']];
-        $this->assertSame([4, 0, 1, 4], [$calendar['column'], $calendar['row'], $calendar['columns'], $calendar['rows']]);
-        $this->assertSame([4, 4, 1, 3], [$recent['column'], $recent['row'], $recent['columns'], $recent['rows']]);
+        $this->assertSame([4, 0, 2, 4], [$calendar['column'], $calendar['row'], $calendar['columns'], $calendar['rows']]);
+        $this->assertSame([4, 4, 2, 3], [$recent['column'], $recent['row'], $recent['columns'], $recent['rows']]);
         // Blocks not in the way stay where they were.
         $this->assertSame(0, $layout[$byname['myoverview']['id']]['row']);
         $this->assertSame(5, $layout[$byname['timeline']['id']]['row']);
@@ -176,10 +176,10 @@ final class get_dashboard_test extends \advanced_testcase {
         }
 
         $expected = [
-            'myoverview' => ['column' => 1, 'row' => 0, 'columns' => 3, 'rows' => 5],
-            'timeline' => ['column' => 1, 'row' => 5, 'columns' => 3, 'rows' => 3],
-            'calendar_month' => ['column' => 4, 'row' => 0, 'columns' => 1, 'rows' => 5],
-            'recentlyaccesseditems' => ['column' => 4, 'row' => 5, 'columns' => 1, 'rows' => 3],
+            'myoverview' => ['column' => 0, 'row' => 0, 'columns' => 4, 'rows' => 5],
+            'timeline' => ['column' => 0, 'row' => 5, 'columns' => 4, 'rows' => 3],
+            'calendar_month' => ['column' => 4, 'row' => 0, 'columns' => 2, 'rows' => 5],
+            'recentlyaccesseditems' => ['column' => 4, 'row' => 5, 'columns' => 2, 'rows' => 3],
         ];
         foreach ($expected as $blockname => $expectedposition) {
             $this->assertArrayHasKey(

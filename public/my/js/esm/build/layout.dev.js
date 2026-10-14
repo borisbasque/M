@@ -8,7 +8,7 @@ var __name = (target, value) => __defProp(target, "name", { value, configurable:
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
 const MAX_COLUMNS = 6;
-const SIX_COLUMN_THRESHOLD = 1921;
+const SIX_COLUMN_THRESHOLD = 1180;
 const FOUR_COLUMN_THRESHOLD = 920;
 const TWO_COLUMN_THRESHOLD = 690;
 const fitMinimum = /* @__PURE__ */ __name((minimum, columnCount) => ({
@@ -28,7 +28,7 @@ const readGridMetrics = /* @__PURE__ */ __name((grid) => {
     gap: Number.isFinite(gap) && gap >= 0 ? gap : FALLBACK_GRID_METRICS.gap
   };
 }, "readGridMetrics");
-const NARROW_BLOCK_WIDTH = 480;
+const NARROW_BLOCK_WIDTH = 600;
 const columnsForWidth = /* @__PURE__ */ __name((width) => {
   if (width >= SIX_COLUMN_THRESHOLD) {
     return 6;

@@ -34,8 +34,12 @@ final class dashboard {
     /** Canonical number of columns used for persisted layouts: the Block API's grid width. */
     public const MAX_COLUMNS = grid_size::MAX_COLUMNS;
 
-    /** Minimum size of a block that declares none, or declares an unusable one. */
-    private const DEFAULT_MINIMUM = ['columns' => 1, 'rows' => 2];
+    /**
+     * Minimum size of a block that declares none, or declares an unusable one. Two columns are never
+     * narrower than Boost's block drawer, which is the width most blocks are written for; one column
+     * can be, so a block opts into it by declaring it.
+     */
+    private const DEFAULT_MINIMUM = ['columns' => 2, 'rows' => 2];
 
     /** Default grid row span for legacy and newly-added blocks, until they are sized to their content. */
     public const DEFAULT_ROWS = 3;
@@ -46,17 +50,17 @@ final class dashboard {
     /** Default grid row span for the first legacy block in each stack (two rows taller than the rest). */
     public const DEFAULT_ROWS_FIRST = 5;
 
-    /** First column (zero-based) of the legacy centre-column stack, leaving an empty column to its left. */
-    public const CONTENT_COLUMN = 1;
+    /** First column (zero-based) of the legacy centre-column stack. */
+    public const CONTENT_COLUMN = 0;
 
     /** Column span of the legacy centre-column stack, and of newly-added blocks. */
-    public const CONTENT_COLUMNS = 3;
+    public const CONTENT_COLUMNS = 4;
 
     /** First column (zero-based) of the legacy block-drawer stack, directly after the centre stack. */
     public const DRAWER_COLUMN = 4;
 
-    /** Column span of the legacy block-drawer stack. */
-    public const DRAWER_COLUMNS = 1;
+    /** Column span of the legacy block-drawer stack: two columns are never narrower than the drawer. */
+    public const DRAWER_COLUMNS = 2;
 
     /** Legacy regions which may still be attached to dashboard blocks. */
     private const REGIONS = ['content', 'side-pre', 'side-post'];
@@ -807,9 +811,9 @@ final class dashboard {
                 $rows = (int) $position->gridrows;
                 $autorows = (bool) ($position->gridautorows ?? true);
             } else {
-                // Leave an empty column on each side: legacy content blocks take the next
-                // three columns, legacy side-region ("drawer") blocks take the column after.
-                // The first block in each stack is two rows taller than the rest.
+                // Legacy content blocks take the first four columns, legacy side-region
+                // ("drawer") blocks the last two. The first block in each stack is two rows
+                // taller than the rest.
                 $column = $isdrawer ? self::DRAWER_COLUMN : self::CONTENT_COLUMN;
                 $rows = $row === 0 ? self::DEFAULT_ROWS_FIRST : self::DEFAULT_ROWS;
                 $autorows = true;

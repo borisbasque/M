@@ -75,14 +75,14 @@ class block_calendar_month extends block_base {
     }
 
     /**
-     * The month grid needs four grid rows to show a whole month without scrolling at its narrowest
-     * width: measured at 393px tall in a 228px-wide column, against the 208px of the default minimum.
+     * The month grid needs two columns, so its seven day columns stay readable, and four grid rows to
+     * show a whole month without scrolling, against the 208px of the default minimum.
      *
      * @return \core_block\grid_size
      */
     #[\Override]
     public function get_grid_minimum_size(): \core_block\grid_size {
-        return new \core_block\grid_size(columns: 1, rows: 4);
+        return new \core_block\grid_size(columns: 2, rows: 4);
     }
 
     #[\Override]
