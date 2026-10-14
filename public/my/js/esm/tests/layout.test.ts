@@ -44,8 +44,8 @@ describe('core_my responsive dashboard layout', () => {
         [690, 2],
         [919, 2],
         [920, 4],
-        [1179, 4],
-        [1180, 6],
+        [1599, 4],
+        [1600, 6],
     ])('uses %dpx as a %d-column container', (width, columns) => {
         expect(columnsForWidth(width)).toBe(columns);
     });

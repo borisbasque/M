@@ -22,7 +22,8 @@
  */
 
 export const MAX_COLUMNS = 6;
-export const SIX_COLUMN_THRESHOLD = 1180;
+// Six columns from a 1600px grid: a full HD screen gets six, each at least 253px; laptops get four.
+export const SIX_COLUMN_THRESHOLD = 1600;
 export const FOUR_COLUMN_THRESHOLD = 920;
 export const TWO_COLUMN_THRESHOLD = 690;
 
@@ -83,9 +84,7 @@ export const readGridMetrics = (grid: HTMLElement | null): GridMetrics => {
 
 // Below this rendered width a tile is treated like a legacy narrow side-region block,
 // so that block CSS designed around Boost's fixed-width sidebar keeps applying correctly.
-// A block at the default two-column minimum is at most about 582px wide (two of four columns
-// just below SIX_COLUMN_THRESHOLD), so it always gets the sidebar styling it was written for.
-export const NARROW_BLOCK_WIDTH = 600;
+export const NARROW_BLOCK_WIDTH = 480;
 
 export interface LayoutItem {
     id: number;

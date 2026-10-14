@@ -1,11 +1,10 @@
 // Responsive React dashboard using Moodle Design System tokens.
-// The page column is capped at 1440px and centred: wider than a course page ($course-content-maxwidth),
-// because the dashboard is a workspace of blocks side by side, but not so wide that columns stretch
-// far past what blocks are written for. The grid inside it is the column less the padding Boost puts
-// around it (layout.scss: .main-inner 0.5rem and div[role="main"] 15px on each side): 1394px, so six
-// columns (from SIX_COLUMN_THRESHOLD, 1180px, in my/js/esm/src/layout.ts) are about 219px each and
-// two columns about 454px, never narrower than Boost's 315px block drawer.
-$core-my-dashboard-page-max-width: 1440px !default;
+// The page column is capped at 1920px, a full HD screen, and centred on anything wider. It is a
+// workspace rather than a reading page, so it is otherwise free of Boost's limited width. The grid
+// inside it is the column less the padding Boost puts around it (layout.scss: .main-inner 0.5rem
+// and div[role="main"] 15px on each side): 1874px, where one of six columns (SIX_COLUMN_THRESHOLD
+// in my/js/esm/src/layout.ts) is 299px, about the width of a block in Boost's 315px block drawer.
+$core-my-dashboard-page-max-width: 1920px !default;
 $core-my-dashboard-grid-max-width: calc(#{$core-my-dashboard-page-max-width} - 1rem - 30px) !default;
 
 .core-my-dashboard-page #page.drawers .main-inner {

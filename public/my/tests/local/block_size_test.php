@@ -118,7 +118,7 @@ final class block_size_test extends \advanced_testcase {
         $this->assertNull($block->get_grid_maximum_rows());
         $this->assertSame(dashboard::AUTO_ROWS_CAP, dashboard::get_maximum_rows($block));
         $this->assertSame(dashboard::get_minimum_size(), dashboard::get_minimum_size($block));
-        $this->assertSame(['columns' => 2, 'rows' => 2], dashboard::get_minimum_size($block));
+        $this->assertSame(['columns' => 1, 'rows' => 2], dashboard::get_minimum_size($block));
         // A block declaring no preferred height follows its content.
         $this->assertSame(
             ['columns' => dashboard::CONTENT_COLUMNS, 'rows' => null],
@@ -157,16 +157,16 @@ final class block_size_test extends \advanced_testcase {
     public static function valid_declaration_provider(): array {
         return [
             'minimum only: the default width, following the content' => [
-                new grid_size(2, 4), null, ['columns' => 2, 'rows' => 4], ['columns' => dashboard::CONTENT_COLUMNS, 'rows' => null],
+                new grid_size(2, 4), null, ['columns' => 2, 'rows' => 4], ['columns' => 3, 'rows' => null],
             ],
             'minimum without rows: the default minimum height applies' => [
-                new grid_size(2), null, ['columns' => 2, 'rows' => 2], ['columns' => dashboard::CONTENT_COLUMNS, 'rows' => null],
+                new grid_size(2), null, ['columns' => 2, 'rows' => 2], ['columns' => 3, 'rows' => null],
             ],
             'minimum and preferred' => [
                 new grid_size(1, 4), new grid_size(2, 6), ['columns' => 1, 'rows' => 4], ['columns' => 2, 'rows' => 6],
             ],
             'preferred only' => [
-                null, new grid_size(4, 5), ['columns' => 2, 'rows' => 2], ['columns' => 4, 'rows' => 5],
+                null, new grid_size(4, 5), ['columns' => 1, 'rows' => 2], ['columns' => 4, 'rows' => 5],
             ],
             'preferred height left to the content' => [
                 new grid_size(1, 3), new grid_size(2), ['columns' => 1, 'rows' => 3], ['columns' => 2, 'rows' => null],
@@ -271,7 +271,7 @@ final class block_size_test extends \advanced_testcase {
     public function test_the_calendar_declares_its_minimum(): void {
         $this->resetAfterTest();
 
-        $this->assertSame(['columns' => 2, 'rows' => 4], dashboard::get_minimum_size(block_instance('calendar_month')));
+        $this->assertSame(['columns' => 1, 'rows' => 4], dashboard::get_minimum_size(block_instance('calendar_month')));
         $this->assertDebuggingNotCalled();
     }
 }
