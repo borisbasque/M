@@ -104,6 +104,7 @@
     --btn:40px;
 
     /* dashboard additions: grid geometry and the extra MDS values the grid needs */
+    --dash-grid-max:1921px; /* the six-column threshold (TH.six); my.scss caps the grid there */
     --row:96px; --gap:16px;                                                   /* 96px row unit from MDL-89636; gap = $mds-spacing-md */
     --accent:#0f6cbf;                                                         /* $mds-border-interactive-primary-default: lines and text that mean "interactive" */
     --success-text:#357a32;                                                   /* $mds-color-green-500 */
@@ -551,13 +552,17 @@
      the page. The shell's drawers stay in the markup (the shell JS needs them)
      but never show here. */
   body.dashboard{ background:var(--bg-subtle); }
-  /* MDL-89636 removes the content cap on /my (my.scss: max-width:none) so wide displays are used;
-     only the top navigation keeps the shell's 1440 cap. */
-  html body.dashboard .layout{ max-width:none; }
+  /* Boost-faithful page gutters (layout.scss, my.scss on the branch): #page.drawers pads 3rem each
+     side from md; .main-inner (0.5rem) + div[role=main] (15px) pad the column; on /my the column is
+     capped at the six-column grid width + 1rem + 30px and centred, so the grid never outgrows six
+     columns. --dash-grid-max follows State > "Six columns from". */
+  html body.dashboard .layout{ max-width:none; padding-inline:0; }
+  @media (min-width:768px){ html body.dashboard .layout{ padding-inline:3rem; } }
   /* html-prefixed so these beat the shell's overlay-mode rules further down */
   html body.dashboard #drawer,
   html body.dashboard .toggle-col, html body.dashboard .toggle-col-right{ display:none; }
-  body.dashboard .content-col{ padding:0 var(--sp-md); }
+  body.dashboard .content-col{ padding:0 0.5rem; max-width:calc(var(--dash-grid-max) + 1rem + 30px); }
+  @media (min-width:768px){ body.dashboard .content-col{ padding:0 calc(0.5rem + 15px); } }
   .dash a{ color:var(--accent); }
   .dash-greeting{ margin:0 0 var(--sp-md); font-size:var(--fs-h2); font-weight:var(--fw-medium); line-height:1.2; }
 
@@ -1448,8 +1453,8 @@
     </div>
     <h5>Six columns from</h5>
     <div class="devrow" id="sixSwitch">
-      <button class="devbtn on" data-v="1180">1180px</button>
-      <button class="devbtn" data-v="1921">1921px (branch)</button>
+      <button class="devbtn" data-v="1180">1180px</button>
+      <button class="devbtn on" data-v="1921">1921px (branch)</button>
     </div>
     <h5>Review aids</h5>
     <div class="devrow">
@@ -1715,7 +1720,7 @@
      from the previous frame, so a wobbly drag cannot accumulate changes.
      ============================================================ */
   var ROW = 96, GAP = 16, NAV_H = 64;
-  var TH = { six:1180, four:720, two:480 };   // grid-width thresholds (six is switchable in State)
+  var TH = { six:1921, four:720, two:480 };   // grid-width thresholds (six is switchable in State)
   var DEFAULT_MIN = { w:1, h:2 };            // one default minimum for every block (MDL-89636)
   var reduceMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
 
@@ -2795,7 +2800,7 @@
     group("themeSwitch", function(v){ body.classList.toggle("theme-dark", v === "dark"); });
     group("libSwitch", function(v){ closeSheet(true); libraryMode = v; });
     group("marketSwitch", function(v){ setMarketplace(v === "on"); });
-    group("sixSwitch", function(v){ TH.six = +v; state.cols = 0; measureCols(); });
+    group("sixSwitch", function(v){ TH.six = +v; document.documentElement.style.setProperty("--dash-grid-max", v + "px"); state.cols = 0; measureCols(); });
     onEditChange = sync; sync();
   })();
   // dev:end
@@ -3181,8 +3186,8 @@ Fidelity:  considered
 Figma nodes: none (Boost-loose; built to MDS tokens and the MDL-89636 branch's grid numbers)
 Decisions:
   - /my has no course index or block drawer (MDL-89636), so the shell's drawers are hidden, not removed: the shell JS needs them.
-  - Grid numbers are the branch's: 96px rows, 16px gap, 6/4/2/1 columns from the GRID's width. Six columns start at 1180px here, not
-    the branch's 1921px, so a 1440 desktop gets six; State > "Six columns from" flips between the two.
+  - Grid numbers are the branch's: 96px rows, 16px gap, 6/4/2/1 columns from the GRID's width. Six columns start at the branch's
+    1921px; State > "Six columns from" switches to 1180px, where a 1440 desktop gets six.
   - Least disturbance, not gravity: a moved or resized block goes exactly where it is put; others move only if in the way, and only
     down. Nothing floats up behind you. Fully empty rows close on drop. (A gravity first build reshuffled 4 blocks on one move.)
   - Previews resolve from the drag-start snapshot every frame, so a wobbly drag cannot accumulate changes; Escape restores it.
@@ -3214,7 +3219,9 @@ Decisions:
   - Empty regions are labelled tab stops in reading order among the tiles (the ticket requires empty cells to be focusable).
   - Drag-time cell guides are --text-muted at full opacity (4.6:1 light); the 55% guides measured 1.7:1.
   - Reset asks first and has no undo: on the server it deletes the page and its blocks (my_reset_page).
-  - The dashboard is not capped at 1440 (MDL-89636 sets max-width:none on /my); only the top navigation keeps the cap.
+  - Page gutters match Boost: 3rem each side from 768px, plus .main-inner's 0.5rem and the main region's 15px. The column is
+    capped at the six-column width + 1rem + 30px and centred (1967px with the branch's 1921px threshold), so the grid never
+    grows past six columns; the cap follows State > "Six columns from". Only the top navigation keeps the shell's 1440 cap.
   - Block library has two forms, switched in State: a Confluence-style browser (default) and the earlier drawer. Both open
     through openSheet(), so every Add entry point and every empty cell reaches whichever is on.
   - Browser: one block at a time. Click selects, Insert / Enter / double-click adds; the top match is always selected, so
