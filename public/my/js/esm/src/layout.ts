@@ -345,6 +345,82 @@ export const packWithPinned = (
     return result;
 };
 
+/** Why a one-cell step cannot be taken: the grid's edge, or the block's minimum size. */
+export type StepBlocker = 'edge' | 'minimum';
+
+/** The result of trying to step a block one cell: its new rectangle, or why it cannot go. */
+export type StepResult = {draft: LayoutItem; blocker?: undefined} | {draft?: undefined; blocker: StepBlocker};
+
+/**
+ * Step a block's draft rectangle by one cell, or say why it cannot be.
+ *
+ * The single source of truth for one-cell moves and resizes: the arrow keys and the Move and
+ * Resize dialogs both use it, so they always agree. Other blocks never block a step. Like a drag,
+ * the step takes the space and whatever is there moves aside (see packWithPinned()), so only the
+ * grid's edges and the block's minimum size can stop it. Moving down, or making it taller, always
+ * succeeds: the grid grows.
+ *
+ * @param draft The block's current rectangle.
+ * @param mode Whether it is moving or resizing.
+ * @param horizontal Logical columns to step: +1 towards the end of the row, -1 towards its start.
+ * @param vertical Rows to step: +1 down, -1 up.
+ * @param columnCount The grid's current column count.
+ * @param minimum The block's minimum size, already fitted to the column count.
+ * @return The new rectangle, or the reason there is none.
+ */
+export const stepDraft = (
+    draft: LayoutItem,
+    mode: 'move' | 'resize',
+    horizontal: number,
+    vertical: number,
+    columnCount: number,
+    minimum: GridSize,
+): StepResult => {
+    if (mode === 'move') {
+        const column = draft.column + horizontal;
+        const row = draft.row + vertical;
+        if (column < 0 || column + draft.columns > columnCount || row < 0) {
+            return {blocker: 'edge'};
+        }
+        return {draft: {...draft, column, row}};
+    }
+    const columns = draft.columns + horizontal;
+    const rows = draft.rows + vertical;
+    if (columns < minimum.columns || rows < minimum.rows) {
+        return {blocker: 'minimum'};
+    }
+    if (draft.column + columns > columnCount) {
+        return {blocker: 'edge'};
+    }
+    return {draft: {...draft, columns, rows}};
+};
+
+/**
+ * The blocks that putting one block at a draft rectangle would move aside.
+ *
+ * @param layout The layout as it was before the change.
+ * @param columnCount The grid's current column count.
+ * @param draft The block's draft rectangle.
+ * @param minimum The block's minimum size, already fitted to the column count.
+ * @return Their ids, in reading order.
+ */
+export const displacedBy = (
+    layout: LayoutItem[],
+    columnCount: number,
+    draft: LayoutItem,
+    minimum: GridSize,
+): number[] => {
+    const before = new Map(layout.map(item => [item.id, item]));
+    return packWithPinned(layout, columnCount, draft, minimum)
+        .filter(item => {
+            const original = before.get(item.id);
+            return item.id !== draft.id && original
+                && (original.column !== item.column || original.row !== item.row);
+        })
+        .sort((left, right) => left.row - right.row || left.column - right.column)
+        .map(item => item.id);
+};
+
 /**
  * Turn a `derived` layout - produced by packLayout()/packWithPinned() at the current, possibly
  * narrowed, responsive column count - back into a canonical layout safe to persist at the full

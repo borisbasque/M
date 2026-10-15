@@ -187,6 +187,32 @@ const packWithPinned = /* @__PURE__ */ __name((items, columnCount, pinned, minim
   }
   return result;
 }, "packWithPinned");
+const stepDraft = /* @__PURE__ */ __name((draft, mode, horizontal, vertical, columnCount, minimum) => {
+  if (mode === "move") {
+    const column = draft.column + horizontal;
+    const row = draft.row + vertical;
+    if (column < 0 || column + draft.columns > columnCount || row < 0) {
+      return { blocker: "edge" };
+    }
+    return { draft: { ...draft, column, row } };
+  }
+  const columns = draft.columns + horizontal;
+  const rows = draft.rows + vertical;
+  if (columns < minimum.columns || rows < minimum.rows) {
+    return { blocker: "minimum" };
+  }
+  if (draft.column + columns > columnCount) {
+    return { blocker: "edge" };
+  }
+  return { draft: { ...draft, columns, rows } };
+}, "stepDraft");
+const displacedBy = /* @__PURE__ */ __name((layout, columnCount, draft, minimum) => {
+  const before = new Map(layout.map((item) => [item.id, item]));
+  return packWithPinned(layout, columnCount, draft, minimum).filter((item) => {
+    const original = before.get(item.id);
+    return item.id !== draft.id && original && (original.column !== item.column || original.row !== item.row);
+  }).sort((left, right) => left.row - right.row || left.column - right.column).map((item) => item.id);
+}, "displacedBy");
 const writeBack = /* @__PURE__ */ __name((canonical, derived, pinnedId, minimum) => {
   const original = new Map(canonical.map((item) => [item.id, item]));
   const restored = [...derived].sort((left, right) => left.row - right.row || left.column - right.column || left.id - right.id).map((item) => ({
@@ -427,6 +453,7 @@ export {
   blocksJoined,
   collapseEmptyRows,
   columnsForWidth,
+  displacedBy,
   disturbedCount,
   emptyRegions,
   firstFreeSpace,
@@ -440,6 +467,7 @@ export {
   packWithPinned,
   readGridMetrics,
   rowsForHeight,
+  stepDraft,
   writeBack
 };
 //# sourceMappingURL=layout.dev.js.map
