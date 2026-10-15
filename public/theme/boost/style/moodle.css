@@ -36964,6 +36964,17 @@ body.behat-site.core-my-dashboard-page #sticky-footer {
   gap: var(--mds-spacing-xs);
   align-items: center;
 }
+@media (max-width: 575.98px) {
+  .core-my-dashboard-toolbar__actions {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    width: 100%;
+  }
+  .core-my-dashboard-toolbar__actions .mds-btn.btn {
+    justify-content: center;
+    width: 100%;
+  }
+}
 
 .core-my-grid-cell.core-my-dashboard-add-below {
   height: var(--mds-scale-1700);

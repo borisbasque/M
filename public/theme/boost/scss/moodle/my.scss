@@ -226,6 +226,18 @@ body.behat-site.core-my-dashboard-page #sticky-footer {
     flex-wrap: wrap;
     gap: var(--mds-spacing-xs);
     align-items: center;
+
+    // Large buttons leave no room for four in a row on a narrow phone: two by two, full width.
+    @include media-breakpoint-down(sm) {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        width: 100%;
+
+        .mds-btn.btn {
+            justify-content: center;
+            width: 100%;
+        }
+    }
 }
 
 // "+ Add a block" below the grid, styled as one of the grid's empty regions (.core-my-grid-cell).

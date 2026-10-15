@@ -1979,11 +1979,13 @@ const Dashboard = ({loadingLabel = '', initialLayout = [], openBrowser = false, 
             />
             <div className="core-my-dashboard-toolbar__actions">
                 {!siteDefault && <Button
+                    size="lg"
                     variant="ghost"
                     label={data.labels.reset}
                     onClick={() => setConfirmAction({type: 'reset'})}
                 />}
                 <Button
+                    size="lg"
                     variant="ghost"
                     label={data.labels.undo}
                     startIcon={<i className="fa fa-rotate-left" aria-hidden="true" />}
@@ -1991,12 +1993,14 @@ const Dashboard = ({loadingLabel = '', initialLayout = [], openBrowser = false, 
                     onClick={() => void undo()}
                 />
                 <Button
+                    size="lg"
                     variant="secondary"
                     label={data.labels.done}
                     disabled={finishing}
                     onClick={() => void finishEditing(doneUrl)}
                 />
                 <Button
+                    size="lg"
                     ref={addButtonRef}
                     variant="primary"
                     label={data.labels.addblock}
