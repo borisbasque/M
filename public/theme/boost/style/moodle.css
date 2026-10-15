@@ -37092,6 +37092,9 @@ body.editing#page-course-learningoutcomes .activity-item:hover:not(:has(.activit
 .dir-rtl .core-my-dashboard-tile__resize .core-my-dashboard-handle--resize {
   cursor: nesw-resize;
 }
+.dir-rtl .core-my-dashboard-tile__resize .core-my-dashboard-handle--resize .core-my-dashboard-handle__corner {
+  transform: scaleX(-1);
+}
 
 .mds-btn.btn.core-my-dashboard-handle[aria-pressed=true] {
   cursor: grabbing;
@@ -37406,6 +37409,10 @@ body.editing#page-course-learningoutcomes .activity-item:hover:not(:has(.activit
     animation: none;
   }
 }
+.mds-dropdown-menu {
+  z-index: 1000;
+}
+
 /**
  * File modchooser.scss.
  * Contains styles for the module chooser.

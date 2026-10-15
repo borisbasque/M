@@ -692,3 +692,10 @@ $core-my-dashboard-grid-max-width: calc(#{$core-my-dashboard-page-max-width} - 1
         animation: none;
     }
 }
+
+
+// Design system menus are portaled to the end of the body with no stacking order of their own,
+// so positioned page content (such as dashboard tiles) painted over them and took their clicks.
+.mds-dropdown-menu {
+    z-index: 1000; // Bootstrap's dropdown layer.
+}
