@@ -215,6 +215,8 @@ if (core_userfeedback::should_display_reminder()) {
 $loadinglabel = get_string('loading');
 $initialdata = \core_my\local\dashboard::get_initial_data(false);
 $initiallayout = \core_my\local\dashboard::get_skeleton_layout(false);
+// Edit mode controls, before the grid in reading order as they always were, shown in the sticky footer.
+echo \core_my\local\dashboard::render_editing_footer($initialdata);
 echo html_writer::div(\core_my\local\dashboard::get_loading_placeholder($initiallayout), 'core-my-dashboard-mount', [
     'data-react-component' => '@moodle/lms/core_my/index',
     'data-react-props' => json_encode([

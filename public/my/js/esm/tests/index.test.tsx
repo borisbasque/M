@@ -1252,6 +1252,35 @@ describe('core_my Dashboard application', () => {
         fireEvent.click(screen.getByRole('button', {name: 'Done'}));
     });
 
+    it('puts the Edit mode controls in the page sticky footer, and keeps the grid clear of it', async() => {
+        const footer = document.createElement('div');
+        footer.className = 'stickyfooter';
+        footer.innerHTML = '<div data-region="core-my-dashboard-footer"></div>';
+        document.body.appendChild(footer);
+        footer.getBoundingClientRect = () => ({height: 72}) as DOMRect;
+        const observe = jest.fn();
+        const original = window.ResizeObserver;
+        window.ResizeObserver = jest.fn(() => ({observe, disconnect: jest.fn(), unobserve: jest.fn()})) as never;
+        try {
+            mockDashboardApi({getResponses: [buildData()]});
+            const {container} = render(<Dashboard />);
+            await screen.findByText('First block');
+
+            const toolbar = footer.querySelector('.core-my-dashboard-toolbar');
+            expect(toolbar).not.toBeNull();
+            expect(container.querySelector('.core-my-dashboard-toolbar')).toBeNull();
+            expect(within(toolbar as HTMLElement).getByRole('button', {name: 'Add a block'})).toBeInTheDocument();
+            expect(within(toolbar as HTMLElement).getByRole('button', {name: 'Done'})).toBeInTheDocument();
+            expect(observe).toHaveBeenCalledWith(footer);
+            expect(container.querySelector<HTMLElement>('.core-my-dashboard-app')!.style
+                .getPropertyValue('--core-my-dashboard-footer-height')).toBe('72px');
+            expect(document.body.style.getPropertyValue('--sticky-footer-total-height')).toBe('72px');
+        } finally {
+            window.ResizeObserver = original;
+            footer.remove();
+        }
+    });
+
     describe('joining up blocks left on their own', () => {
         // In the shared layout, the second block (columns 4-5) is a column away from the first (1-2).
         const tileOf = (title: string) => screen.getByRole('region', {name: `${title} block`});

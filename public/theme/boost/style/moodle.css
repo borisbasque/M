@@ -36894,21 +36894,63 @@ body.editing#page-course-learningoutcomes .activity-item:hover:not(:has(.activit
 .core-my-dashboard-toolbar {
   display: flex;
   flex-wrap: wrap;
-  gap: var(--mds-spacing-sm);
+  gap: var(--mds-spacing-xs) var(--mds-spacing-sm);
   align-items: center;
   justify-content: space-between;
-  margin-block: var(--mds-spacing-md);
-  padding: var(--mds-spacing-xs) var(--mds-spacing-sm);
-  background: var(--mds-bg-surface-default);
-  border-radius: var(--mds-border-radius-md);
+  width: 100%;
+}
+
+body.core-my-dashboard-page #sticky-footer {
+  padding-inline: 0;
+  pointer-events: none;
+  background: transparent;
+  border: 0;
 }
 @media (min-width: 768px) {
-  .core-my-dashboard-toolbar {
-    position: sticky;
-    top: 64px;
-    z-index: 10;
-    border-bottom: var(--mds-stroke-weight-sm) solid var(--mds-border-subtle);
+  body.core-my-dashboard-page #sticky-footer {
+    padding-inline: 3rem;
   }
+}
+@media (min-width: 992px) {
+  .show-drawer-left body.core-my-dashboard-page #sticky-footer {
+    padding-inline-start: calc(285px + 3rem);
+  }
+  .show-drawer-right body.core-my-dashboard-page #sticky-footer {
+    padding-inline-end: calc(315px + 3rem);
+  }
+}
+body.core-my-dashboard-page #sticky-footer .sticky-footer-content-wrapper {
+  height: auto;
+  min-height: 4rem;
+  max-width: 1440px;
+  margin-inline: auto;
+  padding: 0;
+  pointer-events: auto;
+  background: var(--mds-bg-surface-default);
+  border-top: var(--mds-stroke-weight-sm) solid var(--mds-border-subtle);
+}
+body.core-my-dashboard-page #sticky-footer .sticky-footer-content {
+  max-width: none;
+  overflow: visible;
+  padding: var(--mds-spacing-xs) var(--mds-spacing-sm);
+}
+body.core-my-dashboard-page #sticky-footer .btn {
+  font-size: inherit;
+}
+
+.core-my-dashboard-footer {
+  width: 100%;
+}
+
+body.behat-site.core-my-dashboard-page #sticky-footer {
+  transform: none;
+}
+
+.core-my-dashboard-app {
+  padding-block-end: var(--core-my-dashboard-footer-height, 0);
+}
+.core-my-dashboard-app .core-my-dashboard-grid > * {
+  scroll-margin-bottom: var(--core-my-dashboard-footer-height, 0);
 }
 
 .core-my-dashboard-tile.core-my-dashboard-tile--joining {
@@ -36929,12 +36971,12 @@ body.editing#page-course-learningoutcomes .activity-item:hover:not(:has(.activit
 }
 
 .core-my-dashboard-grid > * {
-  scroll-margin-top: calc(64px + var(--mds-scale-1600));
+  scroll-margin-top: calc(64px + var(--mds-spacing-md));
 }
 
 .core-my-dashboard-app[data-instructions] {
   --core-my-dashboard-instructions-clearance: calc(var(--mds-scale-1600) + var(--mds-spacing-xl));
-  padding-block-end: var(--core-my-dashboard-instructions-clearance);
+  padding-block-end: calc(var(--core-my-dashboard-footer-height, 0px) + var(--core-my-dashboard-instructions-clearance));
 }
 @media (max-width: 767.98px) {
   .core-my-dashboard-app[data-instructions] {
@@ -36942,7 +36984,7 @@ body.editing#page-course-learningoutcomes .activity-item:hover:not(:has(.activit
   }
 }
 .core-my-dashboard-app[data-instructions] .core-my-dashboard-grid > * {
-  scroll-margin-bottom: var(--core-my-dashboard-instructions-clearance);
+  scroll-margin-bottom: calc(var(--core-my-dashboard-footer-height, 0px) + var(--core-my-dashboard-instructions-clearance));
 }
 
 .core-my-dashboard-grid {

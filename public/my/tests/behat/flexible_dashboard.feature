@@ -179,6 +179,7 @@ Feature: Arrange dashboard blocks in a responsive grid
     And I should see "Manage permissions" in the ".mds-dropdown-menu" "css_element"
     And I should see "Check permissions" in the ".mds-dropdown-menu" "css_element"
     And "Move" "button" should not exist in the ".mds-dropdown-menu" "css_element"
+    And ".core-my-dashboard-toolbar" "css_element" should exist in the "#sticky-footer" "css_element"
     And "Resize" "button" should not exist in the ".mds-dropdown-menu" "css_element"
     And I should not see "Move Course overview block" in the ".mds-dropdown-menu" "css_element"
     And I should not see "Delete Course overview block" in the ".mds-dropdown-menu" "css_element"

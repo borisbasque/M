@@ -101,6 +101,8 @@ echo $OUTPUT->header();
 $loadinglabel = get_string('loading');
 $initialdata = \core_my\local\dashboard::get_initial_data(true);
 $initiallayout = \core_my\local\dashboard::get_skeleton_layout(true);
+// Edit mode controls, before the grid in reading order as they always were, shown in the sticky footer.
+echo \core_my\local\dashboard::render_editing_footer($initialdata);
 echo html_writer::div(\core_my\local\dashboard::get_loading_placeholder($initiallayout), 'core-my-dashboard-mount', [
     'data-react-component' => '@moodle/lms/core_my/index',
     'data-react-props' => json_encode([

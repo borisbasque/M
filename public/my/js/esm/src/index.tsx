@@ -14,6 +14,7 @@
  */
 
 import React, {useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState} from 'react';
+import {createPortal} from 'react-dom';
 import {Badge, Button, Link} from '@moodlehq/design-system';
 import {getString} from '@moodle/lms/core/stringUtils';
 import {requireManyAsync} from '@moodle/lms/core/amd';
@@ -437,6 +438,31 @@ const Dashboard = ({loadingLabel = '', initialLayout = [], openBrowser = false, 
     // Where focus goes once the next layout has rendered: a block, or the Add a block button.
     const focusAfterRef = useRef<number | 'add' | null>(null);
     const addButtonRef = useRef<HTMLButtonElement>(null);
+    // The page's sticky footer, which my/index.php renders in Edit mode for the controls below.
+    const [footerTarget] = useState<HTMLElement | null>(
+        () => document.querySelector<HTMLElement>('[data-region="core-my-dashboard-footer"]'),
+    );
+    const [footerHeight, setFooterHeight] = useState(0);
+    useLayoutEffect(() => {
+        const footer = footerTarget?.closest<HTMLElement>('.stickyfooter');
+        if (!footer || typeof ResizeObserver === 'undefined') {
+            return undefined;
+        }
+        // The controls wrap onto more lines on a narrow screen, so the footer is measured rather
+        // than assumed. The page and anything placed above the footer use its real height.
+        const measure = () => {
+            const height = footer.getBoundingClientRect().height;
+            setFooterHeight(height);
+            document.body.style.setProperty('--sticky-footer-total-height', `${height}px`);
+        };
+        measure();
+        const observer = new ResizeObserver(measure);
+        observer.observe(footer);
+        return () => {
+            observer.disconnect();
+            document.body.style.removeProperty('--sticky-footer-total-height');
+        };
+    }, [footerTarget]);
     const saveStatusRef = useRef<SaveStatus>('idle');
     const gridRef = useRef<HTMLDivElement>(null);
     const pointerRef = useRef<{x: number; y: number; moved: boolean} | null>(null);
@@ -1918,12 +1944,18 @@ const Dashboard = ({loadingLabel = '', initialLayout = [], openBrowser = false, 
         offline: '',
         retrying: data.labels.saveretrying,
     };
+    // The Edit mode controls live in the page's sticky footer when there is one, and in place
+    // otherwise. A portal keeps them in this component, with its state and announcements.
+    const portalToFooter = (controls: React.ReactElement) => footerTarget
+        ? createPortal(controls, footerTarget)
+        : controls;
     return <div
         className="core-my-dashboard-app"
         aria-busy={saveStatus !== 'idle'}
         // While a block is picked up without dragging, its instructions sit at the bottom of the
         // window; the theme keeps the grid's last row able to scroll clear of them (my.scss).
         data-instructions={interaction && interaction.origin !== 'pointer' ? true : undefined}
+        style={footerHeight ? {'--core-my-dashboard-footer-height': `${footerHeight}px`} as React.CSSProperties : undefined}
     >
         {error && <div className="alert alert-danger" role="alert">{error}</div>}
         {unsaved && <div className="alert alert-warning core-my-dashboard-unsaved" role="alert">
@@ -1938,7 +1970,7 @@ const Dashboard = ({loadingLabel = '', initialLayout = [], openBrowser = false, 
         </div>}
         <div className="core-my-dashboard-savestatus" role="status">{statusMessages[saveStatus]}</div>
         <div className="visually-hidden" aria-live="polite" aria-atomic="true">{announcement}</div>
-        {data.editing && <div className="core-my-dashboard-toolbar">
+        {data.editing && portalToFooter(<div className="core-my-dashboard-toolbar">
             <DashboardScopeBanner
                 siteDefault={siteDefault}
                 caneditotherscope={data.caneditotherscope}
@@ -1972,7 +2004,7 @@ const Dashboard = ({loadingLabel = '', initialLayout = [], openBrowser = false, 
                     onClick={() => setPalette({})}
                 />
             </div>
-        </div>}
+        </div>)}
         {empty && data.canedit && <div className="core-my-dashboard-empty">
             <p>{data.labels.empty}</p>
             <div className="core-my-dashboard-empty__actions">

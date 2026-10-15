@@ -134,20 +134,82 @@ $core-my-dashboard-grid-max-width: calc(#{$core-my-dashboard-page-max-width} - 1
 .core-my-dashboard-toolbar {
     display: flex;
     flex-wrap: wrap;
-    gap: var(--mds-spacing-sm);
+    gap: var(--mds-spacing-xs) var(--mds-spacing-sm);
     align-items: center;
     justify-content: space-between;
-    margin-block: var(--mds-spacing-md);
-    padding: var(--mds-spacing-xs) var(--mds-spacing-sm);
-    background: var(--mds-bg-surface-default);
-    border-radius: var(--mds-border-radius-md);
+    width: 100%;
+}
 
-    // Stays in reach while scrolling, on screens wide enough to spare the space.
+// The footer panel's width, and the side padding of #page.drawers (layout.scss) it lines up with.
+$core-my-dashboard-footer-maxwidth: 1440px !default;
+$core-my-dashboard-page-padding-x: 3rem !default;
+// The drawer widths (drawer.scss, imported after this file).
+$core-my-dashboard-drawer-left-width: 285px !default;
+$core-my-dashboard-drawer-right-width: 315px !default;
+
+// Edit mode controls in the page's sticky footer (core\output\sticky_footer, rendered by
+// \core_my\local\dashboard::render_editing_footer()). The footer layer spans the window but is
+// see-through and lets clicks through; only its panel is painted, capped at 1440px and centred over
+// the dashboard column, so the drawers beside the content stay visible and usable.
+body.core-my-dashboard-page #sticky-footer {
+    padding-inline: 0;
+    pointer-events: none;
+    background: transparent;
+    border: 0;
+
     @include media-breakpoint-up(md) {
-        position: sticky;
-        top: $navbar-height;
-        z-index: 10;
-        border-bottom: var(--mds-stroke-weight-sm) solid var(--mds-border-subtle);
+        padding-inline: $core-my-dashboard-page-padding-x;
+    }
+    @include media-breakpoint-up(lg) {
+        .show-drawer-left & {
+            padding-inline-start: calc(#{$core-my-dashboard-drawer-left-width} + #{$core-my-dashboard-page-padding-x});
+        }
+        .show-drawer-right & {
+            padding-inline-end: calc(#{$core-my-dashboard-drawer-right-width} + #{$core-my-dashboard-page-padding-x});
+        }
+    }
+
+    .sticky-footer-content-wrapper {
+        height: auto;
+        min-height: $stickyfooter-height;
+        max-width: $core-my-dashboard-footer-maxwidth;
+        margin-inline: auto;
+        padding: 0;
+        pointer-events: auto;
+        background: var(--mds-bg-surface-default);
+        border-top: var(--mds-stroke-weight-sm) solid var(--mds-border-subtle);
+    }
+
+    .sticky-footer-content {
+        max-width: none;
+        overflow: visible;
+        padding: var(--mds-spacing-xs) var(--mds-spacing-sm);
+    }
+
+    .btn {
+        font-size: inherit;
+    }
+}
+
+.core-my-dashboard-footer {
+    width: 100%;
+}
+
+// Behat keeps sticky footers in the page flow (debug.scss); the theme's sticky footer module, which
+// slides it into view, does not run there, so it is shown where it is rather than pushed down
+// over the grid.
+body.behat-site.core-my-dashboard-page #sticky-footer {
+    transform: none;
+}
+
+// The grid's last row, and anything focused near the bottom of the window, scroll clear of the
+// footer (WCAG 2.2 SC 2.4.11). The React app measures the footer, which grows when its controls
+// wrap on a narrow screen.
+.core-my-dashboard-app {
+    padding-block-end: var(--core-my-dashboard-footer-height, 0);
+
+    .core-my-dashboard-grid > * {
+        scroll-margin-bottom: var(--core-my-dashboard-footer-height, 0);
     }
 }
 
@@ -172,9 +234,9 @@ $core-my-dashboard-grid-max-width: calc(#{$core-my-dashboard-page-max-width} - 1
     margin-block-start: var(--mds-spacing-md);
 }
 
-// Whatever gets focus scrolls clear of the sticky toolbar (WCAG 2.2 SC 2.4.11).
+// Whatever gets focus scrolls clear of the fixed navbar (WCAG 2.2 SC 2.4.11).
 .core-my-dashboard-grid > * {
-    scroll-margin-top: calc(#{$navbar-height} + var(--mds-scale-1600));
+    scroll-margin-top: calc(#{$navbar-height} + var(--mds-spacing-md));
 }
 
 // While a block is picked up without dragging, its instructions are shown at the bottom of the
@@ -182,7 +244,7 @@ $core-my-dashboard-grid-max-width: calc(#{$core-my-dashboard-page-max-width} - 1
 // the last block, clear of them, and whatever gets focus stops short of them (WCAG 2.2 SC 2.4.11).
 .core-my-dashboard-app[data-instructions] {
     --core-my-dashboard-instructions-clearance: calc(var(--mds-scale-1600) + var(--mds-spacing-xl));
-    padding-block-end: var(--core-my-dashboard-instructions-clearance);
+    padding-block-end: calc(var(--core-my-dashboard-footer-height, 0px) + var(--core-my-dashboard-instructions-clearance));
 
     @include media-breakpoint-down(md) {
         // The instructions wrap onto more lines on a narrow screen.
@@ -190,7 +252,7 @@ $core-my-dashboard-grid-max-width: calc(#{$core-my-dashboard-page-max-width} - 1
     }
 
     .core-my-dashboard-grid > * {
-        scroll-margin-bottom: var(--core-my-dashboard-instructions-clearance);
+        scroll-margin-bottom: calc(var(--core-my-dashboard-footer-height, 0px) + var(--core-my-dashboard-instructions-clearance));
     }
 }
 

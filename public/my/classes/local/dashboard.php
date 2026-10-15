@@ -628,6 +628,24 @@ final class dashboard {
     }
 
     /**
+     * The page's sticky footer that holds the dashboard's Edit mode controls.
+     *
+     * Only the empty container is rendered here: the React application (core_my/index) renders
+     * the controls into it, so they share its state. Nothing is rendered outside Edit mode.
+     *
+     * @param array|null $initialdata The data from {@see self::get_initial_data()}.
+     * @return string
+     */
+    public static function render_editing_footer(?array $initialdata): string {
+        global $OUTPUT;
+        if (empty($initialdata['editing'])) {
+            return '';
+        }
+        $container = \html_writer::div('', 'core-my-dashboard-footer', ['data-region' => 'core-my-dashboard-footer']);
+        return $OUTPUT->render(new \core\output\sticky_footer($container, 'core-my-dashboard-footer-content'));
+    }
+
+    /**
      * Return a loading placeholder which is visible before the React application starts.
      *
      * When {@see self::get_skeleton_layout()} could cheaply determine the real grid shape, this
