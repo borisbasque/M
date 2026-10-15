@@ -18,61 +18,28 @@ import {
     Button,
     Dropdown,
     DropdownItemAction,
-    DropdownItemDivider,
-    DropdownItemExpandable,
 } from '@moodlehq/design-system';
 import type {BlockAction, DashboardBlock, DashboardLabels} from '../repository';
 import {NARROW_BLOCK_WIDTH, type LayoutItem} from '../layout';
 import DashboardHandle from './DashboardHandle';
 
-/** One Move or Resize step in a block's menu, and why it can't be taken, if it can't. */
-export interface BlockStep {
-    key: string;
-    label: string;
-    // Why the step is unavailable (the edge of the dashboard, the smallest size). Disables it.
-    reason?: string;
-    // Which blocks the step will move aside, if any.
-    note?: string;
-    onSelect: () => void;
-}
-
 interface BlockActionsMenuProps {
     blockId: number;
     actions: BlockAction[];
     label: string;
-    moveLabel?: string;
-    resizeLabel?: string;
-    // Worked out only while the menu is open: each one checks the layout, and some pack it.
-    steps?: (mode: 'move' | 'resize') => BlockStep[];
 }
-
-const renderSteps = (steps: BlockStep[]) => steps.map(step => <DropdownItemAction
-    key={step.key}
-    label={step.label}
-    // Disabled items stay focusable (aria-disabled), so focus is never lost when the step just
-    // taken was the last one, and the reason is read with the item as its secondary line.
-    disabled={Boolean(step.reason)}
-    description={step.reason ?? step.note}
-    data-step={step.key}
-    // Applied straight away, and the menu stays open so the step can be pressed again.
-    onClick={() => step.onSelect()}
-/>);
 
 // Kept in this file rather than its own module: it's only ever used from DashboardTile below,
 // and every ESM component here is a separate network request (see swizzle.json).
-// The menu is the design system's Dropdown, which provides the menu button, menu and submenu
+// The menu is the design system's Dropdown, which provides the menu button and menu
 // roles, arrow key, Home, End, typeahead and Escape handling, and returns focus to the trigger.
 export const BlockActionsMenu = ({
     blockId,
     actions,
     label,
-    moveLabel = '',
-    resizeLabel = '',
-    steps,
 }: BlockActionsMenuProps) => {
     const [open, setOpen] = useState(false);
-    const hasSteps = Boolean(steps);
-    if (!hasSteps && actions.length === 0) {
+    if (actions.length === 0) {
         return null;
     }
 
@@ -87,13 +54,6 @@ export const BlockActionsMenu = ({
         open={open}
         onOpenChange={setOpen}
     >
-        {steps && <DropdownItemExpandable label={moveLabel} data-command="move">
-            {open && renderSteps(steps('move'))}
-        </DropdownItemExpandable>}
-        {steps && <DropdownItemExpandable label={resizeLabel} data-command="resize">
-            {open && renderSteps(steps('resize'))}
-        </DropdownItemExpandable>}
-        {hasSteps && actions.length > 0 && <DropdownItemDivider />}
         {actions.map(action => <DropdownItemAction
             key={action.id}
             label={action.label}
@@ -139,8 +99,6 @@ interface DashboardTileProps {
     onPointerDown: (event: React.PointerEvent, id: number, mode: 'move' | 'resize') => void;
     onCommit: () => void;
     onRemove: (id: number) => void;
-    // The Move and Resize steps offered in the block's menu.
-    steps?: (mode: 'move' | 'resize') => BlockStep[];
 }
 
 const DashboardTile = ({
@@ -162,7 +120,6 @@ const DashboardTile = ({
     onPointerDown,
     onCommit,
     onRemove,
-    steps,
 }: DashboardTileProps) => {
     const tileRef = useRef<HTMLElement>(null);
     const contentRef = useRef<HTMLDivElement>(null);
@@ -298,9 +255,6 @@ const DashboardTile = ({
                     blockId={block.id}
                     actions={block.actions}
                     label={labels.blockactions.replace('{$a}', block.title)}
-                    moveLabel={labels.positionmove}
-                    resizeLabel={labels.positionresize}
-                    steps={steps}
                 />
             </div>}
         </header>

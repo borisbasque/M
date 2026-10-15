@@ -24,7 +24,6 @@ import {
     readGridMetrics,
     rowsForHeight,
     stepDraft,
-    displacedBy,
     writeBack,
     collapseEmptyRows,
     emptyRegions,
@@ -523,7 +522,7 @@ describe('writeBack and content-fit sizing', () => {
     });
 });
 
-describe('stepDraft and displacedBy', () => {
+describe('stepDraft', () => {
     const block: LayoutItem = {id: 9, column: 0, row: 0, columns: 2, rows: 2};
     const minimum = {columns: 1, rows: 2};
 
@@ -540,11 +539,5 @@ describe('stepDraft and displacedBy', () => {
         expect(stepDraft({...block, columns: 1}, 'resize', -1, 0, 6, minimum)).toEqual({blocker: 'minimum'});
         expect(stepDraft({...block, columns: 6}, 'resize', 1, 0, 6, minimum)).toEqual({blocker: 'edge'});
         expect(stepDraft(block, 'resize', 1, 1, 6, minimum).draft).toMatchObject({columns: 3, rows: 3});
-    });
-
-    it('names the blocks a draft would move aside', () => {
-        const layout: LayoutItem[] = [block, {id: 10, column: 3, row: 0, columns: 2, rows: 2}];
-        expect(displacedBy(layout, 6, {...block, column: 1}, minimum)).toEqual([]);
-        expect(displacedBy(layout, 6, {...block, column: 2}, minimum)).toEqual([10]);
     });
 });

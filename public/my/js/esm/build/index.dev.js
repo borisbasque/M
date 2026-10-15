@@ -35,7 +35,6 @@ import {
   packLayout,
   packWithPinned,
   stepDraft,
-  displacedBy,
   readGridMetrics,
   rowsForHeight,
   writeBack
@@ -70,7 +69,7 @@ const DashboardScopeBanner = /* @__PURE__ */ __name(({ siteDefault, caneditother
     false,
     {
       fileName: "public/my/js/esm/src/index.tsx",
-      lineNumber: 97,
+      lineNumber: 96,
       columnNumber: 9
     }
   ),
@@ -85,13 +84,13 @@ const DashboardScopeBanner = /* @__PURE__ */ __name(({ siteDefault, caneditother
     false,
     {
       fileName: "public/my/js/esm/src/index.tsx",
-      lineNumber: 103,
+      lineNumber: 102,
       columnNumber: 31
     }
   )
 ] }, void 0, true, {
   fileName: "public/my/js/esm/src/index.tsx",
-  lineNumber: 96,
+  lineNumber: 95,
   columnNumber: 5
 }), "DashboardScopeBanner");
 const HISTORY_LIMIT = 50;
@@ -824,7 +823,7 @@ const Dashboard = /* @__PURE__ */ __name(({ loadingLabel = "", initialLayout = [
     setInteraction(next);
     if (origin === "keyboard") {
       void showInstructions(block.title, mode, "keyboard");
-    } else if (origin !== "menu") {
+    } else {
       void announce(mode === "move" ? "dashboardmovebegin" : "dashboardresizebegin", block.title);
     }
   }, [announce, blocksById, displayLayout, showInstructions]);
@@ -886,7 +885,7 @@ const Dashboard = /* @__PURE__ */ __name(({ loadingLabel = "", initialLayout = [
     const warning = joinWarning(currentCanonical, next);
     updateCanonical(next);
     endInteraction();
-    if (warning && current.origin !== "menu") {
+    if (warning) {
       showToast(warning);
     }
     void announce(current.mode === "move" ? "dashboardmovecommitted" : "dashboardresizecommitted", {
@@ -913,21 +912,6 @@ const Dashboard = /* @__PURE__ */ __name(({ loadingLabel = "", initialLayout = [
   cancelRef.current = cancel;
   const commitRef = useRef(commit);
   commitRef.current = commit;
-  const stepBlock = useCallback((id, mode, visualHorizontal, vertical) => {
-    const layout = displayLayoutRef.current;
-    const item = layout.find((candidate) => candidate.id === id);
-    if (interactionRef.current || !item) {
-      return;
-    }
-    const horizontal = isRtl(gridRef.current) ? -visualHorizontal : visualHorizontal;
-    const minimum = fitMinimum(minimumSize(id), columnCountRef.current);
-    const result = stepDraft(item, mode, horizontal, vertical, columnCountRef.current, minimum);
-    if (!result.draft) {
-      return;
-    }
-    interactionRef.current = { id, mode, origin: "menu", original: item, draft: result.draft, before: layout };
-    void commit();
-  }, [commit, minimumSize]);
   const keyDown = useCallback((event, id, mode) => {
     if (!interaction && (event.key === " " || event.key === "Enter")) {
       event.preventDefault();
@@ -1301,11 +1285,11 @@ const Dashboard = /* @__PURE__ */ __name(({ loadingLabel = "", initialLayout = [
   if (!data) {
     return error ? /* @__PURE__ */ jsxDEV("div", { className: "core-my-dashboard-status alert alert-danger", role: "alert", children: error }, void 0, false, {
       fileName: "public/my/js/esm/src/index.tsx",
-      lineNumber: 1866,
+      lineNumber: 1842,
       columnNumber: 15
     }) : /* @__PURE__ */ jsxDEV(DashboardLoading, { label: loadingLabel, layout: initialLayout }, void 0, false, {
       fileName: "public/my/js/esm/src/index.tsx",
-      lineNumber: 1867,
+      lineNumber: 1843,
       columnNumber: 15
     });
   }
@@ -1337,14 +1321,13 @@ const Dashboard = /* @__PURE__ */ __name(({ loadingLabel = "", initialLayout = [
         onKeyDown: keyDown,
         onPointerDown: pointerDown,
         onCommit: () => void commit(),
-        onRemove: (id) => void remove(id),
-        steps: data.editing ? (mode) => menuSteps(item.id, mode) : void 0
+        onRemove: (id) => void remove(id)
       },
       item.id,
       false,
       {
         fileName: "public/my/js/esm/src/index.tsx",
-        lineNumber: 1882,
+        lineNumber: 1858,
         columnNumber: 16
       }
     );
@@ -1367,7 +1350,7 @@ const Dashboard = /* @__PURE__ */ __name(({ loadingLabel = "", initialLayout = [
       false,
       {
         fileName: "public/my/js/esm/src/index.tsx",
-        lineNumber: 1916,
+        lineNumber: 1891,
         columnNumber: 82
       }
     ) }))
@@ -1382,38 +1365,6 @@ const Dashboard = /* @__PURE__ */ __name(({ loadingLabel = "", initialLayout = [
     offline: "",
     retrying: data.labels.saveretrying
   };
-  const menuSteps = /* @__PURE__ */ __name((id, mode) => {
-    const { labels } = data;
-    const item = displayLayout.find((candidate) => candidate.id === id);
-    if (!item) {
-      return [];
-    }
-    const minimum = fitMinimum(minimumSize(id), columnCount);
-    const rtl = isRtl(gridRef.current);
-    const reasons = { edge: labels.positionedge, minimum: labels.positionminimum };
-    const directions = mode === "move" ? [
-      ["up", labels.positionup, 0, -1],
-      ["down", labels.positiondown, 0, 1],
-      ["left", labels.positionleft, -1, 0],
-      ["right", labels.positionright, 1, 0]
-    ] : [
-      ["wider", labels.positionwider, rtl ? -1 : 1, 0],
-      ["narrower", labels.positionnarrower, rtl ? 1 : -1, 0],
-      ["taller", labels.positiontaller, 0, 1],
-      ["shorter", labels.positionshorter, 0, -1]
-    ];
-    return directions.map(([key, label, visual, vertical]) => {
-      const result = stepDraft(item, mode, rtl ? -visual : visual, vertical, columnCount, minimum);
-      const displaced = result.draft ? displacedBy(displayLayout, columnCount, result.draft, minimum).map((other) => blocksById.get(other)?.title).filter(Boolean).join(", ") : "";
-      return {
-        key,
-        label,
-        reason: result.blocker ? reasons[result.blocker] : void 0,
-        note: displaced ? labels.positiondisplaces.replace("{$a}", displaced) : void 0,
-        onSelect: /* @__PURE__ */ __name(() => stepBlock(id, mode, visual, vertical), "onSelect")
-      };
-    });
-  }, "menuSteps");
   return /* @__PURE__ */ jsxDEV(
     "div",
     {
@@ -1423,7 +1374,7 @@ const Dashboard = /* @__PURE__ */ __name(({ loadingLabel = "", initialLayout = [
       children: [
         error && /* @__PURE__ */ jsxDEV("div", { className: "alert alert-danger", role: "alert", children: error }, void 0, false, {
           fileName: "public/my/js/esm/src/index.tsx",
-          lineNumber: 1990,
+          lineNumber: 1928,
           columnNumber: 19
         }),
         unsaved && /* @__PURE__ */ jsxDEV("div", { className: "alert alert-warning core-my-dashboard-unsaved", role: "alert", children: [
@@ -1441,23 +1392,23 @@ const Dashboard = /* @__PURE__ */ __name(({ loadingLabel = "", initialLayout = [
             false,
             {
               fileName: "public/my/js/esm/src/index.tsx",
-              lineNumber: 1993,
+              lineNumber: 1931,
               columnNumber: 13
             }
           )
         ] }, void 0, true, {
           fileName: "public/my/js/esm/src/index.tsx",
-          lineNumber: 1991,
+          lineNumber: 1929,
           columnNumber: 21
         }),
         /* @__PURE__ */ jsxDEV("div", { className: "core-my-dashboard-savestatus", role: "status", children: statusMessages[saveStatus] }, void 0, false, {
           fileName: "public/my/js/esm/src/index.tsx",
-          lineNumber: 2001,
+          lineNumber: 1939,
           columnNumber: 9
         }),
         /* @__PURE__ */ jsxDEV("div", { className: "visually-hidden", "aria-live": "polite", "aria-atomic": "true", children: announcement }, void 0, false, {
           fileName: "public/my/js/esm/src/index.tsx",
-          lineNumber: 2002,
+          lineNumber: 1940,
           columnNumber: 9
         }),
         data.editing && /* @__PURE__ */ jsxDEV("div", { className: "core-my-dashboard-toolbar", children: [
@@ -1473,7 +1424,7 @@ const Dashboard = /* @__PURE__ */ __name(({ loadingLabel = "", initialLayout = [
             false,
             {
               fileName: "public/my/js/esm/src/index.tsx",
-              lineNumber: 2004,
+              lineNumber: 1942,
               columnNumber: 13
             }
           ),
@@ -1489,7 +1440,7 @@ const Dashboard = /* @__PURE__ */ __name(({ loadingLabel = "", initialLayout = [
               false,
               {
                 fileName: "public/my/js/esm/src/index.tsx",
-                lineNumber: 2011,
+                lineNumber: 1949,
                 columnNumber: 34
               }
             ),
@@ -1500,7 +1451,7 @@ const Dashboard = /* @__PURE__ */ __name(({ loadingLabel = "", initialLayout = [
                 label: data.labels.undo,
                 startIcon: /* @__PURE__ */ jsxDEV("i", { className: "fa fa-rotate-left", "aria-hidden": "true" }, void 0, false, {
                   fileName: "public/my/js/esm/src/index.tsx",
-                  lineNumber: 2019,
+                  lineNumber: 1957,
                   columnNumber: 32
                 }),
                 disabled: historySize === 0,
@@ -1510,7 +1461,7 @@ const Dashboard = /* @__PURE__ */ __name(({ loadingLabel = "", initialLayout = [
               false,
               {
                 fileName: "public/my/js/esm/src/index.tsx",
-                lineNumber: 2016,
+                lineNumber: 1954,
                 columnNumber: 17
               }
             ),
@@ -1526,7 +1477,7 @@ const Dashboard = /* @__PURE__ */ __name(({ loadingLabel = "", initialLayout = [
               false,
               {
                 fileName: "public/my/js/esm/src/index.tsx",
-                lineNumber: 2023,
+                lineNumber: 1961,
                 columnNumber: 17
               }
             ),
@@ -1538,7 +1489,7 @@ const Dashboard = /* @__PURE__ */ __name(({ loadingLabel = "", initialLayout = [
                 label: data.labels.addblock,
                 startIcon: /* @__PURE__ */ jsxDEV("i", { className: "fa fa-plus", "aria-hidden": "true" }, void 0, false, {
                   fileName: "public/my/js/esm/src/index.tsx",
-                  lineNumber: 2033,
+                  lineNumber: 1971,
                   columnNumber: 32
                 }),
                 onClick: () => setPalette({})
@@ -1547,34 +1498,34 @@ const Dashboard = /* @__PURE__ */ __name(({ loadingLabel = "", initialLayout = [
               false,
               {
                 fileName: "public/my/js/esm/src/index.tsx",
-                lineNumber: 2029,
+                lineNumber: 1967,
                 columnNumber: 17
               }
             )
           ] }, void 0, true, {
             fileName: "public/my/js/esm/src/index.tsx",
-            lineNumber: 2010,
+            lineNumber: 1948,
             columnNumber: 13
           })
         ] }, void 0, true, {
           fileName: "public/my/js/esm/src/index.tsx",
-          lineNumber: 2003,
+          lineNumber: 1941,
           columnNumber: 26
         }),
         empty && data.canedit && /* @__PURE__ */ jsxDEV("div", { className: "core-my-dashboard-empty", children: [
           /* @__PURE__ */ jsxDEV("p", { children: data.labels.empty }, void 0, false, {
             fileName: "public/my/js/esm/src/index.tsx",
-            lineNumber: 2039,
+            lineNumber: 1977,
             columnNumber: 13
           }),
           /* @__PURE__ */ jsxDEV("div", { className: "core-my-dashboard-empty__actions", children: [
             data.editing ? /* @__PURE__ */ jsxDEV(Button, { variant: "primary", label: data.labels.addblock, onClick: () => setPalette({}) }, void 0, false, {
               fileName: "public/my/js/esm/src/index.tsx",
-              lineNumber: 2042,
+              lineNumber: 1980,
               columnNumber: 23
             }) : /* @__PURE__ */ jsxDEV("a", { className: "btn btn-primary", href: addBlockUrl, children: data.labels.addblock }, void 0, false, {
               fileName: "public/my/js/esm/src/index.tsx",
-              lineNumber: 2043,
+              lineNumber: 1981,
               columnNumber: 23
             }),
             !siteDefault && /* @__PURE__ */ jsxDEV(
@@ -1588,18 +1539,18 @@ const Dashboard = /* @__PURE__ */ __name(({ loadingLabel = "", initialLayout = [
               false,
               {
                 fileName: "public/my/js/esm/src/index.tsx",
-                lineNumber: 2044,
+                lineNumber: 1982,
                 columnNumber: 34
               }
             )
           ] }, void 0, true, {
             fileName: "public/my/js/esm/src/index.tsx",
-            lineNumber: 2040,
+            lineNumber: 1978,
             columnNumber: 13
           })
         ] }, void 0, true, {
           fileName: "public/my/js/esm/src/index.tsx",
-          lineNumber: 2038,
+          lineNumber: 1976,
           columnNumber: 35
         }),
         /* @__PURE__ */ jsxDEV(
@@ -1632,7 +1583,7 @@ const Dashboard = /* @__PURE__ */ __name(({ loadingLabel = "", initialLayout = [
                 false,
                 {
                   fileName: "public/my/js/esm/src/index.tsx",
-                  lineNumber: 2072,
+                  lineNumber: 2010,
                   columnNumber: 29
                 }
               )
@@ -1642,7 +1593,7 @@ const Dashboard = /* @__PURE__ */ __name(({ loadingLabel = "", initialLayout = [
           true,
           {
             fileName: "public/my/js/esm/src/index.tsx",
-            lineNumber: 2051,
+            lineNumber: 1989,
             columnNumber: 9
           }
         ),
@@ -1656,13 +1607,13 @@ const Dashboard = /* @__PURE__ */ __name(({ loadingLabel = "", initialLayout = [
             children: /* @__PURE__ */ jsxDEV("span", { className: "core-my-grid-cell__label", "aria-hidden": "true", children: [
               /* @__PURE__ */ jsxDEV("i", { className: "fa fa-plus core-my-grid-cell__icon", "aria-hidden": "true" }, void 0, false, {
                 fileName: "public/my/js/esm/src/index.tsx",
-                lineNumber: 2092,
+                lineNumber: 2030,
                 columnNumber: 17
               }),
               data.labels.addblock
             ] }, void 0, true, {
               fileName: "public/my/js/esm/src/index.tsx",
-              lineNumber: 2091,
+              lineNumber: 2029,
               columnNumber: 13
             })
           },
@@ -1670,7 +1621,7 @@ const Dashboard = /* @__PURE__ */ __name(({ loadingLabel = "", initialLayout = [
           false,
           {
             fileName: "public/my/js/esm/src/index.tsx",
-            lineNumber: 2085,
+            lineNumber: 2023,
             columnNumber: 36
           }
         ),
@@ -1687,7 +1638,7 @@ const Dashboard = /* @__PURE__ */ __name(({ loadingLabel = "", initialLayout = [
           false,
           {
             fileName: "public/my/js/esm/src/index.tsx",
-            lineNumber: 2096,
+            lineNumber: 2034,
             columnNumber: 21
           }
         ),
@@ -1708,13 +1659,13 @@ const Dashboard = /* @__PURE__ */ __name(({ loadingLabel = "", initialLayout = [
           false,
           {
             fileName: "public/my/js/esm/src/index.tsx",
-            lineNumber: 2103,
+            lineNumber: 2041,
             columnNumber: 27
           }
         ),
         /* @__PURE__ */ jsxDEV(Toast, { message: toast, closeLabel: data.labels.close, onClose: hideToast }, void 0, false, {
           fileName: "public/my/js/esm/src/index.tsx",
-          lineNumber: 2114,
+          lineNumber: 2052,
           columnNumber: 9
         })
       ]
@@ -1723,7 +1674,7 @@ const Dashboard = /* @__PURE__ */ __name(({ loadingLabel = "", initialLayout = [
     true,
     {
       fileName: "public/my/js/esm/src/index.tsx",
-      lineNumber: 1983,
+      lineNumber: 1921,
       columnNumber: 12
     }
   );

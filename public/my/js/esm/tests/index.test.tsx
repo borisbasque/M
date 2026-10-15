@@ -128,19 +128,6 @@ const labels: DashboardLabels = {
     placemove: 'Move {$a->block} here: row {$a->row}, column {$a->column}',
     placeresize: 'Resize {$a->block} to end here: row {$a->row}, column {$a->column}',
     resizeinstructions: 'Use the arrow keys to resize',
-    positionmove: 'Move',
-    positionresize: 'Resize',
-    positionup: 'Up',
-    positiondown: 'Down',
-    positionleft: 'Left',
-    positionright: 'Right',
-    positionwider: 'Wider',
-    positionnarrower: 'Narrower',
-    positiontaller: 'Taller',
-    positionshorter: 'Shorter',
-    positionedge: 'At the edge of the dashboard',
-    positionminimum: 'Already the smallest size for this block',
-    positiondisplaces: 'Moves {$a} aside',
     retry: 'Retry',
     savefailed: 'Your changes could not be saved.',
     saveoffline: 'You are offline.',
@@ -342,61 +329,6 @@ describe('core_my Dashboard application', () => {
         await waitFor(() => expect(getStringSpy).toHaveBeenCalledWith('dashboardresizecommitted', 'my',
             expect.objectContaining({block: 'First block'})));
         getStringSpy.mockRestore();
-    });
-
-    describe('Move and Resize in the block menu', () => {
-        const openSubmenu = (item: 'Move' | 'Resize') => {
-            const firstTile = screen.getByRole('region', {name: 'First block block'});
-            const trigger = within(firstTile).getByRole('button', {name: 'More actions for First block'});
-            fireEvent.click(trigger);
-            fireEvent.click(screen.getByRole('menuitem', {name: item}));
-            return {firstTile, trigger};
-        };
-
-        it('applies and saves each step at once, disabling steps at the edge', async() => {
-            const fetchOneSpy = mockDashboardApi({getResponses: [buildData()]});
-            const getStringSpy = jest.spyOn(StringUtils, 'getString');
-            render(<Dashboard />);
-            await screen.findByText('First block');
-            const {firstTile} = openSubmenu('Move');
-
-            const up = screen.getByRole('menuitem', {name: /^Up/});
-            expect(up).toHaveAttribute('aria-disabled', 'true');
-            expect(up).toHaveTextContent('At the edge of the dashboard');
-            expect(screen.getByRole('menuitem', {name: /^Left/})).toHaveAttribute('aria-disabled', 'true');
-            expect(screen.getByRole('menuitem', {name: /^Right/})).not.toHaveAttribute('aria-disabled');
-
-            // A disabled step does nothing.
-            fireEvent.click(up);
-            expect(updateCalls(fetchOneSpy)).toHaveLength(0);
-
-            await act(async() => {
-                fireEvent.click(screen.getByRole('menuitem', {name: /^Right/}));
-            });
-            expect(firstTile.style.gridColumn).toBe('2 / span 2');
-            await waitFor(() => expect(getStringSpy).toHaveBeenCalledWith('dashboardmovecommitted', 'my',
-                expect.objectContaining({block: 'First block', column: 2})));
-            await waitFor(() => expect(updateCalls(fetchOneSpy)).toHaveLength(1));
-            // The menu stays open, now offering Left, so the step can be pressed again.
-            expect(screen.getByRole('menuitem', {name: /^Left/})).not.toHaveAttribute('aria-disabled');
-            expect(screen.getByRole('menuitem', {name: /^Right/})).toHaveTextContent('Moves Second block aside');
-            getStringSpy.mockRestore();
-        });
-
-        it('stops resizing at the block\'s minimum size', async() => {
-            mockDashboardApi({getResponses: [buildData()]});
-            render(<Dashboard />);
-            await screen.findByText('First block');
-            openSubmenu('Resize');
-
-            expect(screen.getByRole('menuitem', {name: /^Shorter/}))
-                .toHaveTextContent('Already the smallest size for this block');
-            expect(screen.getByRole('menuitem', {name: /^Shorter/})).toHaveAttribute('aria-disabled', 'true');
-            await act(async() => {
-                fireEvent.click(screen.getByRole('menuitem', {name: /^Narrower/}));
-            });
-            expect(screen.getByRole('menuitem', {name: /^Narrower/})).toHaveAttribute('aria-disabled', 'true');
-        });
     });
 
     it('settles a committed move immediately, before the save responds', async() => {

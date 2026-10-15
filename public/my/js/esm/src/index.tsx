@@ -20,7 +20,7 @@ import {requireManyAsync} from '@moodle/lms/core/amd';
 import Pending from '@moodle/lms/core/pending';
 import {redirect} from '@moodle/lms/core/location';
 import Toast, {type ToastAction, type ToastMessage} from '@moodle/lms/core/Toast';
-import DashboardTile, {type BlockStep} from './components/DashboardTile';
+import DashboardTile from './components/DashboardTile';
 import ConfirmationDialog from './components/ConfirmationDialog';
 import BlockBrowser from './components/BlockBrowser';
 import GridCell from './components/GridCell';
@@ -40,7 +40,6 @@ import {
     packLayout,
     packWithPinned,
     stepDraft,
-    displacedBy,
     readGridMetrics,
     rowsForHeight,
     writeBack,
@@ -110,7 +109,7 @@ export const DashboardScopeBanner = ({siteDefault, caneditotherscope, urls, labe
 interface Interaction {
     id: number;
     mode: 'move' | 'resize';
-    origin: 'keyboard' | 'mouseclick' | 'pointer' | 'menu';
+    origin: 'keyboard' | 'mouseclick' | 'pointer';
     original: LayoutItem;
     draft: LayoutItem;
     before: LayoutItem[];
@@ -1239,7 +1238,7 @@ const Dashboard = ({loadingLabel = '', initialLayout = [], openBrowser = false, 
         setInteraction(next);
         if (origin === 'keyboard') {
             void showInstructions(block.title, mode, 'keyboard');
-        } else if (origin !== 'menu') {
+        } else {
             void announce(mode === 'move' ? 'dashboardmovebegin' : 'dashboardresizebegin', block.title);
         }
     }, [announce, blocksById, displayLayout, showInstructions]);
@@ -1338,8 +1337,7 @@ const Dashboard = ({loadingLabel = '', initialLayout = [], openBrowser = false, 
         const warning = joinWarning(currentCanonical, next);
         updateCanonical(next);
         endInteraction();
-        // Not from the block menu: its result is announced, and a toast at once would talk over it.
-        if (warning && current.origin !== 'menu') {
+        if (warning) {
             showToast(warning);
         }
         void announce(current.mode === 'move' ? 'dashboardmovecommitted' : 'dashboardresizecommitted', {
@@ -1370,28 +1368,6 @@ const Dashboard = ({loadingLabel = '', initialLayout = [], openBrowser = false, 
     cancelRef.current = cancel;
     const commitRef = useRef(commit);
     commitRef.current = commit;
-
-    /**
-     * One Move or Resize step from a block's menu, applied and saved straight away. It goes through
-     * stepDraft(), as the arrow keys do, so the two never disagree about what is possible, and
-     * through commit(), so it is saved, announced naming the block, and can be undone.
-     * Horizontal steps are visual: in a right-to-left grid, right is backwards.
-     */
-    const stepBlock = useCallback((id: number, mode: 'move' | 'resize', visualHorizontal: number, vertical: number) => {
-        const layout = displayLayoutRef.current;
-        const item = layout.find(candidate => candidate.id === id);
-        if (interactionRef.current || !item) {
-            return;
-        }
-        const horizontal = isRtl(gridRef.current) ? -visualHorizontal : visualHorizontal;
-        const minimum = fitMinimum(minimumSize(id), columnCountRef.current);
-        const result = stepDraft(item, mode, horizontal, vertical, columnCountRef.current, minimum);
-        if (!result.draft) {
-            return;
-        }
-        interactionRef.current = {id, mode, origin: 'menu', original: item, draft: result.draft, before: layout};
-        void commit();
-    }, [commit, minimumSize]);
 
     /**
      * Keyboard-driven move/resize: Space/Enter starts or commits an interaction, Escape cancels
@@ -1899,7 +1875,6 @@ const Dashboard = ({loadingLabel = '', initialLayout = [], openBrowser = false, 
             onPointerDown={pointerDown}
             onCommit={() => void commit()}
             onRemove={id => void remove(id)}
-            steps={data.editing ? mode => menuSteps(item.id, mode) : undefined}
         />;
     };
     // Empty spaces offer "Add a block here" at rest. While a block is picked up by a click or by
@@ -1942,43 +1917,6 @@ const Dashboard = ({loadingLabel = '', initialLayout = [], openBrowser = false, 
         saving: '',
         offline: '',
         retrying: data.labels.saveretrying,
-    };
-    // The steps offered in a block's menu. Left and right are as seen: in a right-to-left grid,
-    // left is towards the end of the row. A step that would push other blocks aside names them.
-    const menuSteps = (id: number, mode: 'move' | 'resize'): BlockStep[] => {
-        const {labels} = data;
-        const item = displayLayout.find(candidate => candidate.id === id);
-        if (!item) {
-            return [];
-        }
-        const minimum = fitMinimum(minimumSize(id), columnCount);
-        const rtl = isRtl(gridRef.current);
-        const reasons = {edge: labels.positionedge, minimum: labels.positionminimum};
-        const directions: [string, string, number, number][] = mode === 'move' ? [
-            ['up', labels.positionup, 0, -1],
-            ['down', labels.positiondown, 0, 1],
-            ['left', labels.positionleft, -1, 0],
-            ['right', labels.positionright, 1, 0],
-        ] : [
-            ['wider', labels.positionwider, rtl ? -1 : 1, 0],
-            ['narrower', labels.positionnarrower, rtl ? 1 : -1, 0],
-            ['taller', labels.positiontaller, 0, 1],
-            ['shorter', labels.positionshorter, 0, -1],
-        ];
-        return directions.map(([key, label, visual, vertical]) => {
-            const result = stepDraft(item, mode, rtl ? -visual : visual, vertical, columnCount, minimum);
-            const displaced = result.draft
-                ? displacedBy(displayLayout, columnCount, result.draft, minimum)
-                    .map(other => blocksById.get(other)?.title).filter(Boolean).join(', ')
-                : '';
-            return {
-                key,
-                label,
-                reason: result.blocker ? reasons[result.blocker] : undefined,
-                note: displaced ? labels.positiondisplaces.replace('{$a}', displaced) : undefined,
-                onSelect: () => stepBlock(id, mode, visual, vertical),
-            };
-        });
     };
     return <div
         className="core-my-dashboard-app"

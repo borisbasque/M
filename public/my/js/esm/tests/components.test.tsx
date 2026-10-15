@@ -98,19 +98,6 @@ const labels = {
     moveinstructions: 'Use the arrow keys to move',
     resize: 'Resize {$a}',
     resizeinstructions: 'Use the arrow keys to resize',
-    positionmove: 'Move',
-    positionresize: 'Resize',
-    positionup: 'Up',
-    positiondown: 'Down',
-    positionleft: 'Left',
-    positionright: 'Right',
-    positionwider: 'Wider',
-    positionnarrower: 'Narrower',
-    positiontaller: 'Taller',
-    positionshorter: 'Shorter',
-    positionedge: 'At the edge of the dashboard',
-    positionminimum: 'Already the smallest size for this block',
-    positiondisplaces: 'Moves {$a} aside',
     scopeown: 'Editing your dashboard',
     scopesitedefault: 'Editing the default dashboard for all users',
     switchtoown: 'Switch to editing your dashboard',
@@ -498,44 +485,6 @@ describe('core_my grid components', () => {
         render(<BlockActionsMenu blockId={11} actions={[]} label="More actions for Useful links" />);
 
         expect(screen.queryByRole('button', {name: 'More actions for Useful links'})).not.toBeInTheDocument();
-    });
-
-    it('offers Move and Resize submenus of steps, disabling unavailable ones with the reason', () => {
-        const onUp = jest.fn();
-        const onLeft = jest.fn();
-        const steps = (mode: 'move' | 'resize') => mode === 'move' ? [
-            {key: 'up', label: 'Up', onSelect: onUp, note: 'Moves Timeline aside'},
-            {key: 'left', label: 'Left', onSelect: onLeft, reason: 'At the edge of the dashboard'},
-        ] : [
-            {key: 'wider', label: 'Wider', onSelect: jest.fn()},
-        ];
-        render(<BlockActionsMenu
-            blockId={11}
-            actions={[{id: 'permissions', label: 'Permissions', url: 'https://example.com/perm', modalform: ''}]}
-            label="More actions for Useful links"
-            moveLabel="Move"
-            resizeLabel="Resize"
-            steps={steps}
-        />);
-
-        fireEvent.click(screen.getByRole('button', {name: 'More actions for Useful links'}));
-        expect(screen.getAllByRole('menuitem').map(item => item.textContent)).toEqual(['Move', 'Resize', 'Permissions']);
-        expect(screen.getByRole('separator')).toBeInTheDocument();
-
-        fireEvent.click(screen.getByRole('menuitem', {name: 'Move'}));
-        const up = screen.getByRole('menuitem', {name: /^Up/});
-        const left = screen.getByRole('menuitem', {name: /^Left/});
-        expect(up).toHaveTextContent('Moves Timeline aside');
-        expect(up).not.toHaveAttribute('aria-disabled');
-        expect(left).toHaveAttribute('aria-disabled', 'true');
-        expect(left).toHaveTextContent('At the edge of the dashboard');
-
-        // A step applies straight away and leaves the menu open, so it can be pressed again.
-        fireEvent.click(up);
-        expect(onUp).toHaveBeenCalledTimes(1);
-        expect(screen.getByRole('menuitem', {name: /^Up/})).toBeInTheDocument();
-        fireEvent.click(left);
-        expect(onLeft).not.toHaveBeenCalled();
     });
 
     it('opens the block actions menu and lists each retained action as a link', () => {

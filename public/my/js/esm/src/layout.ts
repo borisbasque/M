@@ -396,32 +396,6 @@ export const stepDraft = (
 };
 
 /**
- * The blocks that putting one block at a draft rectangle would move aside.
- *
- * @param layout The layout as it was before the change.
- * @param columnCount The grid's current column count.
- * @param draft The block's draft rectangle.
- * @param minimum The block's minimum size, already fitted to the column count.
- * @return Their ids, in reading order.
- */
-export const displacedBy = (
-    layout: LayoutItem[],
-    columnCount: number,
-    draft: LayoutItem,
-    minimum: GridSize,
-): number[] => {
-    const before = new Map(layout.map(item => [item.id, item]));
-    return packWithPinned(layout, columnCount, draft, minimum)
-        .filter(item => {
-            const original = before.get(item.id);
-            return item.id !== draft.id && original
-                && (original.column !== item.column || original.row !== item.row);
-        })
-        .sort((left, right) => left.row - right.row || left.column - right.column)
-        .map(item => item.id);
-};
-
-/**
  * Turn a `derived` layout - produced by packLayout()/packWithPinned() at the current, possibly
  * narrowed, responsive column count - back into a canonical layout safe to persist at the full
  * MAX_COLUMNS width the server always stores.

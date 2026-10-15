@@ -206,13 +206,6 @@ const stepDraft = /* @__PURE__ */ __name((draft, mode, horizontal, vertical, col
   }
   return { draft: { ...draft, columns, rows } };
 }, "stepDraft");
-const displacedBy = /* @__PURE__ */ __name((layout, columnCount, draft, minimum) => {
-  const before = new Map(layout.map((item) => [item.id, item]));
-  return packWithPinned(layout, columnCount, draft, minimum).filter((item) => {
-    const original = before.get(item.id);
-    return item.id !== draft.id && original && (original.column !== item.column || original.row !== item.row);
-  }).sort((left, right) => left.row - right.row || left.column - right.column).map((item) => item.id);
-}, "displacedBy");
 const writeBack = /* @__PURE__ */ __name((canonical, derived, pinnedId, minimum) => {
   const original = new Map(canonical.map((item) => [item.id, item]));
   const restored = [...derived].sort((left, right) => left.row - right.row || left.column - right.column || left.id - right.id).map((item) => ({
@@ -453,7 +446,6 @@ export {
   blocksJoined,
   collapseEmptyRows,
   columnsForWidth,
-  displacedBy,
   disturbedCount,
   emptyRegions,
   firstFreeSpace,

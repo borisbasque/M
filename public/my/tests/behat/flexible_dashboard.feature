@@ -168,7 +168,7 @@ Feature: Arrange dashboard blocks in a responsive grid
     Then I should not see "Editing your dashboard"
 
   @javascript
-  Scenario: The block actions menu offers Move and Resize alongside Configure, Permissions and Check permissions
+  Scenario: The block actions menu offers Configure, Permissions and Check permissions
     Given I log out
     And I log in as "admin"
     When I turn editing mode on
@@ -178,8 +178,8 @@ Feature: Arrange dashboard blocks in a responsive grid
     Then I should not see "Configure Course overview block" in the ".mds-dropdown-menu" "css_element"
     And I should see "Manage permissions" in the ".mds-dropdown-menu" "css_element"
     And I should see "Check permissions" in the ".mds-dropdown-menu" "css_element"
-    And "Move" "button" should exist in the ".mds-dropdown-menu" "css_element"
-    And "Resize" "button" should exist in the ".mds-dropdown-menu" "css_element"
+    And "Move" "button" should not exist in the ".mds-dropdown-menu" "css_element"
+    And "Resize" "button" should not exist in the ".mds-dropdown-menu" "css_element"
     And I should not see "Move Course overview block" in the ".mds-dropdown-menu" "css_element"
     And I should not see "Delete Course overview block" in the ".mds-dropdown-menu" "css_element"
     And "Hide Course overview block" "button" should not exist
@@ -191,27 +191,6 @@ Feature: Arrange dashboard blocks in a responsive grid
     And I press the escape key
     And I click on ".core-my-dashboard-block-actions [aria-haspopup='menu']" "css_element" in the ".core-my-dashboard-tile[data-block='html']" "css_element"
     Then I should see "Configure (new text block) block" in the ".mds-dropdown-menu" "css_element"
-
-  @javascript
-  Scenario: A block can be moved and resized one space at a time from its menu
-    Given I log out
-    And I log in as "admin"
-    When I turn editing mode on
-    And I click on "More actions for Course overview" "button" in the "Course overview" "block"
-    And I click on "Move" "button" in the ".mds-dropdown-menu" "css_element"
-    Then the "aria-disabled" attribute of "[data-step='up']" "css_element" should contain "true"
-    And I should see "At the edge of the dashboard" in the "[data-step='up']" "css_element"
-    When I click on "[data-step='down']" "css_element"
-    Then "[data-step='up']" "css_element" should exist
-    And the "aria-disabled" attribute of "[data-step='up']" "css_element" should not be set
-    # Escape closes one level at a time: the Move submenu, then the menu.
-    When I press the escape key
-    And I press the escape key
-    Then ".mds-dropdown-menu" "css_element" should not exist
-    When I click on "More actions for Course overview" "button" in the "Course overview" "block"
-    And I click on "Resize" "button" in the ".mds-dropdown-menu" "css_element"
-    And I click on "[data-step='taller']" "css_element"
-    Then "[data-step='shorter']" "css_element" should exist
 
   @javascript
   Scenario: An administrator can switch between their own dashboard and the site default while editing

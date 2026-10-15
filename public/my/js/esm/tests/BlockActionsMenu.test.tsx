@@ -17,38 +17,28 @@ import {render, screen, fireEvent} from '@testing-library/react';
 import {BlockActionsMenu} from '../src/components/DashboardTile';
 
 describe('BlockActionsMenu with the real design system Dropdown', () => {
-    it('opens on click, opens the Move submenu and applies a step', async() => {
-        const onUp = jest.fn();
-        const steps = (mode: 'move' | 'resize') => mode === 'move'
-            ? [{key: 'up', label: 'Up', onSelect: onUp}]
-            : [{key: 'wider', label: 'Wider', onSelect: jest.fn()}];
+    it('opens on click, lists the block actions, and closes on Escape', () => {
         render(<BlockActionsMenu
             blockId={11}
-            actions={[{id: 'permissions', label: 'Permissions', url: 'https://example.com/perm', modalform: ''}]}
+            actions={[
+                {id: 'permissions', label: 'Manage permissions', url: 'https://example.com/perm', modalform: ''},
+                {id: 'check', label: 'Check permissions', url: 'https://example.com/check', modalform: ''},
+            ]}
             label="More actions for Useful links"
-            moveLabel="Move"
-            resizeLabel="Resize"
-            steps={steps}
         />);
 
-        fireEvent.click(screen.getByRole('button', {name: 'More actions for Useful links'}));
-        expect(await screen.findByRole('menu')).toBeInTheDocument();
-        expect(screen.getByRole('menuitem', {name: 'Permissions'})).toBeInTheDocument();
+        const trigger = screen.getByRole('button', {name: 'More actions for Useful links'});
+        fireEvent.click(trigger);
+        expect(screen.getByRole('menu')).toBeInTheDocument();
+        expect(screen.getAllByRole('menuitem').map(item => item.textContent))
+            .toEqual(['Manage permissions', 'Check permissions']);
+        expect(screen.queryByRole('menuitem', {name: 'Move'})).not.toBeInTheDocument();
+        expect(screen.getByRole('menuitem', {name: 'Manage permissions'})).toHaveAttribute('href', 'https://example.com/perm');
 
-        fireEvent.click(screen.getByRole('menuitem', {name: 'Move'}));
-        const up = await screen.findByRole('menuitem', {name: /^Up/});
-        fireEvent.click(up);
-        expect(onUp).toHaveBeenCalledTimes(1);
-        expect(screen.getAllByRole('menu')).toHaveLength(2);
-
-        // Escape closes one level at a time: first the submenu, then the menu itself.
-        fireEvent.keyDown(document.activeElement!, {key: 'Escape'});
-        expect(screen.getAllByRole('menu')).toHaveLength(1);
         fireEvent.keyDown(document.activeElement!, {key: 'Escape'});
         expect(screen.queryByRole('menu')).not.toBeInTheDocument();
 
-        // And it opens again from the button.
-        fireEvent.click(screen.getByRole('button', {name: 'More actions for Useful links'}));
-        expect(screen.getByRole('menuitem', {name: 'Resize'})).toBeInTheDocument();
+        fireEvent.click(trigger);
+        expect(screen.getByRole('menu')).toBeInTheDocument();
     });
 });
