@@ -39,5 +39,16 @@ describe('BlockActionsMenu with the real design system Dropdown', () => {
         const up = await screen.findByRole('menuitem', {name: /^Up/});
         fireEvent.click(up);
         expect(onUp).toHaveBeenCalledTimes(1);
+        expect(screen.getAllByRole('menu')).toHaveLength(2);
+
+        // Escape closes one level at a time: first the submenu, then the menu itself.
+        fireEvent.keyDown(document.activeElement!, {key: 'Escape'});
+        expect(screen.getAllByRole('menu')).toHaveLength(1);
+        fireEvent.keyDown(document.activeElement!, {key: 'Escape'});
+        expect(screen.queryByRole('menu')).not.toBeInTheDocument();
+
+        // And it opens again from the button.
+        fireEvent.click(screen.getByRole('button', {name: 'More actions for Useful links'}));
+        expect(screen.getByRole('menuitem', {name: 'Resize'})).toBeInTheDocument();
     });
 });

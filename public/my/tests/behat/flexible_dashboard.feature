@@ -204,8 +204,11 @@ Feature: Arrange dashboard blocks in a responsive grid
     When I click on "[data-step='down']" "css_element"
     Then "[data-step='up']" "css_element" should exist
     And the "aria-disabled" attribute of "[data-step='up']" "css_element" should not be set
+    # Escape closes one level at a time: the Move submenu, then the menu.
     When I press the escape key
-    And I click on "More actions for Course overview" "button" in the "Course overview" "block"
+    And I press the escape key
+    Then ".mds-dropdown-menu" "css_element" should not exist
+    When I click on "More actions for Course overview" "button" in the "Course overview" "block"
     And I click on "Resize" "button" in the ".mds-dropdown-menu" "css_element"
     And I click on "[data-step='taller']" "css_element"
     Then "[data-step='shorter']" "css_element" should exist
