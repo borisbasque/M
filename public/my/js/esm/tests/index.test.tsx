@@ -25,6 +25,7 @@ import type {LayoutItem} from '../src/layout';
 jest.mock('@moodlehq/design-system', () => {
     const ReactActual = require('react');
     return {
+        ...require('./mdsDropdownMock'),
         Button: ReactActual.forwardRef((
             {label, startIcon, size: _size, variant: _variant, className, ...props}:
             React.ButtonHTMLAttributes<HTMLButtonElement> & {
@@ -127,12 +128,8 @@ const labels: DashboardLabels = {
     placemove: 'Move {$a->block} here: row {$a->row}, column {$a->column}',
     placeresize: 'Resize {$a->block} to end here: row {$a->row}, column {$a->column}',
     resizeinstructions: 'Use the arrow keys to resize',
-    positionmove: 'Move...',
-    positionresize: 'Resize...',
-    positionmoveheading: 'Move {$a}',
-    positionresizeheading: 'Resize {$a}',
-    positionmovehelp: 'Each button moves the block one space.',
-    positionresizehelp: 'Each button changes the size by one space.',
+    positionmove: 'Move',
+    positionresize: 'Resize',
     positionup: 'Up',
     positiondown: 'Down',
     positionleft: 'Left',
@@ -143,10 +140,7 @@ const labels: DashboardLabels = {
     positionshorter: 'Shorter',
     positionedge: 'At the edge of the dashboard',
     positionminimum: 'Already the smallest size for this block',
-    positionwhere: 'Row {$a->row}, column {$a->column}',
-    positionsize: 'Width: {$a->columns} of {$a->total} columns. Height: {$a->rows} rows.',
-    positiondisplaces: 'Will move aside: {$a}',
-    positionsave: 'Save',
+    positiondisplaces: 'Moves {$a} aside',
     retry: 'Retry',
     savefailed: 'Your changes could not be saved.',
     saveoffline: 'You are offline.',
@@ -350,82 +344,58 @@ describe('core_my Dashboard application', () => {
         getStringSpy.mockRestore();
     });
 
-    describe('Move and Resize dialogs', () => {
-        const openDialog = async(item: 'Move...' | 'Resize...') => {
+    describe('Move and Resize in the block menu', () => {
+        const openSubmenu = (item: 'Move' | 'Resize') => {
             const firstTile = screen.getByRole('region', {name: 'First block block'});
             const trigger = within(firstTile).getByRole('button', {name: 'More actions for First block'});
             fireEvent.click(trigger);
-            fireEvent.click(within(firstTile).getByRole('menuitem', {name: item}));
-            return {trigger, dialog: await screen.findByRole('dialog')};
+            fireEvent.click(screen.getByRole('menuitem', {name: item}));
+            return {firstTile, trigger};
         };
 
-        it('disables steps at the edge, previews each step, and saves with one announcement', async() => {
+        it('applies and saves each step at once, disabling steps at the edge', async() => {
             const fetchOneSpy = mockDashboardApi({getResponses: [buildData()]});
             const getStringSpy = jest.spyOn(StringUtils, 'getString');
             render(<Dashboard />);
             await screen.findByText('First block');
-            const {trigger, dialog} = await openDialog('Move...');
+            const {firstTile} = openSubmenu('Move');
 
-            expect(within(dialog).getByRole('heading', {name: 'Move First block'})).toBeInTheDocument();
-            const up = within(dialog).getByRole('button', {name: 'Up'});
-            const left = within(dialog).getByRole('button', {name: 'Left'});
-            const right = within(dialog).getByRole('button', {name: 'Right'});
+            const up = screen.getByRole('menuitem', {name: /^Up/});
             expect(up).toHaveAttribute('aria-disabled', 'true');
-            expect(up).toHaveAccessibleDescription('At the edge of the dashboard');
-            expect(left).toHaveAttribute('aria-disabled', 'true');
-            expect(right).not.toHaveAttribute('aria-disabled');
-            expect(within(dialog).getByRole('status')).toHaveTextContent('Row 1, column 1');
+            expect(up).toHaveTextContent('At the edge of the dashboard');
+            expect(screen.getByRole('menuitem', {name: /^Left/})).toHaveAttribute('aria-disabled', 'true');
+            expect(screen.getByRole('menuitem', {name: /^Right/})).not.toHaveAttribute('aria-disabled');
 
             // A disabled step does nothing.
             fireEvent.click(up);
-            expect(within(dialog).getByRole('status')).toHaveTextContent('Row 1, column 1');
-
-            fireEvent.click(right);
-            fireEvent.click(right);
-            expect(within(dialog).getByRole('status')).toHaveTextContent('Row 1, column 3');
-            expect(within(dialog).getByRole('status')).toHaveTextContent('Will move aside: Second block');
-            expect(left).not.toHaveAttribute('aria-disabled');
+            expect(updateCalls(fetchOneSpy)).toHaveLength(0);
 
             await act(async() => {
-                fireEvent.click(within(dialog).getByRole('button', {name: 'Save'}));
+                fireEvent.click(screen.getByRole('menuitem', {name: /^Right/}));
             });
-            expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
-            await waitFor(() => expect(trigger).toHaveFocus());
+            expect(firstTile.style.gridColumn).toBe('2 / span 2');
             await waitFor(() => expect(getStringSpy).toHaveBeenCalledWith('dashboardmovecommitted', 'my',
-                expect.objectContaining({block: 'First block', column: 3, disturbed: 1})));
-            // The dialog's own status said where it went; no step was announced as well.
-            expect(getStringSpy).not.toHaveBeenCalledWith('gridcellposition', 'my', expect.anything());
+                expect.objectContaining({block: 'First block', column: 2})));
             await waitFor(() => expect(updateCalls(fetchOneSpy)).toHaveLength(1));
+            // The menu stays open, now offering Left, so the step can be pressed again.
+            expect(screen.getByRole('menuitem', {name: /^Left/})).not.toHaveAttribute('aria-disabled');
+            expect(screen.getByRole('menuitem', {name: /^Right/})).toHaveTextContent('Moves Second block aside');
             getStringSpy.mockRestore();
-        });
-
-        it('puts the block back on Cancel and returns focus to the menu button', async() => {
-            const fetchOneSpy = mockDashboardApi({getResponses: [buildData()]});
-            render(<Dashboard />);
-            await screen.findByText('First block');
-            const {trigger, dialog} = await openDialog('Move...');
-            fireEvent.click(within(dialog).getByRole('button', {name: 'Down'}));
-            expect(within(dialog).getByRole('status')).toHaveTextContent('Row 2, column 1');
-
-            fireEvent.click(within(dialog).getByRole('button', {name: 'Cancel'}));
-            expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
-            await waitFor(() => expect(trigger).toHaveFocus());
-            expect(updateCalls(fetchOneSpy)).toHaveLength(0);
         });
 
         it('stops resizing at the block\'s minimum size', async() => {
             mockDashboardApi({getResponses: [buildData()]});
             render(<Dashboard />);
             await screen.findByText('First block');
-            const {dialog} = await openDialog('Resize...');
+            openSubmenu('Resize');
 
-            const shorter = within(dialog).getByRole('button', {name: 'Shorter'});
-            const narrower = within(dialog).getByRole('button', {name: 'Narrower'});
-            expect(shorter).toHaveAccessibleDescription('Already the smallest size for this block');
-            expect(narrower).not.toHaveAttribute('aria-disabled');
-            fireEvent.click(narrower);
-            expect(narrower).toHaveAttribute('aria-disabled', 'true');
-            expect(within(dialog).getByRole('status')).toHaveTextContent(/Width: 1 of \d columns\. Height: 2 rows\./);
+            expect(screen.getByRole('menuitem', {name: /^Shorter/}))
+                .toHaveTextContent('Already the smallest size for this block');
+            expect(screen.getByRole('menuitem', {name: /^Shorter/})).toHaveAttribute('aria-disabled', 'true');
+            await act(async() => {
+                fireEvent.click(screen.getByRole('menuitem', {name: /^Narrower/}));
+            });
+            expect(screen.getByRole('menuitem', {name: /^Narrower/})).toHaveAttribute('aria-disabled', 'true');
         });
     });
 

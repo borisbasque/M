@@ -168,20 +168,20 @@ Feature: Arrange dashboard blocks in a responsive grid
     Then I should not see "Editing your dashboard"
 
   @javascript
-  Scenario: The block actions menu is capped at Move, Resize, Configure, Permissions and Check permissions
+  Scenario: The block actions menu offers Move and Resize alongside Configure, Permissions and Check permissions
     Given I log out
     And I log in as "admin"
     When I turn editing mode on
     And I click on "More actions for Course overview" "button" in the "Course overview" "block"
     # Course overview has no fields of its own to edit - with the where-this-block-appears
     # fields hidden on the dashboard, Configure would otherwise open an empty modal.
-    Then I should not see "Configure Course overview block" in the ".core-my-dashboard-block-actions__menu" "css_element"
-    And I should see "Manage permissions" in the ".core-my-dashboard-block-actions__menu" "css_element"
-    And I should see "Check permissions" in the ".core-my-dashboard-block-actions__menu" "css_element"
-    And "Move..." "button" should exist in the ".core-my-dashboard-block-actions__menu" "css_element"
-    And "Resize..." "button" should exist in the ".core-my-dashboard-block-actions__menu" "css_element"
-    And I should not see "Move Course overview block" in the ".core-my-dashboard-block-actions__menu" "css_element"
-    And I should not see "Delete Course overview block" in the ".core-my-dashboard-block-actions__menu" "css_element"
+    Then I should not see "Configure Course overview block" in the ".mds-dropdown-menu" "css_element"
+    And I should see "Manage permissions" in the ".mds-dropdown-menu" "css_element"
+    And I should see "Check permissions" in the ".mds-dropdown-menu" "css_element"
+    And "Move" "button" should exist in the ".mds-dropdown-menu" "css_element"
+    And "Resize" "button" should exist in the ".mds-dropdown-menu" "css_element"
+    And I should not see "Move Course overview block" in the ".mds-dropdown-menu" "css_element"
+    And I should not see "Delete Course overview block" in the ".mds-dropdown-menu" "css_element"
     And "Hide Course overview block" "button" should not exist
     And the block actions menu sits to the right of the delete control
     # A block with fields of its own, like Text, still offers Configure.
@@ -189,8 +189,8 @@ Feature: Arrange dashboard blocks in a responsive grid
     And I set the field "Search blocks" to "Text"
     And I click on "Insert" "button" in the "Add a block" "dialogue"
     And I press the escape key
-    And I click on ".core-my-dashboard-block-actions__trigger" "css_element" in the ".core-my-dashboard-tile[data-block='html']" "css_element"
-    Then I should see "Configure (new text block) block" in the ".core-my-dashboard-block-actions__menu" "css_element"
+    And I click on ".core-my-dashboard-block-actions [aria-haspopup='menu']" "css_element" in the ".core-my-dashboard-tile[data-block='html']" "css_element"
+    Then I should see "Configure (new text block) block" in the ".mds-dropdown-menu" "css_element"
 
   @javascript
   Scenario: A block can be moved and resized one space at a time from its menu
@@ -198,17 +198,17 @@ Feature: Arrange dashboard blocks in a responsive grid
     And I log in as "admin"
     When I turn editing mode on
     And I click on "More actions for Course overview" "button" in the "Course overview" "block"
-    And I click on "Move..." "button" in the ".core-my-dashboard-block-actions__menu" "css_element"
-    Then I should see "Move Course overview" in the ".core-my-dashboard-position" "css_element"
-    When I click on "Down" "button" in the ".core-my-dashboard-position" "css_element"
-    And I click on "Save" "button" in the ".core-my-dashboard-position" "css_element"
-    Then ".core-my-dashboard-position" "css_element" should not exist
-    When I click on "More actions for Course overview" "button" in the "Course overview" "block"
-    And I click on "Resize..." "button" in the ".core-my-dashboard-block-actions__menu" "css_element"
-    Then I should see "Resize Course overview" in the ".core-my-dashboard-position" "css_element"
-    When I click on "Taller" "button" in the ".core-my-dashboard-position" "css_element"
-    And I click on "Cancel" "button" in the ".core-my-dashboard-position" "css_element"
-    Then ".core-my-dashboard-position" "css_element" should not exist
+    And I click on "Move" "button" in the ".mds-dropdown-menu" "css_element"
+    Then the "aria-disabled" attribute of "[data-step='up']" "css_element" should contain "true"
+    And I should see "At the edge of the dashboard" in the "[data-step='up']" "css_element"
+    When I click on "[data-step='down']" "css_element"
+    Then "[data-step='up']" "css_element" should exist
+    And the "aria-disabled" attribute of "[data-step='up']" "css_element" should not be set
+    When I press the escape key
+    And I click on "More actions for Course overview" "button" in the "Course overview" "block"
+    And I click on "Resize" "button" in the ".mds-dropdown-menu" "css_element"
+    And I click on "[data-step='taller']" "css_element"
+    Then "[data-step='shorter']" "css_element" should exist
 
   @javascript
   Scenario: An administrator can switch between their own dashboard and the site default while editing
@@ -285,8 +285,8 @@ Feature: Arrange dashboard blocks in a responsive grid
     And I set the field "Search blocks" to "Text"
     And I click on "Insert" "button" in the "Add a block" "dialogue"
     And I press the escape key
-    And I click on ".core-my-dashboard-block-actions__trigger" "css_element" in the ".core-my-dashboard-tile[data-block='html']" "css_element"
-    And I click on "Configure (new text block) block" "link" in the ".core-my-dashboard-block-actions__menu" "css_element"
+    And I click on ".core-my-dashboard-block-actions [aria-haspopup='menu']" "css_element" in the ".core-my-dashboard-tile[data-block='html']" "css_element"
+    And I click on "Configure (new text block) block" "link" in the ".mds-dropdown-menu" "css_element"
     And I set the field "Content" to "<p>1</p><p>2</p><p>3</p><p>4</p><p>5</p><p>6</p><p>7</p><p>8</p><p>9</p><p>10</p><p>11</p><p>12</p><p>13</p><p>14</p><p>15</p><p>16</p><p>17</p><p>18</p><p>19</p><p>20</p><p>21</p><p>22</p><p>23</p><p>24</p><p>25</p><p>26</p><p>27</p><p>28</p><p>29</p><p>30</p><p>31</p><p>32</p><p>33</p><p>34</p><p>35</p><p>36</p><p>37</p><p>38</p><p>39</p><p>40</p>"
     And I click on "Save changes" "button" in the "Configure (new text block) block" "dialogue"
     And I reload the page

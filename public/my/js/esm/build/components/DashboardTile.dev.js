@@ -9,173 +9,106 @@ import { Fragment, jsxDEV } from "react/jsx-dev-runtime";
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
-import { Button } from "@moodlehq/design-system";
+import {
+  Button,
+  Dropdown,
+  DropdownItemAction,
+  DropdownItemDivider,
+  DropdownItemExpandable
+} from "@moodlehq/design-system";
 import { NARROW_BLOCK_WIDTH } from "../layout";
 import DashboardHandle from "./DashboardHandle";
-const BlockActionsMenu = /* @__PURE__ */ __name(({ blockId, actions, label, commands = [] }) => {
+const renderSteps = /* @__PURE__ */ __name((steps) => steps.map((step) => /* @__PURE__ */ jsxDEV(
+  DropdownItemAction,
+  {
+    label: step.label,
+    disabled: Boolean(step.reason),
+    description: step.reason ?? step.note,
+    "data-step": step.key,
+    onClick: () => step.onSelect()
+  },
+  step.key,
+  false,
+  {
+    fileName: "public/my/js/esm/src/components/DashboardTile.tsx",
+    lineNumber: 49,
+    columnNumber: 63
+  }
+)), "renderSteps");
+const BlockActionsMenu = /* @__PURE__ */ __name(({
+  blockId,
+  actions,
+  label,
+  moveLabel = "",
+  resizeLabel = "",
+  steps
+}) => {
   const [open, setOpen] = useState(false);
-  const containerRef = useRef(null);
-  const triggerRef = useRef(null);
-  const itemRefs = useRef([]);
-  const menuId = `core-my-dashboard-block-actions-${blockId}`;
-  useEffect(() => {
-    if (!open) {
-      return void 0;
-    }
-    itemRefs.current[0]?.focus();
-    const closeIfOutside = /* @__PURE__ */ __name((event) => {
-      if (!containerRef.current?.contains(event.target)) {
-        setOpen(false);
-      }
-    }, "closeIfOutside");
-    const closeOnEscape = /* @__PURE__ */ __name((event) => {
-      if (event.key === "Escape") {
-        setOpen(false);
-        triggerRef.current?.focus();
-      }
-    }, "closeOnEscape");
-    document.addEventListener("pointerdown", closeIfOutside);
-    document.addEventListener("keydown", closeOnEscape);
-    return () => {
-      document.removeEventListener("pointerdown", closeIfOutside);
-      document.removeEventListener("keydown", closeOnEscape);
-    };
-  }, [open]);
-  const count = commands.length + actions.length;
-  if (count === 0) {
+  const hasSteps = Boolean(steps);
+  if (!hasSteps && actions.length === 0) {
     return null;
   }
-  const moveFocus = /* @__PURE__ */ __name((fromIndex, delta) => {
-    const nextIndex = (fromIndex + delta + count) % count;
-    itemRefs.current[nextIndex]?.focus();
-  }, "moveFocus");
-  const onItemKeyDown = /* @__PURE__ */ __name((event, index) => {
-    switch (event.key) {
-      case "ArrowDown":
-        event.preventDefault();
-        moveFocus(index, 1);
-        break;
-      case "ArrowUp":
-        event.preventDefault();
-        moveFocus(index, -1);
-        break;
-      case "Home":
-        event.preventDefault();
-        itemRefs.current[0]?.focus();
-        break;
-      case "End":
-        event.preventDefault();
-        itemRefs.current[count - 1]?.focus();
-        break;
-      case "Tab":
-        setOpen(false);
-        break;
-      default:
-        break;
-    }
-  }, "onItemKeyDown");
-  return /* @__PURE__ */ jsxDEV("div", { className: "core-my-dashboard-block-actions", ref: containerRef, children: [
-    /* @__PURE__ */ jsxDEV(
-      Button,
-      {
-        ref: triggerRef,
-        size: "md",
-        variant: "ghost",
-        className: "core-my-dashboard-block-actions__trigger",
-        "aria-label": label,
-        "aria-haspopup": "menu",
-        "aria-expanded": open,
-        "aria-controls": menuId,
-        startIcon: /* @__PURE__ */ jsxDEV("i", { className: "fa fa-ellipsis-vertical", "aria-hidden": "true" }, void 0, false, {
+  return /* @__PURE__ */ jsxDEV(
+    Dropdown,
+    {
+      className: "core-my-dashboard-block-actions",
+      label,
+      iconOnly: true,
+      appearance: "subtle",
+      size: "md",
+      startIcon: /* @__PURE__ */ jsxDEV("i", { className: "fa fa-ellipsis-vertical", "aria-hidden": "true" }, void 0, false, {
+        fileName: "public/my/js/esm/src/components/DashboardTile.tsx",
+        lineNumber: 85,
+        columnNumber: 20
+      }),
+      placement: "bottom-end",
+      open,
+      onOpenChange: setOpen,
+      children: [
+        steps && /* @__PURE__ */ jsxDEV(DropdownItemExpandable, { label: moveLabel, "data-command": "move", children: open && renderSteps(steps("move")) }, void 0, false, {
           fileName: "public/my/js/esm/src/components/DashboardTile.tsx",
-          lineNumber: 116,
-          columnNumber: 24
+          lineNumber: 90,
+          columnNumber: 19
         }),
-        onClick: () => setOpen((current) => !current)
-      },
-      void 0,
-      false,
-      {
-        fileName: "public/my/js/esm/src/components/DashboardTile.tsx",
-        lineNumber: 107,
-        columnNumber: 9
-      }
-    ),
-    open && /* @__PURE__ */ jsxDEV(
-      "div",
-      {
-        id: menuId,
-        role: "menu",
-        "aria-label": label,
-        className: "core-my-dashboard-block-actions__menu",
-        children: [
-          commands.map((command, index) => /* @__PURE__ */ jsxDEV(
-            "button",
-            {
-              type: "button",
-              ref: (element) => {
-                itemRefs.current[index] = element;
-              },
-              role: "menuitem",
-              tabIndex: -1,
-              className: "core-my-dashboard-block-actions__item",
-              "data-command": command.key,
-              onKeyDown: (event) => onItemKeyDown(event, index),
-              onClick: () => {
-                setOpen(false);
-                command.onSelect();
-              },
-              children: command.label
-            },
-            command.key,
-            false,
-            {
-              fileName: "public/my/js/esm/src/components/DashboardTile.tsx",
-              lineNumber: 125,
-              columnNumber: 47
-            }
-          )),
-          actions.map((action, actionIndex) => ({ action, index: commands.length + actionIndex })).map(({ action, index }) => /* @__PURE__ */ jsxDEV(
-            "a",
-            {
-              ref: (element) => {
-                itemRefs.current[index] = element;
-              },
-              role: "menuitem",
-              tabIndex: -1,
-              className: "core-my-dashboard-block-actions__item",
-              href: action.url,
-              "data-action": action.modalform ? "editblock" : void 0,
-              "data-blockid": action.modalform ? blockId : void 0,
-              "data-blockform": action.modalform || void 0,
-              "data-header": action.modalform ? action.label : void 0,
-              onKeyDown: (event) => onItemKeyDown(event, index),
-              onClick: () => setOpen(false),
-              children: action.label
-            },
-            action.id,
-            false,
-            {
-              fileName: "public/my/js/esm/src/components/DashboardTile.tsx",
-              lineNumber: 141,
-              columnNumber: 126
-            }
-          ))
-        ]
-      },
-      void 0,
-      true,
-      {
-        fileName: "public/my/js/esm/src/components/DashboardTile.tsx",
-        lineNumber: 119,
-        columnNumber: 18
-      }
-    )
-  ] }, void 0, true, {
-    fileName: "public/my/js/esm/src/components/DashboardTile.tsx",
-    lineNumber: 106,
-    columnNumber: 12
-  });
+        steps && /* @__PURE__ */ jsxDEV(DropdownItemExpandable, { label: resizeLabel, "data-command": "resize", children: open && renderSteps(steps("resize")) }, void 0, false, {
+          fileName: "public/my/js/esm/src/components/DashboardTile.tsx",
+          lineNumber: 93,
+          columnNumber: 19
+        }),
+        hasSteps && actions.length > 0 && /* @__PURE__ */ jsxDEV(DropdownItemDivider, {}, void 0, false, {
+          fileName: "public/my/js/esm/src/components/DashboardTile.tsx",
+          lineNumber: 96,
+          columnNumber: 44
+        }),
+        actions.map((action) => /* @__PURE__ */ jsxDEV(
+          DropdownItemAction,
+          {
+            label: action.label,
+            href: action.url,
+            "data-action": action.modalform ? "editblock" : void 0,
+            "data-blockid": action.modalform ? blockId : void 0,
+            "data-blockform": action.modalform || void 0,
+            "data-header": action.modalform ? action.label : void 0,
+            onClick: () => setOpen(false)
+          },
+          action.id,
+          false,
+          {
+            fileName: "public/my/js/esm/src/components/DashboardTile.tsx",
+            lineNumber: 97,
+            columnNumber: 32
+          }
+        ))
+      ]
+    },
+    void 0,
+    true,
+    {
+      fileName: "public/my/js/esm/src/components/DashboardTile.tsx",
+      lineNumber: 79,
+      columnNumber: 12
+    }
+  );
 }, "BlockActionsMenu");
 const DashboardTile = /* @__PURE__ */ __name(({
   block,
@@ -196,7 +129,7 @@ const DashboardTile = /* @__PURE__ */ __name(({
   onPointerDown,
   onCommit,
   onRemove,
-  onPosition
+  steps
 }) => {
   const tileRef = useRef(null);
   const contentRef = useRef(null);
@@ -286,17 +219,17 @@ const DashboardTile = /* @__PURE__ */ __name(({
         editing && /* @__PURE__ */ jsxDEV(Fragment, { children: [
           /* @__PURE__ */ jsxDEV("span", { id: moveInstructionsId, className: "visually-hidden", children: labels.moveinstructions }, void 0, false, {
             fileName: "public/my/js/esm/src/components/DashboardTile.tsx",
-            lineNumber: 321,
+            lineNumber: 270,
             columnNumber: 13
           }),
           /* @__PURE__ */ jsxDEV("span", { id: resizeInstructionsId, className: "visually-hidden", children: labels.resizeinstructions }, void 0, false, {
             fileName: "public/my/js/esm/src/components/DashboardTile.tsx",
-            lineNumber: 322,
+            lineNumber: 271,
             columnNumber: 13
           })
         ] }, void 0, true, {
           fileName: "public/my/js/esm/src/components/DashboardTile.tsx",
-          lineNumber: 320,
+          lineNumber: 269,
           columnNumber: 21
         }),
         /* @__PURE__ */ jsxDEV("header", { className: "core-my-dashboard-tile__header", children: [
@@ -317,13 +250,13 @@ const DashboardTile = /* @__PURE__ */ __name(({
             false,
             {
               fileName: "public/my/js/esm/src/components/DashboardTile.tsx",
-              lineNumber: 325,
+              lineNumber: 274,
               columnNumber: 25
             }
           ),
           /* @__PURE__ */ jsxDEV("h2", { className: "core-my-dashboard-tile__title", title: block.title, children: block.title }, void 0, false, {
             fileName: "public/my/js/esm/src/components/DashboardTile.tsx",
-            lineNumber: 337,
+            lineNumber: 286,
             columnNumber: 13
           }),
           editing && /* @__PURE__ */ jsxDEV("div", { className: "core-my-dashboard-tile__actions", children: [
@@ -337,7 +270,7 @@ const DashboardTile = /* @__PURE__ */ __name(({
                 title: labels.remove.replace("{$a}", block.title),
                 startIcon: /* @__PURE__ */ jsxDEV("i", { className: "fa fa-xmark", "aria-hidden": "true" }, void 0, false, {
                   fileName: "public/my/js/esm/src/components/DashboardTile.tsx",
-                  lineNumber: 345,
+                  lineNumber: 294,
                   columnNumber: 32
                 }),
                 onClick: () => onRemove(block.id)
@@ -346,7 +279,7 @@ const DashboardTile = /* @__PURE__ */ __name(({
               false,
               {
                 fileName: "public/my/js/esm/src/components/DashboardTile.tsx",
-                lineNumber: 339,
+                lineNumber: 288,
                 columnNumber: 17
               }
             ),
@@ -356,63 +289,62 @@ const DashboardTile = /* @__PURE__ */ __name(({
                 blockId: block.id,
                 actions: block.actions,
                 label: labels.blockactions.replace("{$a}", block.title),
-                commands: onPosition ? [
-                  { key: "move", label: labels.positionmove, onSelect: /* @__PURE__ */ __name(() => onPosition(block.id, "move"), "onSelect") },
-                  { key: "resize", label: labels.positionresize, onSelect: /* @__PURE__ */ __name(() => onPosition(block.id, "resize"), "onSelect") }
-                ] : []
+                moveLabel: labels.positionmove,
+                resizeLabel: labels.positionresize,
+                steps
               },
               void 0,
               false,
               {
                 fileName: "public/my/js/esm/src/components/DashboardTile.tsx",
-                lineNumber: 348,
+                lineNumber: 297,
                 columnNumber: 17
               }
             )
           ] }, void 0, true, {
             fileName: "public/my/js/esm/src/components/DashboardTile.tsx",
-            lineNumber: 338,
+            lineNumber: 287,
             columnNumber: 25
           })
         ] }, void 0, true, {
           fileName: "public/my/js/esm/src/components/DashboardTile.tsx",
-          lineNumber: 324,
+          lineNumber: 273,
           columnNumber: 9
         }),
         !block.loaded && /* @__PURE__ */ jsxDEV("div", { className: "core-my-dashboard-tile__placeholder", "aria-hidden": "true", children: [
           /* @__PURE__ */ jsxDEV("span", { className: "core-my-dashboard-loading__line" }, void 0, false, {
             fileName: "public/my/js/esm/src/components/DashboardTile.tsx",
-            lineNumber: 360,
+            lineNumber: 308,
             columnNumber: 13
           }),
           /* @__PURE__ */ jsxDEV("span", { className: "core-my-dashboard-loading__line" }, void 0, false, {
             fileName: "public/my/js/esm/src/components/DashboardTile.tsx",
-            lineNumber: 361,
+            lineNumber: 309,
             columnNumber: 13
           }),
           /* @__PURE__ */ jsxDEV("span", { className: "core-my-dashboard-loading__line" }, void 0, false, {
             fileName: "public/my/js/esm/src/components/DashboardTile.tsx",
-            lineNumber: 362,
+            lineNumber: 310,
             columnNumber: 13
           })
         ] }, void 0, true, {
           fileName: "public/my/js/esm/src/components/DashboardTile.tsx",
-          lineNumber: 359,
+          lineNumber: 307,
           columnNumber: 27
         }),
         block.failed && /* @__PURE__ */ jsxDEV("p", { className: "core-my-dashboard-tile__failed", children: labels.blockfailed }, void 0, false, {
           fileName: "public/my/js/esm/src/components/DashboardTile.tsx",
-          lineNumber: 364,
+          lineNumber: 312,
           columnNumber: 26
         }),
         /* @__PURE__ */ jsxDEV("div", { ref: contentRef, className: `core-my-dashboard-tile__content block block_${block.name}` }, void 0, false, {
           fileName: "public/my/js/esm/src/components/DashboardTile.tsx",
-          lineNumber: 365,
+          lineNumber: 313,
           columnNumber: 9
         }),
         block.footer && /* @__PURE__ */ jsxDEV("div", { ref: footerRef, className: "core-my-dashboard-tile__block-footer" }, void 0, false, {
           fileName: "public/my/js/esm/src/components/DashboardTile.tsx",
-          lineNumber: 366,
+          lineNumber: 314,
           columnNumber: 26
         }),
         editing && /* @__PURE__ */ jsxDEV("div", { className: "core-my-dashboard-tile__resize", children: /* @__PURE__ */ jsxDEV(
@@ -432,12 +364,12 @@ const DashboardTile = /* @__PURE__ */ __name(({
           false,
           {
             fileName: "public/my/js/esm/src/components/DashboardTile.tsx",
-            lineNumber: 370,
+            lineNumber: 318,
             columnNumber: 13
           }
         ) }, void 0, false, {
           fileName: "public/my/js/esm/src/components/DashboardTile.tsx",
-          lineNumber: 369,
+          lineNumber: 317,
           columnNumber: 21
         })
       ]
@@ -446,7 +378,7 @@ const DashboardTile = /* @__PURE__ */ __name(({
     true,
     {
       fileName: "public/my/js/esm/src/components/DashboardTile.tsx",
-      lineNumber: 290,
+      lineNumber: 239,
       columnNumber: 12
     }
   );

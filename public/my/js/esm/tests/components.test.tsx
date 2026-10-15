@@ -63,6 +63,7 @@ afterAll(() => {
 jest.mock('@moodlehq/design-system', () => {
     const ReactActual = require('react');
     return {
+        ...require('./mdsDropdownMock'),
         Button: ReactActual.forwardRef((
             {label, startIcon, size, variant: _variant, className, ...props}:
             React.ButtonHTMLAttributes<HTMLButtonElement> & {
@@ -97,12 +98,8 @@ const labels = {
     moveinstructions: 'Use the arrow keys to move',
     resize: 'Resize {$a}',
     resizeinstructions: 'Use the arrow keys to resize',
-    positionmove: 'Move...',
-    positionresize: 'Resize...',
-    positionmoveheading: 'Move {$a}',
-    positionresizeheading: 'Resize {$a}',
-    positionmovehelp: 'Each button moves the block one space.',
-    positionresizehelp: 'Each button changes the size by one space.',
+    positionmove: 'Move',
+    positionresize: 'Resize',
     positionup: 'Up',
     positiondown: 'Down',
     positionleft: 'Left',
@@ -113,10 +110,7 @@ const labels = {
     positionshorter: 'Shorter',
     positionedge: 'At the edge of the dashboard',
     positionminimum: 'Already the smallest size for this block',
-    positionwhere: 'Row {$a->row}, column {$a->column}',
-    positionsize: 'Width: {$a->columns} of {$a->total} columns. Height: {$a->rows} rows.',
-    positiondisplaces: 'Will move aside: {$a}',
-    positionsave: 'Save',
+    positiondisplaces: 'Moves {$a} aside',
     scopeown: 'Editing your dashboard',
     scopesitedefault: 'Editing the default dashboard for all users',
     switchtoown: 'Switch to editing your dashboard',
@@ -506,25 +500,42 @@ describe('core_my grid components', () => {
         expect(screen.queryByRole('button', {name: 'More actions for Useful links'})).not.toBeInTheDocument();
     });
 
-    it('lists Move and Resize before the block\'s own actions, even when it has none', () => {
-        const onMove = jest.fn();
+    it('offers Move and Resize submenus of steps, disabling unavailable ones with the reason', () => {
+        const onUp = jest.fn();
+        const onLeft = jest.fn();
+        const steps = (mode: 'move' | 'resize') => mode === 'move' ? [
+            {key: 'up', label: 'Up', onSelect: onUp, note: 'Moves Timeline aside'},
+            {key: 'left', label: 'Left', onSelect: onLeft, reason: 'At the edge of the dashboard'},
+        ] : [
+            {key: 'wider', label: 'Wider', onSelect: jest.fn()},
+        ];
         render(<BlockActionsMenu
             blockId={11}
-            actions={[]}
+            actions={[{id: 'permissions', label: 'Permissions', url: 'https://example.com/perm', modalform: ''}]}
             label="More actions for Useful links"
-            commands={[
-                {key: 'move', label: 'Move...', onSelect: onMove},
-                {key: 'resize', label: 'Resize...', onSelect: jest.fn()},
-            ]}
+            moveLabel="Move"
+            resizeLabel="Resize"
+            steps={steps}
         />);
 
         fireEvent.click(screen.getByRole('button', {name: 'More actions for Useful links'}));
-        const items = screen.getAllByRole('menuitem');
-        expect(items.map(item => item.textContent)).toEqual(['Move...', 'Resize...']);
-        expect(items[0]).toHaveFocus();
-        fireEvent.click(items[0]);
-        expect(onMove).toHaveBeenCalled();
-        expect(screen.queryByRole('menu')).not.toBeInTheDocument();
+        expect(screen.getAllByRole('menuitem').map(item => item.textContent)).toEqual(['Move', 'Resize', 'Permissions']);
+        expect(screen.getByRole('separator')).toBeInTheDocument();
+
+        fireEvent.click(screen.getByRole('menuitem', {name: 'Move'}));
+        const up = screen.getByRole('menuitem', {name: /^Up/});
+        const left = screen.getByRole('menuitem', {name: /^Left/});
+        expect(up).toHaveTextContent('Moves Timeline aside');
+        expect(up).not.toHaveAttribute('aria-disabled');
+        expect(left).toHaveAttribute('aria-disabled', 'true');
+        expect(left).toHaveTextContent('At the edge of the dashboard');
+
+        // A step applies straight away and leaves the menu open, so it can be pressed again.
+        fireEvent.click(up);
+        expect(onUp).toHaveBeenCalledTimes(1);
+        expect(screen.getByRole('menuitem', {name: /^Up/})).toBeInTheDocument();
+        fireEvent.click(left);
+        expect(onLeft).not.toHaveBeenCalled();
     });
 
     it('opens the block actions menu and lists each retained action as a link', () => {
@@ -591,42 +602,10 @@ describe('core_my grid components', () => {
         fireEvent.click(trigger);
         expect(screen.getByRole('menu')).toBeInTheDocument();
 
-        fireEvent.keyDown(document, {key: 'Escape'});
+        fireEvent.keyDown(screen.getByRole('menuitem', {name: 'Permissions'}), {key: 'Escape'});
 
         expect(screen.queryByRole('menu')).not.toBeInTheDocument();
         expect(trigger).toHaveFocus();
-    });
-
-    it('moves focus onto the first item on open, then wraps with the arrow keys', () => {
-        render(<BlockActionsMenu
-            blockId={11}
-            actions={[
-                {id: 'edit', label: 'Configure', url: 'https://example.com/edit', modalform: ''},
-                {id: 'permissions', label: 'Permissions', url: 'https://example.com/perm', modalform: ''},
-            ]}
-            label="More actions for Useful links"
-        />);
-
-        fireEvent.click(screen.getByRole('button', {name: 'More actions for Useful links'}));
-
-        const configure = screen.getByRole('menuitem', {name: 'Configure'});
-        const permissions = screen.getByRole('menuitem', {name: 'Permissions'});
-        expect(configure).toHaveFocus();
-
-        fireEvent.keyDown(configure, {key: 'ArrowDown'});
-        expect(permissions).toHaveFocus();
-
-        fireEvent.keyDown(permissions, {key: 'ArrowDown'});
-        expect(configure).toHaveFocus();
-
-        fireEvent.keyDown(configure, {key: 'ArrowUp'});
-        expect(permissions).toHaveFocus();
-
-        fireEvent.keyDown(permissions, {key: 'Home'});
-        expect(configure).toHaveFocus();
-
-        fireEvent.keyDown(configure, {key: 'End'});
-        expect(permissions).toHaveFocus();
     });
 
     it('only shows the dashboard tile\'s block actions trigger when the block has actions', () => {

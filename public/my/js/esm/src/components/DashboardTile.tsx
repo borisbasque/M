@@ -14,150 +14,99 @@
  */
 
 import React, {useEffect, useLayoutEffect, useRef, useState} from 'react';
-import {Button} from '@moodlehq/design-system';
+import {
+    Button,
+    Dropdown,
+    DropdownItemAction,
+    DropdownItemDivider,
+    DropdownItemExpandable,
+} from '@moodlehq/design-system';
 import type {BlockAction, DashboardBlock, DashboardLabels} from '../repository';
 import {NARROW_BLOCK_WIDTH, type LayoutItem} from '../layout';
 import DashboardHandle from './DashboardHandle';
+
+/** One Move or Resize step in a block's menu, and why it can't be taken, if it can't. */
+export interface BlockStep {
+    key: string;
+    label: string;
+    // Why the step is unavailable (the edge of the dashboard, the smallest size). Disables it.
+    reason?: string;
+    // Which blocks the step will move aside, if any.
+    note?: string;
+    onSelect: () => void;
+}
 
 interface BlockActionsMenuProps {
     blockId: number;
     actions: BlockAction[];
     label: string;
-    // Built-in items listed before the block's own actions, such as Move... and Resize....
-    commands?: {key: string; label: string; onSelect: () => void}[];
+    moveLabel?: string;
+    resizeLabel?: string;
+    // Worked out only while the menu is open: each one checks the layout, and some pack it.
+    steps?: (mode: 'move' | 'resize') => BlockStep[];
 }
 
+const renderSteps = (steps: BlockStep[]) => steps.map(step => <DropdownItemAction
+    key={step.key}
+    label={step.label}
+    // Disabled items stay focusable (aria-disabled), so focus is never lost when the step just
+    // taken was the last one, and the reason is read with the item as its secondary line.
+    disabled={Boolean(step.reason)}
+    description={step.reason ?? step.note}
+    data-step={step.key}
+    // Applied straight away, and the menu stays open so the step can be pressed again.
+    onClick={() => step.onSelect()}
+/>);
+
 // Kept in this file rather than its own module: it's only ever used from DashboardTile below,
-// and every ESM component here is a separate network request, so folding trivially-small,
-// non-swizzled pieces into their one caller cuts requests without changing what's independently
-// themeable (see swizzle.json - this was never a swizzle point of its own).
-export const BlockActionsMenu = ({blockId, actions, label, commands = []}: BlockActionsMenuProps) => {
+// and every ESM component here is a separate network request (see swizzle.json).
+// The menu is the design system's Dropdown, which provides the menu button, menu and submenu
+// roles, arrow key, Home, End, typeahead and Escape handling, and returns focus to the trigger.
+export const BlockActionsMenu = ({
+    blockId,
+    actions,
+    label,
+    moveLabel = '',
+    resizeLabel = '',
+    steps,
+}: BlockActionsMenuProps) => {
     const [open, setOpen] = useState(false);
-    const containerRef = useRef<HTMLDivElement>(null);
-    const triggerRef = useRef<HTMLButtonElement>(null);
-    const itemRefs = useRef<(HTMLElement | null)[]>([]);
-    const menuId = `core-my-dashboard-block-actions-${blockId}`;
-
-    useEffect(() => {
-        if (!open) {
-            return undefined;
-        }
-
-        // Move focus onto the first item, matching the standard menu-button pattern.
-        itemRefs.current[0]?.focus();
-
-        const closeIfOutside = (event: PointerEvent) => {
-            if (!containerRef.current?.contains(event.target as Node)) {
-                setOpen(false);
-            }
-        };
-        const closeOnEscape = (event: KeyboardEvent) => {
-            if (event.key === 'Escape') {
-                setOpen(false);
-                triggerRef.current?.focus();
-            }
-        };
-        document.addEventListener('pointerdown', closeIfOutside);
-        document.addEventListener('keydown', closeOnEscape);
-        return () => {
-            document.removeEventListener('pointerdown', closeIfOutside);
-            document.removeEventListener('keydown', closeOnEscape);
-        };
-    }, [open]);
-
-    const count = commands.length + actions.length;
-    if (count === 0) {
+    const hasSteps = Boolean(steps);
+    if (!hasSteps && actions.length === 0) {
         return null;
     }
 
-    const moveFocus = (fromIndex: number, delta: number) => {
-        const nextIndex = (fromIndex + delta + count) % count;
-        itemRefs.current[nextIndex]?.focus();
-    };
-
-    const onItemKeyDown = (event: React.KeyboardEvent<HTMLElement>, index: number) => {
-        switch (event.key) {
-            case 'ArrowDown':
-                event.preventDefault();
-                moveFocus(index, 1);
-                break;
-            case 'ArrowUp':
-                event.preventDefault();
-                moveFocus(index, -1);
-                break;
-            case 'Home':
-                event.preventDefault();
-                itemRefs.current[0]?.focus();
-                break;
-            case 'End':
-                event.preventDefault();
-                itemRefs.current[count - 1]?.focus();
-                break;
-            case 'Tab':
-                // Items are not in the natural tab order (roving tabindex); let focus leave
-                // the menu as normal, but close it so it doesn't linger open and unfocused.
-                setOpen(false);
-                break;
-            default:
-                break;
-        }
-    };
-
-    return <div className="core-my-dashboard-block-actions" ref={containerRef}>
-        <Button
-            ref={triggerRef}
-            size="md"
-            variant="ghost"
-            className="core-my-dashboard-block-actions__trigger"
-            aria-label={label}
-            aria-haspopup="menu"
-            aria-expanded={open}
-            aria-controls={menuId}
-            startIcon={<i className="fa fa-ellipsis-vertical" aria-hidden="true" />}
-            onClick={() => setOpen(current => !current)}
-        />
-        {open && <div
-            id={menuId}
-            role="menu"
-            aria-label={label}
-            className="core-my-dashboard-block-actions__menu"
-        >
-            {commands.map((command, index) => <button
-                key={command.key}
-                type="button"
-                ref={element => {
-                    itemRefs.current[index] = element;
-                }}
-                role="menuitem"
-                tabIndex={-1}
-                className="core-my-dashboard-block-actions__item"
-                data-command={command.key}
-                onKeyDown={event => onItemKeyDown(event, index)}
-                onClick={() => {
-                    setOpen(false);
-                    command.onSelect();
-                }}
-            >{command.label}</button>)}
-            {actions.map((action, actionIndex) => ({action, index: commands.length + actionIndex})).map(({action, index}) => <a
-                key={action.id}
-                ref={element => {
-                    itemRefs.current[index] = element;
-                }}
-                role="menuitem"
-                tabIndex={-1}
-                className="core-my-dashboard-block-actions__item"
-                href={action.url}
-                // The modal form actions are picked up by the core_block/edit click handler
-                // already loaded as part of the block's own collected JavaScript requirements.
-                data-action={action.modalform ? 'editblock' : undefined}
-                data-blockid={action.modalform ? blockId : undefined}
-                data-blockform={action.modalform || undefined}
-                data-header={action.modalform ? action.label : undefined}
-                onKeyDown={event => onItemKeyDown(event, index)}
-                onClick={() => setOpen(false)}
-            >{action.label}</a>)}
-        </div>}
-    </div>;
+    return <Dropdown
+        className="core-my-dashboard-block-actions"
+        label={label}
+        iconOnly
+        appearance="subtle"
+        size="md"
+        startIcon={<i className="fa fa-ellipsis-vertical" aria-hidden="true" />}
+        placement="bottom-end"
+        open={open}
+        onOpenChange={setOpen}
+    >
+        {steps && <DropdownItemExpandable label={moveLabel} data-command="move">
+            {open && renderSteps(steps('move'))}
+        </DropdownItemExpandable>}
+        {steps && <DropdownItemExpandable label={resizeLabel} data-command="resize">
+            {open && renderSteps(steps('resize'))}
+        </DropdownItemExpandable>}
+        {hasSteps && actions.length > 0 && <DropdownItemDivider />}
+        {actions.map(action => <DropdownItemAction
+            key={action.id}
+            label={action.label}
+            href={action.url}
+            // The modal form actions are picked up by the core_block/edit click handler
+            // already loaded as part of the block's own collected JavaScript requirements.
+            data-action={action.modalform ? 'editblock' : undefined}
+            data-blockid={action.modalform ? blockId : undefined}
+            data-blockform={action.modalform || undefined}
+            data-header={action.modalform ? action.label : undefined}
+            onClick={() => setOpen(false)}
+        />)}
+    </Dropdown>;
 };
 
 interface PointerDrag {
@@ -190,8 +139,8 @@ interface DashboardTileProps {
     onPointerDown: (event: React.PointerEvent, id: number, mode: 'move' | 'resize') => void;
     onCommit: () => void;
     onRemove: (id: number) => void;
-    // Opens the Move or Resize dialog from the block's menu.
-    onPosition?: (id: number, mode: 'move' | 'resize') => void;
+    // The Move and Resize steps offered in the block's menu.
+    steps?: (mode: 'move' | 'resize') => BlockStep[];
 }
 
 const DashboardTile = ({
@@ -213,7 +162,7 @@ const DashboardTile = ({
     onPointerDown,
     onCommit,
     onRemove,
-    onPosition,
+    steps,
 }: DashboardTileProps) => {
     const tileRef = useRef<HTMLElement>(null);
     const contentRef = useRef<HTMLDivElement>(null);
@@ -349,10 +298,9 @@ const DashboardTile = ({
                     blockId={block.id}
                     actions={block.actions}
                     label={labels.blockactions.replace('{$a}', block.title)}
-                    commands={onPosition ? [
-                        {key: 'move', label: labels.positionmove, onSelect: () => onPosition(block.id, 'move')},
-                        {key: 'resize', label: labels.positionresize, onSelect: () => onPosition(block.id, 'resize')},
-                    ] : []}
+                    moveLabel={labels.positionmove}
+                    resizeLabel={labels.positionresize}
+                    steps={steps}
                 />
             </div>}
         </header>

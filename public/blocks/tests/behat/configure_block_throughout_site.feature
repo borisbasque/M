@@ -59,7 +59,7 @@ Feature: Add and configure blocks throughout the site
     And I visit "/my/index.php"
     When I turn editing mode on
     And I click on "More actions for Recently accessed items" "button" in the "Recently accessed items" "block"
-    Then I should not see "Assign roles" in the ".core-my-dashboard-block-actions__menu" "css_element"
+    Then I should not see "Assign roles" in the ".mds-dropdown-menu" "css_element"
 
   Scenario: Blocks on courses can have roles assigned to them
     Given I log in as "teacher1"
@@ -76,10 +76,10 @@ Feature: Add and configure blocks throughout the site
     # A freshly-added, unconfigured block has no title yet, so it cannot be located by name -
     # data-block is the only reliable locator for it until it has been configured below.
     Then ".core-my-dashboard-tile[data-block='html']" "css_element" should exist
-    When I click on ".core-my-dashboard-block-actions__trigger" "css_element" in the ".core-my-dashboard-tile[data-block='html']" "css_element"
+    When I click on ".core-my-dashboard-block-actions [aria-haspopup='menu']" "css_element" in the ".core-my-dashboard-tile[data-block='html']" "css_element"
     # Freshly-added, unconfigured HTML blocks show a placeholder title (block_html's own
     # "(new text block)" string), not the plugin name "Text" - see block_html::specialization().
-    And I click on "Configure (new text block) block" "link" in the ".core-my-dashboard-block-actions__menu" "css_element"
+    And I click on "Configure (new text block) block" "link" in the ".mds-dropdown-menu" "css_element"
     And I set the following fields to these values:
       | Text block title | Foo " onload="document.getElementsByTagName('body')[0].remove()" alt=" |
       | Content           | Example |

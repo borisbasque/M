@@ -100,10 +100,6 @@ export interface DashboardLabels {
     placeresize: string;
     positionmove: string;
     positionresize: string;
-    positionmoveheading: string;
-    positionresizeheading: string;
-    positionmovehelp: string;
-    positionresizehelp: string;
     positionup: string;
     positiondown: string;
     positionleft: string;
@@ -114,10 +110,7 @@ export interface DashboardLabels {
     positionshorter: string;
     positionedge: string;
     positionminimum: string;
-    positionwhere: string;
-    positionsize: string;
     positiondisplaces: string;
-    positionsave: string;
     remove: string;
     removeheading: string;
     reset: string;

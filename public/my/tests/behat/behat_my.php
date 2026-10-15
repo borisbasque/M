@@ -779,7 +779,7 @@ class behat_my extends behat_base {
                     ".core-my-dashboard-tile[data-block='myoverview'] .core-my-dashboard-tile__actions"
                 );
                 const remove = actions?.querySelector('.core-my-dashboard-remove');
-                const menu = actions?.querySelector('.core-my-dashboard-block-actions__trigger');
+                const menu = actions?.querySelector(".core-my-dashboard-block-actions [aria-haspopup='menu']");
                 if (!remove || !menu) {
                     return null;
                 }

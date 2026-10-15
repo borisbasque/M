@@ -23,10 +23,6 @@
     "eject": "safe",
     "wrap": "safe"
   },
-  "components/PositionDialog": {
-    "eject": "safe",
-    "wrap": "safe"
-  },
   "index": {
     "eject": "risky",
     "wrap": "safe"
