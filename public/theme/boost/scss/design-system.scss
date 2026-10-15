@@ -5,3 +5,9 @@
 @import "../../../../lib/bundles/design-system/scss/tokens/_index_css_vars";
 // Design system component styles.
 @import '../../../../lib/bundles/design-system/js/components/_index.legacy';
+
+// Design system menus are portaled to the end of the body with no stacking order of their own,
+// so positioned page content (such as dashboard tiles) painted over them and took their clicks.
+.mds-dropdown-menu {
+    z-index: 1000; // Bootstrap's dropdown layer.
+}

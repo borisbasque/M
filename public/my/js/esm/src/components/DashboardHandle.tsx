@@ -62,12 +62,20 @@ const DashboardHandle = ({
         aria-describedby={instructionsId}
         aria-pressed={active}
         title={label}
-        startIcon={<i
-            className={`fa fa-${mode === 'move'
-                ? 'grip-vertical'
-                : 'up-right-and-down-left-from-center fa-flip-horizontal'}`}
-            aria-hidden="true"
-        />}
+        startIcon={mode === 'move'
+            ? <i className="fa fa-grip-vertical" aria-hidden="true" />
+            // The corner grip from the flexible dashboard prototype: two diagonal strokes in the
+            // bottom corner, so it reads as "drag this corner" rather than "expand".
+            : <svg
+                className="core-my-dashboard-handle__corner"
+                viewBox="0 0 12 12"
+                width="12"
+                height="12"
+                aria-hidden="true"
+                focusable="false"
+            >
+                <path d="M11 4 4 11M11 8 8 11" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" fill="none" />
+            </svg>}
         onClick={event => {
             // Pointer activation starts on pointerdown so dragging works immediately, and Space or
             // Enter on keydown. A zero-detail click is neither: assistive technology activated the

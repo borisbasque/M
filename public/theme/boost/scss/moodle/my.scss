@@ -349,6 +349,10 @@ $core-my-dashboard-grid-max-width: calc(#{$core-my-dashboard-page-max-width} - 1
 
 .dir-rtl .core-my-dashboard-tile__resize .core-my-dashboard-handle--resize {
     cursor: nesw-resize;
+
+    .core-my-dashboard-handle__corner {
+        transform: scaleX(-1);
+    }
 }
 
 .mds-btn.btn.core-my-dashboard-handle[aria-pressed="true"] {

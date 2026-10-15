@@ -42,18 +42,31 @@ const DashboardHandle = /* @__PURE__ */ __name(({
         "aria-describedby": instructionsId,
         "aria-pressed": active,
         title: label,
-        startIcon: /* @__PURE__ */ jsxDEV(
-          "i",
+        startIcon: mode === "move" ? /* @__PURE__ */ jsxDEV("i", { className: "fa fa-grip-vertical", "aria-hidden": "true" }, void 0, false, {
+          fileName: "public/my/js/esm/src/components/DashboardHandle.tsx",
+          lineNumber: 66,
+          columnNumber: 15
+        }) : /* @__PURE__ */ jsxDEV(
+          "svg",
           {
-            className: `fa fa-${mode === "move" ? "grip-vertical" : "up-right-and-down-left-from-center fa-flip-horizontal"}`,
-            "aria-hidden": "true"
+            className: "core-my-dashboard-handle__corner",
+            viewBox: "0 0 12 12",
+            width: "12",
+            height: "12",
+            "aria-hidden": "true",
+            focusable: "false",
+            children: /* @__PURE__ */ jsxDEV("path", { d: "M11 4 4 11M11 8 8 11", stroke: "currentColor", strokeWidth: "1.5", strokeLinecap: "round", fill: "none" }, void 0, false, {
+              fileName: "public/my/js/esm/src/components/DashboardHandle.tsx",
+              lineNumber: 77,
+              columnNumber: 17
+            })
           },
           void 0,
           false,
           {
             fileName: "public/my/js/esm/src/components/DashboardHandle.tsx",
-            lineNumber: 65,
-            columnNumber: 20
+            lineNumber: 69,
+            columnNumber: 15
           }
         ),
         onClick: (event) => {

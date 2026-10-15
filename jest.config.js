@@ -17,8 +17,17 @@ module.exports = {
     testEnvironment: 'jsdom',
     clearMocks: true,
     testMatch: ['**/esm/tests/**/*.test.{ts,tsx}'],
-    moduleNameMapper,
+    moduleNameMapper: {
+        ...moduleNameMapper,
+        // The design system ships ES modules only, so tests that use the real components load its build.
+        '^@moodlehq/design-system$': '<rootDir>/node_modules/@moodlehq/design-system/dist/index.js',
+    },
+    transformIgnorePatterns: ['/node_modules/(?!@moodlehq/design-system/)'],
     transform: {
+        '^.+/node_modules/@moodlehq/design-system/.+\\.js$': ['ts-jest', {
+            tsconfig: {allowJs: true, module: 'commonjs', jsx: 'react-jsx', esModuleInterop: true},
+            isolatedModules: true,
+        }],
         '^.+\\.(ts|tsx)$': ['ts-jest', {
             tsconfig: './tsconfig.jest.json',
         }],
