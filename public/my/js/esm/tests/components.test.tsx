@@ -97,6 +97,26 @@ const labels = {
     moveinstructions: 'Use the arrow keys to move',
     resize: 'Resize {$a}',
     resizeinstructions: 'Use the arrow keys to resize',
+    positionmove: 'Move...',
+    positionresize: 'Resize...',
+    positionmoveheading: 'Move {$a}',
+    positionresizeheading: 'Resize {$a}',
+    positionmovehelp: 'Each button moves the block one space.',
+    positionresizehelp: 'Each button changes the size by one space.',
+    positionup: 'Up',
+    positiondown: 'Down',
+    positionleft: 'Left',
+    positionright: 'Right',
+    positionwider: 'Wider',
+    positionnarrower: 'Narrower',
+    positiontaller: 'Taller',
+    positionshorter: 'Shorter',
+    positionedge: 'At the edge of the dashboard',
+    positionminimum: 'Already the smallest size for this block',
+    positionwhere: 'Row {$a->row}, column {$a->column}',
+    positionsize: 'Width: {$a->columns} of {$a->total} columns. Height: {$a->rows} rows.',
+    positiondisplaces: 'Will move aside: {$a}',
+    positionsave: 'Save',
     scopeown: 'Editing your dashboard',
     scopesitedefault: 'Editing the default dashboard for all users',
     switchtoown: 'Switch to editing your dashboard',
@@ -484,6 +504,27 @@ describe('core_my grid components', () => {
         render(<BlockActionsMenu blockId={11} actions={[]} label="More actions for Useful links" />);
 
         expect(screen.queryByRole('button', {name: 'More actions for Useful links'})).not.toBeInTheDocument();
+    });
+
+    it('lists Move and Resize before the block\'s own actions, even when it has none', () => {
+        const onMove = jest.fn();
+        render(<BlockActionsMenu
+            blockId={11}
+            actions={[]}
+            label="More actions for Useful links"
+            commands={[
+                {key: 'move', label: 'Move...', onSelect: onMove},
+                {key: 'resize', label: 'Resize...', onSelect: jest.fn()},
+            ]}
+        />);
+
+        fireEvent.click(screen.getByRole('button', {name: 'More actions for Useful links'}));
+        const items = screen.getAllByRole('menuitem');
+        expect(items.map(item => item.textContent)).toEqual(['Move...', 'Resize...']);
+        expect(items[0]).toHaveFocus();
+        fireEvent.click(items[0]);
+        expect(onMove).toHaveBeenCalled();
+        expect(screen.queryByRole('menu')).not.toBeInTheDocument();
     });
 
     it('opens the block actions menu and lists each retained action as a link', () => {

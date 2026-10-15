@@ -23,17 +23,19 @@ interface BlockActionsMenuProps {
     blockId: number;
     actions: BlockAction[];
     label: string;
+    // Built-in items listed before the block's own actions, such as Move... and Resize....
+    commands?: {key: string; label: string; onSelect: () => void}[];
 }
 
 // Kept in this file rather than its own module: it's only ever used from DashboardTile below,
 // and every ESM component here is a separate network request, so folding trivially-small,
 // non-swizzled pieces into their one caller cuts requests without changing what's independently
 // themeable (see swizzle.json - this was never a swizzle point of its own).
-export const BlockActionsMenu = ({blockId, actions, label}: BlockActionsMenuProps) => {
+export const BlockActionsMenu = ({blockId, actions, label, commands = []}: BlockActionsMenuProps) => {
     const [open, setOpen] = useState(false);
     const containerRef = useRef<HTMLDivElement>(null);
     const triggerRef = useRef<HTMLButtonElement>(null);
-    const itemRefs = useRef<(HTMLAnchorElement | null)[]>([]);
+    const itemRefs = useRef<(HTMLElement | null)[]>([]);
     const menuId = `core-my-dashboard-block-actions-${blockId}`;
 
     useEffect(() => {
@@ -63,17 +65,17 @@ export const BlockActionsMenu = ({blockId, actions, label}: BlockActionsMenuProp
         };
     }, [open]);
 
-    if (actions.length === 0) {
+    const count = commands.length + actions.length;
+    if (count === 0) {
         return null;
     }
 
     const moveFocus = (fromIndex: number, delta: number) => {
-        const count = actions.length;
         const nextIndex = (fromIndex + delta + count) % count;
         itemRefs.current[nextIndex]?.focus();
     };
 
-    const onItemKeyDown = (event: React.KeyboardEvent<HTMLAnchorElement>, index: number) => {
+    const onItemKeyDown = (event: React.KeyboardEvent<HTMLElement>, index: number) => {
         switch (event.key) {
             case 'ArrowDown':
                 event.preventDefault();
@@ -89,7 +91,7 @@ export const BlockActionsMenu = ({blockId, actions, label}: BlockActionsMenuProp
                 break;
             case 'End':
                 event.preventDefault();
-                itemRefs.current[actions.length - 1]?.focus();
+                itemRefs.current[count - 1]?.focus();
                 break;
             case 'Tab':
                 // Items are not in the natural tab order (roving tabindex); let focus leave
@@ -120,7 +122,23 @@ export const BlockActionsMenu = ({blockId, actions, label}: BlockActionsMenuProp
             aria-label={label}
             className="core-my-dashboard-block-actions__menu"
         >
-            {actions.map((action, index) => <a
+            {commands.map((command, index) => <button
+                key={command.key}
+                type="button"
+                ref={element => {
+                    itemRefs.current[index] = element;
+                }}
+                role="menuitem"
+                tabIndex={-1}
+                className="core-my-dashboard-block-actions__item"
+                data-command={command.key}
+                onKeyDown={event => onItemKeyDown(event, index)}
+                onClick={() => {
+                    setOpen(false);
+                    command.onSelect();
+                }}
+            >{command.label}</button>)}
+            {actions.map((action, actionIndex) => ({action, index: commands.length + actionIndex})).map(({action, index}) => <a
                 key={action.id}
                 ref={element => {
                     itemRefs.current[index] = element;
@@ -172,6 +190,8 @@ interface DashboardTileProps {
     onPointerDown: (event: React.PointerEvent, id: number, mode: 'move' | 'resize') => void;
     onCommit: () => void;
     onRemove: (id: number) => void;
+    // Opens the Move or Resize dialog from the block's menu.
+    onPosition?: (id: number, mode: 'move' | 'resize') => void;
 }
 
 const DashboardTile = ({
@@ -193,6 +213,7 @@ const DashboardTile = ({
     onPointerDown,
     onCommit,
     onRemove,
+    onPosition,
 }: DashboardTileProps) => {
     const tileRef = useRef<HTMLElement>(null);
     const contentRef = useRef<HTMLDivElement>(null);
@@ -328,6 +349,10 @@ const DashboardTile = ({
                     blockId={block.id}
                     actions={block.actions}
                     label={labels.blockactions.replace('{$a}', block.title)}
+                    commands={onPosition ? [
+                        {key: 'move', label: labels.positionmove, onSelect: () => onPosition(block.id, 'move')},
+                        {key: 'resize', label: labels.positionresize, onSelect: () => onPosition(block.id, 'resize')},
+                    ] : []}
                 />
             </div>}
         </header>

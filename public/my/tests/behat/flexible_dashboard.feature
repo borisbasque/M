@@ -168,7 +168,7 @@ Feature: Arrange dashboard blocks in a responsive grid
     Then I should not see "Editing your dashboard"
 
   @javascript
-  Scenario: The block actions menu is capped at Configure, Permissions and Check permissions
+  Scenario: The block actions menu is capped at Move, Resize, Configure, Permissions and Check permissions
     Given I log out
     And I log in as "admin"
     When I turn editing mode on
@@ -178,6 +178,8 @@ Feature: Arrange dashboard blocks in a responsive grid
     Then I should not see "Configure Course overview block" in the ".core-my-dashboard-block-actions__menu" "css_element"
     And I should see "Manage permissions" in the ".core-my-dashboard-block-actions__menu" "css_element"
     And I should see "Check permissions" in the ".core-my-dashboard-block-actions__menu" "css_element"
+    And "Move..." "button" should exist in the ".core-my-dashboard-block-actions__menu" "css_element"
+    And "Resize..." "button" should exist in the ".core-my-dashboard-block-actions__menu" "css_element"
     And I should not see "Move Course overview block" in the ".core-my-dashboard-block-actions__menu" "css_element"
     And I should not see "Delete Course overview block" in the ".core-my-dashboard-block-actions__menu" "css_element"
     And "Hide Course overview block" "button" should not exist
@@ -189,6 +191,24 @@ Feature: Arrange dashboard blocks in a responsive grid
     And I press the escape key
     And I click on ".core-my-dashboard-block-actions__trigger" "css_element" in the ".core-my-dashboard-tile[data-block='html']" "css_element"
     Then I should see "Configure (new text block) block" in the ".core-my-dashboard-block-actions__menu" "css_element"
+
+  @javascript
+  Scenario: A block can be moved and resized one space at a time from its menu
+    Given I log out
+    And I log in as "admin"
+    When I turn editing mode on
+    And I click on "More actions for Course overview" "button" in the "Course overview" "block"
+    And I click on "Move..." "button" in the ".core-my-dashboard-block-actions__menu" "css_element"
+    Then I should see "Move Course overview" in the ".core-my-dashboard-position" "css_element"
+    When I click on "Down" "button" in the ".core-my-dashboard-position" "css_element"
+    And I click on "Save" "button" in the ".core-my-dashboard-position" "css_element"
+    Then ".core-my-dashboard-position" "css_element" should not exist
+    When I click on "More actions for Course overview" "button" in the "Course overview" "block"
+    And I click on "Resize..." "button" in the ".core-my-dashboard-block-actions__menu" "css_element"
+    Then I should see "Resize Course overview" in the ".core-my-dashboard-position" "css_element"
+    When I click on "Taller" "button" in the ".core-my-dashboard-position" "css_element"
+    And I click on "Cancel" "button" in the ".core-my-dashboard-position" "css_element"
+    Then ".core-my-dashboard-position" "css_element" should not exist
 
   @javascript
   Scenario: An administrator can switch between their own dashboard and the site default while editing

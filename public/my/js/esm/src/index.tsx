@@ -22,6 +22,7 @@ import {redirect} from '@moodle/lms/core/location';
 import Toast, {type ToastAction, type ToastMessage} from '@moodle/lms/core/Toast';
 import DashboardTile from './components/DashboardTile';
 import ConfirmationDialog from './components/ConfirmationDialog';
+import PositionDialog, {type PositionStep} from './components/PositionDialog';
 import BlockBrowser from './components/BlockBrowser';
 import GridCell from './components/GridCell';
 import DashboardLoading from './components/DashboardLoading';
@@ -39,6 +40,8 @@ import {
     measureNaturalHeight,
     packLayout,
     packWithPinned,
+    stepDraft,
+    displacedBy,
     readGridMetrics,
     rowsForHeight,
     writeBack,
@@ -108,7 +111,7 @@ export const DashboardScopeBanner = ({siteDefault, caneditotherscope, urls, labe
 interface Interaction {
     id: number;
     mode: 'move' | 'resize';
-    origin: 'keyboard' | 'mouseclick' | 'pointer';
+    origin: 'keyboard' | 'mouseclick' | 'pointer' | 'dialog';
     original: LayoutItem;
     draft: LayoutItem;
     before: LayoutItem[];
@@ -1237,7 +1240,7 @@ const Dashboard = ({loadingLabel = '', initialLayout = [], openBrowser = false, 
         setInteraction(next);
         if (origin === 'keyboard') {
             void showInstructions(block.title, mode, 'keyboard');
-        } else {
+        } else if (origin !== 'dialog') {
             void announce(mode === 'move' ? 'dashboardmovebegin' : 'dashboardresizebegin', block.title);
         }
     }, [announce, blocksById, displayLayout, showInstructions]);
@@ -1264,36 +1267,34 @@ const Dashboard = ({loadingLabel = '', initialLayout = [], openBrowser = false, 
      * rejected (with an announcement) rather than clamped, so the keyboard controls never go
      * silently unresponsive at the limit.
      */
-    const shift = useCallback((visualHorizontal: number, vertical: number) => {
+    const shift = useCallback((visualHorizontal: number, vertical: number, quiet = false) => {
         const current = interactionRef.current;
         if (!current) {
             return;
         }
         // Arrow keys are visual: in a right-to-left grid, right is backwards.
         const horizontal = isRtl(gridRef.current) ? -visualHorizontal : visualHorizontal;
-        const draft = {...current.draft};
-        if (current.mode === 'move') {
-            draft.column = Math.max(0, Math.min(columnCount - draft.columns, draft.column + horizontal));
-            draft.row = Math.max(0, draft.row + vertical);
-        } else {
-            const nextColumns = draft.columns + horizontal;
-            const nextRows = draft.rows + vertical;
-            const minimum = fitMinimum(minimumSize(current.id), columnCount);
-            if (nextColumns < minimum.columns || nextRows < minimum.rows) {
-                void announce('dashboardminimumsize', `${minimum.columns} × ${minimum.rows}`);
-                return;
-            }
-            draft.columns = Math.min(columnCount - draft.column, nextColumns);
-            draft.rows = nextRows;
+        const minimum = fitMinimum(minimumSize(current.id), columnCount);
+        const result = stepDraft(current.draft, current.mode, horizontal, vertical, columnCount, minimum);
+        if (result.blocker === 'minimum') {
+            void announce('dashboardminimumsize', `${minimum.columns} × ${minimum.rows}`);
+            return;
         }
+        if (!result.draft) {
+            return;
+        }
+        const draft = result.draft;
         if (!layoutChanged(draft, current.draft)) {
             return;
         }
         const next = {...current, draft};
         interactionRef.current = next;
         setInteraction(next);
-        // Each step is announced: where the block now is, or its new size.
-        if (current.mode === 'move') {
+        // Each step is announced: where the block now is, or its new size. The dialogs say it
+        // in their own status line instead, which is inside the modal where it will be heard.
+        if (quiet) {
+            return;
+        } else if (current.mode === 'move') {
             void announce('gridcellposition', {row: draft.row + 1, column: draft.column + 1});
         } else {
             void announce('dashboardresizesize', {columns: draft.columns, rows: draft.rows});
@@ -1341,7 +1342,8 @@ const Dashboard = ({loadingLabel = '', initialLayout = [], openBrowser = false, 
         const warning = joinWarning(currentCanonical, next);
         updateCanonical(next);
         endInteraction();
-        if (warning) {
+        // Not from the dialogs: their result is announced, and a toast at once would talk over it.
+        if (warning && current.origin !== 'dialog') {
             showToast(warning);
         }
         void announce(current.mode === 'move' ? 'dashboardmovecommitted' : 'dashboardresizecommitted', {
@@ -1372,6 +1374,47 @@ const Dashboard = ({loadingLabel = '', initialLayout = [], openBrowser = false, 
     cancelRef.current = cancel;
     const commitRef = useRef(commit);
     commitRef.current = commit;
+
+    /**
+     * The Move and Resize dialogs, opened from a block's menu. They drive the same interaction as
+     * the arrow keys, one step per button through shift() and stepDraft(), so the grid shows the
+     * preview and they can never disagree with the keyboard about what is possible.
+     */
+    const [positioning, setPositioning] = useState<{id: number; mode: 'move' | 'resize'} | null>(null);
+    const positionReturnRef = useRef<number | null>(null);
+    const openPosition = useCallback((id: number, mode: 'move' | 'resize') => {
+        if (interactionRef.current) {
+            return;
+        }
+        start(id, mode, 'dialog');
+        setPositioning({id, mode});
+    }, [start]);
+    const closePosition = useCallback((save: boolean) => {
+        positionReturnRef.current = positioning?.id ?? null;
+        setPositioning(null);
+        if (save) {
+            void commit();
+        } else {
+            cancel();
+        }
+    }, [cancel, commit, positioning]);
+    // Focus goes back to the menu button the dialog was opened from.
+    useEffect(() => {
+        const id = positionReturnRef.current;
+        if (positioning || id === null) {
+            return;
+        }
+        positionReturnRef.current = null;
+        gridRef.current?.querySelector<HTMLElement>(
+            `.core-my-dashboard-tile[data-instance-id="${id}"] .core-my-dashboard-block-actions__trigger`,
+        )?.focus();
+    }, [positioning]);
+    // If the interaction ends some other way (the toast is not shown, but a reset could), close too.
+    useEffect(() => {
+        if (positioning && interaction?.origin !== 'dialog') {
+            setPositioning(null);
+        }
+    }, [interaction, positioning]);
 
     /**
      * Keyboard-driven move/resize: Space/Enter starts or commits an interaction, Escape cancels
@@ -1879,6 +1922,7 @@ const Dashboard = ({loadingLabel = '', initialLayout = [], openBrowser = false, 
             onPointerDown={pointerDown}
             onCommit={() => void commit()}
             onRemove={id => void remove(id)}
+            onPosition={openPosition}
         />;
     };
     // Empty spaces offer "Add a block here" at rest. While a block is picked up by a click or by
@@ -1921,6 +1965,57 @@ const Dashboard = ({loadingLabel = '', initialLayout = [], openBrowser = false, 
         saving: '',
         offline: '',
         retrying: data.labels.saveretrying,
+    };
+    const fill = (text: string, values: Record<string, string | number>) => Object.entries(values)
+        .reduce((result, [key, value]) => result.split(`{$a->${key}}`).join(String(value)), text);
+    const renderPositionDialog = (current: Interaction) => {
+        const {labels} = data;
+        const title = blocksById.get(current.id)?.title ?? '';
+        const minimum = fitMinimum(minimumSize(current.id), columnCount);
+        // Left and right are as seen: in a right-to-left grid, left is towards the end of the row.
+        const rtl = isRtl(gridRef.current);
+        const reasons = {edge: labels.positionedge, minimum: labels.positionminimum};
+        const directions: [string, string, string, number, number][] = current.mode === 'move' ? [
+            ['up', labels.positionup, 'fa-arrow-up', 0, -1],
+            ['left', labels.positionleft, 'fa-arrow-left', -1, 0],
+            ['right', labels.positionright, 'fa-arrow-right', 1, 0],
+            ['down', labels.positiondown, 'fa-arrow-down', 0, 1],
+        ] : [
+            ['shorter', labels.positionshorter, 'fa-arrow-up', 0, -1],
+            ['narrower', labels.positionnarrower, rtl ? 'fa-arrow-right' : 'fa-arrow-left', rtl ? 1 : -1, 0],
+            ['wider', labels.positionwider, rtl ? 'fa-arrow-left' : 'fa-arrow-right', rtl ? -1 : 1, 0],
+            ['taller', labels.positiontaller, 'fa-arrow-down', 0, 1],
+        ];
+        const steps: PositionStep[] = directions.map(([key, label, icon, visual, vertical]) => {
+            const result = stepDraft(current.draft, current.mode, rtl ? -visual : visual, vertical, columnCount, minimum);
+            return {key, label, icon, reason: result.blocker ? reasons[result.blocker] : undefined};
+        });
+        const {draft} = current;
+        const displaced = layoutChanged(current.original, draft)
+            ? displacedBy(current.before, columnCount, draft, minimum)
+                .map(id => blocksById.get(id)?.title).filter(Boolean).join(', ')
+            : '';
+        return <PositionDialog
+            mode={current.mode}
+            heading={(current.mode === 'move' ? labels.positionmoveheading : labels.positionresizeheading)
+                .replace('{$a}', title)}
+            help={current.mode === 'move' ? labels.positionmovehelp : labels.positionresizehelp}
+            status={current.mode === 'move'
+                ? fill(labels.positionwhere, {row: draft.row + 1, column: draft.column + 1})
+                : fill(labels.positionsize, {columns: draft.columns, total: columnCount, rows: draft.rows})}
+            displaces={displaced ? labels.positiondisplaces.replace('{$a}', displaced) : ''}
+            steps={steps}
+            saveLabel={labels.positionsave}
+            cancelLabel={labels.cancel}
+            onStep={key => {
+                const direction = directions.find(candidate => candidate[0] === key);
+                if (direction) {
+                    shift(direction[3], direction[4], true);
+                }
+            }}
+            onSave={() => closePosition(true)}
+            onCancel={() => closePosition(false)}
+        />;
     };
     return <div
         className="core-my-dashboard-app"
@@ -2053,6 +2148,7 @@ const Dashboard = ({loadingLabel = '', initialLayout = [], openBrowser = false, 
             }}
             onCancel={() => setConfirmAction(null)}
         />}
+        {positioning && interaction?.origin === 'dialog' && renderPositionDialog(interaction)}
         <Toast message={toast} closeLabel={data.labels.close} onClose={hideToast} />
     </div>;
 };

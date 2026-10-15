@@ -715,6 +715,89 @@ $core-my-dashboard-grid-max-width: calc(#{$core-my-dashboard-page-max-width} - 1
     margin-top: var(--mds-spacing-lg);
 }
 
+// The Move and Resize dialogs sit at the bottom of the window, with a clear backdrop, so the grid
+// behind stays visible and shows the preview as each step is taken.
+.core-my-dashboard-position {
+    position: fixed;
+    inset: auto 0 var(--mds-spacing-lg);
+    width: calc(100% - 2 * var(--mds-spacing-md));
+    max-width: 28rem;
+    margin: 0 auto;
+    padding: var(--mds-spacing-lg);
+    color: var(--mds-text-default);
+    background: var(--mds-bg-surface-default);
+    border: var(--mds-stroke-weight-sm) solid var(--mds-border-default);
+    border-radius: var(--mds-border-radius-xl);
+    box-shadow: 0 .5rem 1.5rem rgba(0, 0, 0, .25);
+}
+
+.core-my-dashboard-position::backdrop {
+    background: transparent;
+}
+
+.core-my-dashboard-position h2 {
+    font-size: var(--mds-font-size-headings-4);
+}
+
+// Step buttons in a cross: up above, left and right either side, down below.
+.core-my-dashboard-position__steps {
+    display: grid;
+    grid-template-areas:
+        ". up ."
+        "left . right"
+        ". down .";
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: var(--mds-spacing-sm);
+    text-align: center;
+}
+
+.core-my-dashboard-position__step {
+    display: flex;
+    flex-direction: column;
+    align-items: stretch;
+    gap: var(--mds-spacing-xs);
+}
+
+.core-my-dashboard-position__step--up,
+.core-my-dashboard-position__step--shorter {
+    grid-area: up;
+}
+
+.core-my-dashboard-position__step--left,
+.core-my-dashboard-position__step--narrower {
+    grid-area: left;
+}
+
+.core-my-dashboard-position__step--right,
+.core-my-dashboard-position__step--wider {
+    grid-area: right;
+}
+
+.core-my-dashboard-position__step--down,
+.core-my-dashboard-position__step--taller {
+    grid-area: down;
+}
+
+// Unavailable steps stay focusable (aria-disabled), so they are dimmed rather than removed.
+.core-my-dashboard-position__step [aria-disabled="true"] {
+    cursor: not-allowed;
+    opacity: .65;
+}
+
+.core-my-dashboard-position__reason {
+    font-size: .875rem;
+    color: var(--mds-text-default);
+}
+
+.core-my-dashboard-position__status {
+    margin-top: var(--mds-spacing-md);
+    font-weight: bold;
+
+    p {
+        margin: 0;
+    }
+}
+
 @media (prefers-reduced-motion: reduce) {
     .core-my-dashboard-tile,
     .core-my-grid-cell,
