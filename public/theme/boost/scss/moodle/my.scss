@@ -427,9 +427,11 @@ $core-my-dashboard-grid-max-width: calc(#{$core-my-dashboard-page-max-width} - 1
     justify-content: center;
     padding: 0;
     cursor: pointer;
-    // A faint outline at rest; the "Add a block here" cue appears on hover or keyboard focus.
+    // The dashed outline at rest must reach 3:1 against the page in both colour modes (WCAG 1.4.11), so it uses
+    // the secondary interactive hover border rather than a subtle border. The "Add a block here" cue appears on
+    // hover or keyboard focus.
     background: transparent;
-    border: var(--mds-stroke-weight-sm) dashed var(--mds-border-subtle);
+    border: var(--mds-stroke-weight-sm) dashed var(--mds-border-interactive-secondary-hover);
 }
 
 .core-my-grid-cell__icon {
@@ -465,8 +467,20 @@ $core-my-dashboard-grid-max-width: calc(#{$core-my-dashboard-page-max-width} - 1
 }
 
 .core-my-grid-cell--available:hover .core-my-grid-cell__label,
-.core-my-grid-cell--available:focus-visible .core-my-grid-cell__label {
+.core-my-grid-cell--available:focus-visible .core-my-grid-cell__label,
+.core-my-grid-cell--placing .core-my-grid-cell__label {
     opacity: 1;
+}
+
+// While a block is picked up to be placed with a click, every place it can go is shown at once, with its
+// "Move here" or "Resize to here" label, so the targets do not depend on hover, focus or colour alone.
+.core-my-grid-cell--placing {
+    background: var(--mds-bg-feedback-primary-subtle);
+    border-color: var(--mds-border-interactive-primary-default);
+}
+
+.core-my-grid-cell--placing .core-my-grid-cell__label {
+    font-weight: var(--mds-font-weight-semibold);
 }
 
 .core-my-grid-cell--available:focus-visible {

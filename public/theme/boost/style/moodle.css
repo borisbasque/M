@@ -37170,7 +37170,7 @@ body.editing#page-course-learningoutcomes .activity-item:hover:not(:has(.activit
   padding: 0;
   cursor: pointer;
   background: transparent;
-  border: var(--mds-stroke-weight-sm) dashed var(--mds-border-subtle);
+  border: var(--mds-stroke-weight-sm) dashed var(--mds-border-interactive-secondary-hover);
 }
 
 .core-my-grid-cell__icon {
@@ -37205,8 +37205,18 @@ body.editing#page-course-learningoutcomes .activity-item:hover:not(:has(.activit
 }
 
 .core-my-grid-cell--available:hover .core-my-grid-cell__label,
-.core-my-grid-cell--available:focus-visible .core-my-grid-cell__label {
+.core-my-grid-cell--available:focus-visible .core-my-grid-cell__label,
+.core-my-grid-cell--placing .core-my-grid-cell__label {
   opacity: 1;
+}
+
+.core-my-grid-cell--placing {
+  background: var(--mds-bg-feedback-primary-subtle);
+  border-color: var(--mds-border-interactive-primary-default);
+}
+
+.core-my-grid-cell--placing .core-my-grid-cell__label {
+  font-weight: var(--mds-font-weight-semibold);
 }
 
 .core-my-grid-cell--available:focus-visible {
