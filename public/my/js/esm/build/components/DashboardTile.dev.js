@@ -386,7 +386,7 @@ const DashboardTile = /* @__PURE__ */ __name(({
           DashboardHandle,
           {
             mode: "resize",
-            label: labels.resize,
+            label: labels.resize.replace("{$a}", block.title),
             instructionsId: resizeInstructionsId,
             active: activeMode === "resize",
             tapping,

@@ -1345,6 +1345,7 @@ const Dashboard = ({loadingLabel = '', initialLayout = [], openBrowser = false, 
             showToast(warning);
         }
         void announce(current.mode === 'move' ? 'dashboardmovecommitted' : 'dashboardresizecommitted', {
+            block: currentData.blocks.find(block => block.id === current.id)?.title ?? '',
             row: item.row + 1,
             column: item.column + 1,
             columns: item.columns,

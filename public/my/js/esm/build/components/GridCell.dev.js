@@ -34,7 +34,7 @@ const GridCell = /* @__PURE__ */ __name(({
     "button",
     {
       type: "button",
-      className: "core-my-grid-cell core-my-grid-cell--available",
+      className: `core-my-grid-cell core-my-grid-cell--available${placing ? " core-my-grid-cell--placing" : ""}`,
       style,
       "data-grid-column": column,
       "data-grid-row": row,

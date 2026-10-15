@@ -120,7 +120,7 @@ const labels: DashboardLabels = {
     removeheading: 'Remove block',
     reset: 'Reset page to default',
     resetheading: 'Reset dashboard',
-    resize: 'Resize block',
+    resize: 'Resize {$a}',
     resizehere: 'Resize to here',
     joinwillmoveone: '{$a} will move to join the other blocks when you finish editing.',
     joinwillmovemany: '{$a} blocks will move to join the others when you finish editing.',
@@ -303,6 +303,33 @@ describe('core_my Dashboard application', () => {
         expect(moved).toMatchObject({column: 1, row: 0});
     });
 
+    it('names the block in the announcement when a move or resize is committed', async() => {
+        mockDashboardApi({getResponses: [buildData()]});
+        const getStringSpy = jest.spyOn(StringUtils, 'getString');
+        render(<Dashboard />);
+        await screen.findByText('First block');
+        const firstTile = screen.getByRole('region', {name: 'First block block'});
+
+        const moveHandle = within(firstTile).getByRole('button', {name: 'Move First block block'});
+        fireEvent.keyDown(moveHandle, {key: ' '});
+        fireEvent.keyDown(moveHandle, {key: 'ArrowRight'});
+        await act(async() => {
+            fireEvent.keyDown(moveHandle, {key: ' '});
+        });
+        await waitFor(() => expect(getStringSpy).toHaveBeenCalledWith('dashboardmovecommitted', 'my',
+            expect.objectContaining({block: 'First block'})));
+
+        const resizeHandle = within(firstTile).getByRole('button', {name: 'Resize First block'});
+        fireEvent.keyDown(resizeHandle, {key: ' '});
+        fireEvent.keyDown(resizeHandle, {key: 'ArrowDown'});
+        await act(async() => {
+            fireEvent.keyDown(resizeHandle, {key: ' '});
+        });
+        await waitFor(() => expect(getStringSpy).toHaveBeenCalledWith('dashboardresizecommitted', 'my',
+            expect.objectContaining({block: 'First block'})));
+        getStringSpy.mockRestore();
+    });
+
     it('settles a committed move immediately, before the save responds', async() => {
         let resolveSave: (value: {status: boolean; blockid: number}) => void = () => undefined;
         mockDashboardApi({
@@ -418,10 +445,9 @@ describe('core_my Dashboard application', () => {
         render(<Dashboard />);
         await screen.findByText('First block');
 
-        // Both tiles' resize handles share the generic "Resize block" label; scope to the first
-        // block's own tile to disambiguate.
+        // Each resize handle is named after its block, and is still scoped to the block's own tile.
         const firstTile = screen.getByRole('region', {name: 'First block block'});
-        const resizeHandle = within(firstTile).getByRole('button', {name: 'Resize block'});
+        const resizeHandle = within(firstTile).getByRole('button', {name: 'Resize First block'});
         fireEvent.keyDown(resizeHandle, {key: ' '});
         // The first block is 2 rows tall; the payload's minimum is 2 rows, so shrinking up once more is rejected.
         fireEvent.keyDown(resizeHandle, {key: 'ArrowUp'});
@@ -447,7 +473,7 @@ describe('core_my Dashboard application', () => {
         await waitFor(() => expect(getStringSpy).toHaveBeenCalledWith('gridcellposition', 'my', {row: 2, column: 1}));
         fireEvent.keyDown(moveHandle, {key: 'Escape'});
 
-        const resizeHandle = within(firstTile).getByRole('button', {name: 'Resize block'});
+        const resizeHandle = within(firstTile).getByRole('button', {name: 'Resize First block'});
         fireEvent.keyDown(resizeHandle, {key: ' '});
         fireEvent.keyDown(resizeHandle, {key: 'ArrowRight'});
         await waitFor(() => expect(getStringSpy)
@@ -465,7 +491,7 @@ describe('core_my Dashboard application', () => {
         render(<Dashboard />);
         await screen.findByText('First block');
         const firstTile = screen.getByRole('region', {name: 'First block block'});
-        const resizeHandle = within(firstTile).getByRole('button', {name: 'Resize block'});
+        const resizeHandle = within(firstTile).getByRole('button', {name: 'Resize First block'});
         fireEvent.keyDown(resizeHandle, {key: ' '});
         fireEvent.keyDown(resizeHandle, {key: 'ArrowUp'});
 
@@ -483,7 +509,7 @@ describe('core_my Dashboard application', () => {
         await screen.findByText('First block');
 
         const firstTile = screen.getByRole('region', {name: 'First block block'});
-        const resizeHandle = within(firstTile).getByRole('button', {name: 'Resize block'});
+        const resizeHandle = within(firstTile).getByRole('button', {name: 'Resize First block'});
         fireEvent.keyDown(resizeHandle, {key: ' '});
         // This block may be 1 row tall, so the same shrink that is rejected above succeeds.
         fireEvent.keyDown(resizeHandle, {key: 'ArrowUp'});
@@ -968,7 +994,7 @@ describe('core_my Dashboard application', () => {
             render(<Dashboard />);
             await screen.findByText('First block');
             const firstTile = screen.getByRole('region', {name: 'First block block'});
-            const resizeHandle = within(firstTile).getByRole('button', {name: 'Resize block'});
+            const resizeHandle = within(firstTile).getByRole('button', {name: 'Resize First block'});
             fireEvent.keyDown(resizeHandle, {key: ' '});
             fireEvent.keyDown(resizeHandle, {key: 'ArrowUp'});
             await act(async() => {

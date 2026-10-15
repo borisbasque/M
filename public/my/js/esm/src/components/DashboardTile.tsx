@@ -344,7 +344,7 @@ const DashboardTile = ({
         {editing && <div className="core-my-dashboard-tile__resize">
             <DashboardHandle
                 mode="resize"
-                label={labels.resize}
+                label={labels.resize.replace('{$a}', block.title)}
                 instructionsId={resizeInstructionsId}
                 active={activeMode === 'resize'}
                 tapping={tapping}

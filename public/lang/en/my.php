@@ -59,7 +59,7 @@ $string['dashboardkeyboardmove'] = '{$a} picked up. Use the arrow keys to move i
 $string['dashboardkeyboardresize'] = 'Resizing {$a}. Use the arrow keys to change its size, then press Space or Enter to finish, or Escape to cancel.';
 $string['dashboardminimumsize'] = 'Minimum block size reached: {$a}.';
 $string['dashboardmovebegin'] = 'Moving {$a}.';
-$string['dashboardmovecommitted'] = 'Item moved to row {$a->row}, column {$a->column}. {$a->disturbed} other blocks were repositioned. Move committed.';
+$string['dashboardmovecommitted'] = '{$a->block} moved to row {$a->row}, column {$a->column}. {$a->disturbed} other blocks were repositioned. Move committed.';
 $string['dashboardmovehandleinstructions'] = 'Press Space or Enter to start moving. Use the arrow keys to move, then press Space or Enter to save, or Escape to cancel.';
 $string['dashboardmovehere'] = 'Move here';
 $string['dashboardnothingchanged'] = 'Done. Nothing changed.';
@@ -68,7 +68,7 @@ $string['dashboardplacemove'] = 'Move {$a->block} here: row {$a->row}, column {$
 $string['dashboardplaceresize'] = 'Resize {$a->block} to end here: row {$a->row}, column {$a->column}';
 $string['dashboardresetcomplete'] = 'Dashboard reset to the site default.';
 $string['dashboardresizebegin'] = 'Resizing {$a}.';
-$string['dashboardresizecommitted'] = 'Item resized to {$a->columns} columns by {$a->rows} rows. {$a->disturbed} other blocks were repositioned. Resize committed.';
+$string['dashboardresizecommitted'] = '{$a->block} resized to {$a->columns} columns by {$a->rows} rows. {$a->disturbed} other blocks were repositioned. Resize committed.';
 $string['dashboardresizehandleinstructions'] = 'Press Space or Enter to start resizing. Use the arrow keys to resize, then press Space or Enter to save, or Escape to cancel.';
 $string['dashboardresizehere'] = 'Resize to here';
 $string['dashboardresizesize'] = '{$a->columns} columns by {$a->rows} rows';
@@ -108,7 +108,7 @@ $string['reseteveryonesprofile'] = 'Reset profile for all users';
 $string['resetpage'] = 'Reset page to default';
 $string['resetpageconfirm'] = 'Are you sure you want to reset the page to default?';
 $string['resettingdashboards'] = 'Resetting user dashboards to default...';
-$string['resizeblock'] = 'Resize block';
+$string['resizeblock'] = 'Resize {$a}';
 
 // Deprecated since Moodle 4.5.
 $string['coursemanagementoptions'] = 'Course management options';

@@ -19,16 +19,16 @@ Feature: Arrange dashboard blocks in a responsive grid
     Then I should see "Course overview picked up" in the ".core-toast" "css_element"
     And I press the down key
     And I press the enter key
-    Then I should see "Item moved to row"
+    Then I should see "Course overview moved to row"
     And I should not see "Course overview picked up"
     # Keyboard activation uses the arrow keys alone: there are no on-screen direction buttons.
-    When I click on "Resize block" "button" in the "Course overview" "block"
+    When I click on "Resize Course overview" "button" in the "Course overview" "block"
     And I press the escape key
     And I press the space key
     Then "Up" "button" should not exist in the "Course overview" "block"
     And I press the down key
     And I press the enter key
-    Then I should see "Item resized to"
+    Then I should see "Course overview resized to"
     When I click on "Add a block" "button" in the ".core-my-dashboard-toolbar" "css_element"
     And I set the field "Search blocks" to "Online"
     And I click on "Insert" "button" in the "Add a block" "dialogue"
@@ -70,21 +70,21 @@ Feature: Arrange dashboard blocks in a responsive grid
   Scenario: Drag the dedicated handles to move and resize a block
     When I turn editing mode on
     And I drag ".core-my-dashboard-tile[data-block='myoverview'] .core-my-dashboard-handle--move" "css_element" and I drop it in ".core-my-dashboard-tile[data-block='myoverview'] .core-my-dashboard-tile__content" "css_element"
-    Then I should see "Item moved to row"
+    Then I should see "Course overview moved to row"
     When I hover ".core-my-dashboard-tile[data-block='myoverview'] .core-my-dashboard-handle--resize" "css_element"
     And I drag ".core-my-dashboard-tile[data-block='myoverview'] .core-my-dashboard-handle--resize" "css_element" and I drop it in ".core-my-dashboard-tile[data-block='myoverview'] .core-my-dashboard-tile__content" "css_element"
-    Then I should see "Item resized to"
+    Then I should see "Course overview resized to"
 
   @javascript
   Scenario: A block cannot be resized below its own declared minimum
     # The Calendar declares a 1 column by 4 row minimum and starts 5 rows tall.
     When I turn editing mode on
-    And I click on "Resize block" "button" in the "Calendar" "block"
+    And I click on "Resize Calendar" "button" in the "Calendar" "block"
     And I press the up key
     And I press the up key
     Then I should see "Minimum block size reached: 1 × 4."
     And I press the enter key
-    And I should see "Item resized to 1 columns by 4 rows."
+    And I should see "Calendar resized to 1 columns by 4 rows."
     And the "calendar_month" dashboard block should be "4" rows tall
     # The pointer route stops at the same limit.
     When I drag the "calendar_month" dashboard block's resize handle up by "3" rows
@@ -104,7 +104,7 @@ Feature: Arrange dashboard blocks in a responsive grid
   Scenario: A block picked up with a click can be put in the empty row below the last block
     When I turn editing mode on
     Then putting the "Calendar" dashboard block in the empty row at the bottom moves it there
-    And I should see "Item moved to row"
+    And I should see "Calendar moved to row"
     And "Up" "button" should not exist
 
   @javascript
@@ -277,12 +277,12 @@ Feature: Arrange dashboard blocks in a responsive grid
     When I change viewport size to "2600x1200"
     And I reload the page
     And I turn editing mode on
-    And I click on "Resize block" "button" in the "Timeline" "block"
+    And I click on "Resize Timeline" "button" in the "Timeline" "block"
     And I press the down key
     And I press the down key
     And I press the down key
     And I press the enter key
-    And I should see "Item resized to"
+    And I should see "Timeline resized to"
     And the "timeline" dashboard block should be between "5" and "7" rows tall
     And I reload the page
     Then the "timeline" dashboard block should be between "5" and "7" rows tall

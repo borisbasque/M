@@ -58,7 +58,7 @@ const GridCell = ({
     }
     return <button
         type="button"
-        className="core-my-grid-cell core-my-grid-cell--available"
+        className={`core-my-grid-cell core-my-grid-cell--available${placing ? ' core-my-grid-cell--placing' : ''}`}
         style={style}
         data-grid-column={column}
         data-grid-row={row}

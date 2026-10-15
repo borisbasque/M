@@ -821,7 +821,7 @@ class behat_my extends behat_base {
      * @param string $key The arrow key: left, right, up or down.
      */
     protected function resize_with_keys(string $blocklabel, string $key): void {
-        $this->execute('behat_general::i_click_on_in_the', ['Resize block', 'button', $blocklabel, 'block']);
+        $this->execute('behat_general::i_click_on_in_the', ['Resize ' . $blocklabel, 'button', $blocklabel, 'block']);
         $this->execute('behat_general::i_press_named_key', ['', $key]);
         $this->execute('behat_general::i_press_named_key', ['', 'enter']);
     }

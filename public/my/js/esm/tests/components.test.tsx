@@ -95,6 +95,7 @@ const labels = {
     done: 'Done',
     cancel: 'Cancel',
     moveinstructions: 'Use the arrow keys to move',
+    resize: 'Resize {$a}',
     resizeinstructions: 'Use the arrow keys to resize',
     scopeown: 'Editing your dashboard',
     scopesitedefault: 'Editing the default dashboard for all users',
@@ -118,7 +119,7 @@ describe('core_my grid components', () => {
                 ...labels,
                 move: 'Move {$a} block',
                 remove: 'Delete {$a} block',
-                resize: 'Resize block',
+                resize: 'Resize {$a}',
                 tile: '{$a} block',
             } as DashboardLabels,
             editing: true,
@@ -172,6 +173,20 @@ describe('core_my grid components', () => {
 
         fireEvent.click(region);
         expect(activate).toHaveBeenCalledWith(2, 3, 2, 1);
+    });
+
+    it('shows every place to put a picked-up block, with its label, not only on hover or focus', () => {
+        render(<GridCell column={0} row={0} label="Move First block here" addLabel="Move here" placing />);
+
+        const cell = screen.getByRole('button', {name: 'Move First block here'});
+        expect(cell).toHaveClass('core-my-grid-cell--placing');
+        expect(cell.querySelector('.core-my-grid-cell__label')).toHaveTextContent('Move here');
+    });
+
+    it('does not mark an empty region as a place to put a block when nothing is picked up', () => {
+        render(<GridCell column={0} row={0} label="Empty space" addLabel="Add a block here" />);
+
+        expect(screen.getByRole('button', {name: 'Empty space'})).not.toHaveClass('core-my-grid-cell--placing');
     });
 
     it('shows an "add a block here" cue without changing the accessible name', () => {
@@ -440,7 +455,7 @@ describe('core_my grid components', () => {
                 ...labels,
                 move: 'Move {$a} block',
                 remove: 'Delete {$a} block',
-                resize: 'Resize block',
+                resize: 'Resize {$a}',
                 tile: '{$a} block',
             } as DashboardLabels}
             editing
@@ -453,10 +468,10 @@ describe('core_my grid components', () => {
 
         expect(screen.getByRole('button', {name: 'Move Useful links block'}))
             .toHaveClass('mds-btn--size-md');
-        expect(screen.getByRole('button', {name: 'Resize block'}))
+        expect(screen.getByRole('button', {name: 'Resize Useful links'}))
             .toHaveClass('core-my-dashboard-handle--resize');
         // No footer bar: the resize handle sits over the tile's corner.
-        expect(screen.getByRole('button', {name: 'Resize block'}).closest('.core-my-dashboard-tile__resize'))
+        expect(screen.getByRole('button', {name: 'Resize Useful links'}).closest('.core-my-dashboard-tile__resize'))
             .toBeInTheDocument();
         expect(screen.queryByRole('contentinfo')).not.toBeInTheDocument();
         const remove = screen.getByRole('button', {name: 'Delete Useful links block'});
