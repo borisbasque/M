@@ -9,7 +9,7 @@
       "dependencies": {
         "@floating-ui/react": "^0.27.20",
         "@fortawesome/fontawesome-free": "^6.7.2",
-        "@moodlehq/design-system": "^5.3.0",
+        "@moodlehq/design-system": "^5.4.0",
         "@popperjs/core": "^2.11.8",
         "bootstrap": "^5.3.8",
         "react": "^19.1",
@@ -3724,9 +3724,9 @@
       }
     },
     "node_modules/@moodlehq/design-system": {
-      "version": "5.3.0",
-      "resolved": "https://registry.npmjs.org/@moodlehq/design-system/-/design-system-5.3.0.tgz",
-      "integrity": "sha512-dPfzRXAThbr7ZsNqpGwL+pU2SePlyhG2IQhhnpwg+G5TGDsU0yKXOJBNrK++ARnCLqG3Ls1CJxh4lQ/Gv/+qJg==",
+      "version": "5.4.0",
+      "resolved": "https://registry.npmjs.org/@moodlehq/design-system/-/design-system-5.4.0.tgz",
+      "integrity": "sha512-9pXm6Kga0PrsShYqQSQ1Jdg9AELRj0CTFuWdHeBkBPNzaC5193KaFpbr+5V5Lc4rCsx6PhUCXhr/FtY0ppI+Pg==",
       "license": "GPL-3.0-only",
       "dependencies": {
         "@floating-ui/react": "^0.27.19"
