@@ -36905,7 +36905,7 @@ body.editing#page-course-learningoutcomes .activity-item:hover:not(:has(.activit
 @media (min-width: 768px) {
   .core-my-dashboard-toolbar {
     position: sticky;
-    top: 60px;
+    top: 64px;
     z-index: 10;
     border-bottom: var(--mds-stroke-weight-sm) solid var(--mds-border-subtle);
   }
@@ -36929,7 +36929,7 @@ body.editing#page-course-learningoutcomes .activity-item:hover:not(:has(.activit
 }
 
 .core-my-dashboard-grid > * {
-  scroll-margin-top: calc(60px + var(--mds-scale-1600));
+  scroll-margin-top: calc(64px + var(--mds-scale-1600));
 }
 
 .core-my-dashboard-app[data-instructions] {
