@@ -115,23 +115,29 @@ class behat_my extends behat_base {
     }
 
     /**
-     * Move a block, with the keyboard, to a place where it touches no other block; check a toast says
-     * it will move; click Done; and check it joined the others. (The message after Done is a toast that
-     * closes after 6 seconds, which can pass while Behat waits for the page; Jest covers it.)
+     * Move a block, with the keyboard, into a free column beside the block below it, and check that
+     * block stays put until the drop and then rises.
      *
-     * The place is found from the grid as it is: a free spot, within the rows already in use (so it
-     * isn't simply closed up as an empty row), that shares no edge with another block. The other
-     * blocks must stay joined without it, so it is clearly the one left on its own.
+     * The block below is the one sharing the moved block's columns and starting at or below its
+     * bottom. The move is sideways only, far enough that their columns no longer overlap.
      *
-     * @Then leaving the :block dashboard block on its own and clicking Done joins it to the others
+     * @When dropping the :block dashboard block beside the block below it raises that block
      * @param string $block The block's title.
      */
-    public function leaving_block_on_its_own_and_clicking_done_joins_it(string $block): void {
+    public function dropping_block_beside_the_block_below_it_raises_that_block(string $block): void {
         $title = json_encode("{$block} block");
-        $move = $this->evaluate_script(<<<JS
+        $ready = $this->spin_until_script(<<<JS
+            return document.querySelectorAll('.core-my-dashboard-tile[aria-busy="true"]').length === 0;
+        JS, static fn($value): bool => $value === true);
+        if ($ready !== true) {
+            throw new \Exception('The dashboard blocks did not finish loading.');
+        }
+
+        $plan = $this->evaluate_script(<<<JS
             return (() => {
                 const grid = document.querySelector('.core-my-dashboard-grid');
                 const rect = tile => ({
+                    name: tile.dataset.block,
                     column: Number(tile.dataset.gridColumn),
                     row: Number(tile.dataset.gridRow),
                     columns: parseInt(tile.style.gridColumn.split('span ')[1], 10),
@@ -142,110 +148,80 @@ class behat_my extends behat_base {
                 if (!grid || !moving) {
                     return null;
                 }
-                const joined = (a, b) => {
-                    const columns = a.column < b.column + b.columns && b.column < a.column + a.columns;
-                    const rows = a.row < b.row + b.rows && b.row < a.row + a.rows;
-                    return ((a.row + a.rows === b.row || b.row + b.rows === a.row) && columns)
-                        || ((a.column + a.columns === b.column || b.column + b.columns === a.column) && rows);
-                };
                 const self = rect(moving);
-                const others = tiles.filter(tile => tile !== moving).map(rect);
-                const reached = new Set([0]);
-                const waiting = [0];
-                while (waiting.length) {
-                    const index = waiting.pop();
-                    others.forEach((other, next) => {
-                        if (!reached.has(next) && joined(others[index], other)) {
-                            reached.add(next);
-                            waiting.push(next);
-                        }
-                    });
+                const overlapscolumns = other => self.column < other.column + other.columns
+                    && other.column < self.column + self.columns;
+                const below = tiles.map(rect).filter(other => other.name !== self.name && overlapscolumns(other)
+                    && other.row >= self.row + self.rows)
+                    .sort((left, right) => left.row - right.row)[0];
+                if (!below) {
+                    return {problem: 'No block sits below it in the same columns.'};
                 }
-                if (reached.size !== others.length) {
-                    // Not 'error': WebDriver reads that key in a script's result as a failed command.
-                    return {problem: 'The other blocks are not joined up without it.'};
-                }
-                const columnCount = Number(grid.dataset.columns);
-                const bottom = Math.max(...others.map(other => other.row + other.rows));
-                const overlaps = (a, b) => a.column < b.column + b.columns && b.column < a.column + a.columns
-                    && a.row < b.row + b.rows && b.row < a.row + a.rows;
-                for (let row = 0; row + self.rows <= bottom; row++) {
-                    for (let column = 0; column + self.columns <= columnCount; column++) {
-                        const spot = {...self, column, row};
-                        if (others.every(other => !overlaps(spot, other) && !joined(spot, other))) {
-                            moving.querySelector('.core-my-dashboard-handle--move').focus();
-                            return {right: column - self.column, down: row - self.row, column, row};
-                        }
+                const columncount = Number(grid.dataset.columns);
+                const direction = self.column + self.columns < columncount ? 1 : -1;
+                let steps = 0;
+                let column = self.column;
+                while (column < below.column + below.columns && below.column < column + self.columns) {
+                    const next = column + direction;
+                    if (next < 0 || next + self.columns > columncount) {
+                        return {problem: 'There is no free column beside it.'};
                     }
+                    column = next;
+                    steps++;
                 }
-                return null;
+                moving.querySelector('.core-my-dashboard-handle--move').focus();
+                return {direction, steps, belowName: below.name, belowRow: below.row, column};
             })();
         JS);
-        if ($move === null) {
-            throw new \Exception("There is nowhere to leave the {$block} block on its own on this dashboard.");
+        if ($plan === null) {
+            throw new \Exception("The {$block} block is not on the dashboard.");
         }
-        if (isset($move['problem'])) {
-            throw new \Exception("The {$block} block can't be the one left on its own: {$move['problem']}");
+        if (isset($plan['problem'])) {
+            throw new \Exception("The {$block} block cannot show a block below it rising: {$plan['problem']}");
         }
+
+        $rowof = <<<JS
+            return (() => {
+                const tile = document.querySelector('.core-my-dashboard-tile[data-block="{$plan['belowName']}"]');
+                return tile ? Number(tile.dataset.gridRow) : null;
+            })();
+        JS;
 
         $this->execute('behat_general::i_press_named_key', ['', 'space']);
-        $steps = array_merge(
-            array_fill(0, abs($move['right']), $move['right'] > 0 ? 'right' : 'left'),
-            array_fill(0, abs($move['down']), $move['down'] > 0 ? 'down' : 'up'),
-        );
-        foreach ($steps as $key) {
+        $key = $plan['direction'] > 0 ? 'right' : 'left';
+        for ($step = 0; $step < $plan['steps']; $step++) {
             $this->execute('behat_general::i_press_named_key', ['', $key]);
         }
-        $this->execute('behat_general::i_press_named_key', ['', 'enter']);
-        $landed = $this->spin_until_script(<<<JS
-            return (() => {
-                const tile = [...document.querySelectorAll('.core-my-dashboard-tile')]
-                    .find(candidate => candidate.getAttribute('aria-label') === {$title});
-                return tile ? [Number(tile.dataset.gridColumn), Number(tile.dataset.gridRow)] : null;
-            })();
-        JS, static fn($value): bool => $value === [$move['column'], $move['row']]);
-        if ($landed !== [$move['column'], $move['row']]) {
-            throw new \Exception("The {$block} block landed at " . json_encode($landed) . ', not ' .
-                json_encode([$move['column'], $move['row']]) . '.');
+        $during = $this->evaluate_script($rowof);
+        if ($during !== $plan['belowRow']) {
+            throw new \Exception("The block below moved to row {$during} while {$block} was still being moved. " .
+                "It should have stayed at row {$plan['belowRow']}.");
         }
 
-        $this->execute('behat_general::assert_element_contains_text',
-            ["{$block} will move to join the other blocks when you finish editing.", '.core-toast', 'css_element']);
-        $this->execute('behat_general::i_click_on', ['Done', 'button']);
+        $this->execute('behat_general::i_press_named_key', ['', 'enter']);
+        $risen = $this->spin_until_script($rowof, static fn($value): bool => is_int($value) && $value < $plan['belowRow']);
+        if (!is_int($risen) || $risen >= $plan['belowRow']) {
+            throw new \Exception("The block below stayed at row " . json_encode($risen) .
+                " after {$block} was dropped. It started at row {$plan['belowRow']}.");
+        }
+    }
 
-        $groups = $this->spin_until_script(<<<'JS'
+    /**
+     * Assert a dashboard block's current grid row.
+     *
+     * @Then the :block dashboard block should be in row :row
+     * @param string $block The block's name, such as recentlyaccesseditems.
+     * @param string $row The zero-based row.
+     */
+    public function the_dashboard_block_should_be_in_row(string $block, string $row): void {
+        $found = $this->spin_until_script(<<<JS
             return (() => {
-                if (document.querySelector('.core-my-dashboard-toolbar')) {
-                    return null;
-                }
-                const items = [...document.querySelectorAll('.core-my-dashboard-tile:not([hidden])')].map(tile => ({
-                    column: Number(tile.dataset.gridColumn),
-                    row: Number(tile.dataset.gridRow),
-                    columns: parseInt(tile.style.gridColumn.split('span ')[1], 10),
-                    rows: parseInt(tile.style.gridRow.split('span ')[1], 10),
-                }));
-                const joined = (a, b) => {
-                    const columns = a.column < b.column + b.columns && b.column < a.column + a.columns;
-                    const rows = a.row < b.row + b.rows && b.row < a.row + a.rows;
-                    return ((a.row + a.rows === b.row || b.row + b.rows === a.row) && columns)
-                        || ((a.column + a.columns === b.column || b.column + b.columns === a.column) && rows);
-                };
-                const seen = new Set([0]);
-                const waiting = [0];
-                while (waiting.length) {
-                    const index = waiting.pop();
-                    items.forEach((other, next) => {
-                        if (!seen.has(next) && joined(items[index], other)) {
-                            seen.add(next);
-                            waiting.push(next);
-                        }
-                    });
-                }
-                return seen.size === items.length;
+                const tile = document.querySelector('.core-my-dashboard-tile[data-block="{$block}"]');
+                return tile ? String(tile.dataset.gridRow) : null;
             })();
-        JS, static fn($value): bool => $value === true);
-        if ($groups !== true) {
-            throw new \Exception('The dashboard is not joined up after clicking Done.');
+        JS, static fn($value): bool => $value === $row);
+        if ($found !== $row) {
+            throw new \Exception("The {$block} block is in row " . json_encode($found) . ", not row {$row}.");
         }
     }
 

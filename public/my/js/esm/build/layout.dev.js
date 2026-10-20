@@ -206,6 +206,30 @@ const stepDraft = /* @__PURE__ */ __name((draft, mode, horizontal, vertical, col
   }
   return { draft: { ...draft, columns, rows } };
 }, "stepDraft");
+const riseToFill = /* @__PURE__ */ __name((items) => {
+  if (items.length === 0) {
+    return items;
+  }
+  const occupied = /* @__PURE__ */ new Set();
+  const placed = /* @__PURE__ */ new Map();
+  let moved = false;
+  [...items].sort((left, right) => left.row - right.row || left.column - right.column || left.id - right.id).forEach((item) => {
+    let row = Math.max(0, item.row);
+    while (row > 0 && fits(occupied, item.column, row - 1, item.columns, item.rows)) {
+      row--;
+    }
+    const next = row === item.row ? item : { ...item, row };
+    if (next !== item) {
+      moved = true;
+    }
+    occupy(occupied, next);
+    placed.set(item.id, next);
+  });
+  if (!moved) {
+    return items;
+  }
+  return items.map((item) => placed.get(item.id) ?? item);
+}, "riseToFill");
 const writeBack = /* @__PURE__ */ __name((canonical, derived, pinnedId, minimum) => {
   const original = new Map(canonical.map((item) => [item.id, item]));
   const restored = [...derived].sort((left, right) => left.row - right.row || left.column - right.column || left.id - right.id).map((item) => ({
@@ -215,7 +239,7 @@ const writeBack = /* @__PURE__ */ __name((canonical, derived, pinnedId, minimum)
   }));
   const pinned = restored.find((item) => item.id === pinnedId);
   const packed = pinned ? packWithPinned(restored, MAX_COLUMNS, pinned, minimum) : packInOrder(restored, MAX_COLUMNS);
-  return collapseEmptyRows(packed).map((item) => ({
+  return riseToFill(packed).map((item) => ({
     id: item.id,
     column: item.column,
     row: item.row,
@@ -283,122 +307,6 @@ const maxRow = /* @__PURE__ */ __name((items) => items.reduce(
   (maximum, item) => Math.max(maximum, item.row + item.rows),
   0
 ), "maxRow");
-const blocksJoined = /* @__PURE__ */ __name((left, right) => {
-  const columnsOverlap = left.column < right.column + right.columns && right.column < left.column + left.columns;
-  const rowsOverlap = left.row < right.row + right.rows && right.row < left.row + left.rows;
-  const stacked = left.row + left.rows === right.row || right.row + right.rows === left.row;
-  const besideEachOther = left.column + left.columns === right.column || right.column + right.columns === left.column;
-  return stacked && columnsOverlap || besideEachOther && rowsOverlap;
-}, "blocksJoined");
-const readingOrder = /* @__PURE__ */ __name((left, right) => left.row - right.row || left.column - right.column, "readingOrder");
-const joinedGroups = /* @__PURE__ */ __name((items) => {
-  const ordered = [...items].sort(readingOrder);
-  const seen = /* @__PURE__ */ new Set();
-  const groups = [];
-  ordered.forEach((start) => {
-    if (seen.has(start.id)) {
-      return;
-    }
-    const group = [];
-    const waiting = [start];
-    seen.add(start.id);
-    while (waiting.length) {
-      const item = waiting.pop();
-      group.push(item);
-      ordered.forEach((other) => {
-        if (!seen.has(other.id) && blocksJoined(item, other)) {
-          seen.add(other.id);
-          waiting.push(other);
-        }
-      });
-    }
-    groups.push(group.sort(readingOrder));
-  });
-  return groups;
-}, "joinedGroups");
-const joinUp = /* @__PURE__ */ __name((items, columnCount) => {
-  let layout = items;
-  let groups = joinedGroups(layout);
-  if (groups.length < 2) {
-    return items;
-  }
-  while (groups.length > 1) {
-    const main = groups.reduce((largest, group2) => group2.length > largest.length ? group2 : largest);
-    const group = groups.find((candidate) => candidate !== main);
-    const ids = new Set(group.map((item) => item.id));
-    const others = layout.filter((item) => !ids.has(item.id));
-    const moved = placeGroup(group, others, columnCount);
-    const byId = new Map(moved.map((item) => [item.id, item]));
-    layout = layout.map((item) => byId.get(item.id) ?? item);
-    groups = joinedGroups(layout);
-  }
-  return collapseEmptyRows(layout);
-}, "joinUp");
-const placeGroup = /* @__PURE__ */ __name((group, others, columnCount) => {
-  const taken = /* @__PURE__ */ new Set();
-  others.forEach((item) => occupy(taken, item));
-  const shifted = /* @__PURE__ */ __name((columns, rows) => group.map((item) => ({ ...item, column: item.column + columns, row: item.row + rows })), "shifted");
-  const free = /* @__PURE__ */ __name((candidate) => candidate.every((item) => item.row >= 0 && item.column >= 0 && item.column + item.columns <= columnCount && fits(taken, item.column, item.row, item.columns, item.rows)), "free");
-  const touches = /* @__PURE__ */ __name((candidate) => candidate.some((item) => others.some((other) => blocksJoined(item, other))), "touches");
-  const slide = /* @__PURE__ */ __name((columns, rows, stepColumns, stepRows) => {
-    let last = [columns, rows];
-    let touching = touches(shifted(columns, rows)) ? [columns, rows] : null;
-    while (free(shifted(last[0] + stepColumns, last[1] + stepRows))) {
-      last = [last[0] + stepColumns, last[1] + stepRows];
-      if (touches(shifted(...last))) {
-        touching = last;
-      }
-    }
-    return { end: last, touching: touches(shifted(...last)) ? last : touching };
-  }, "slide");
-  const up = slide(0, 0, 0, -1);
-  if (up.touching) {
-    return shifted(...up.touching);
-  }
-  const along = slide(up.end[0], up.end[1], -1, 0);
-  if (along.touching) {
-    return shifted(...along.touching);
-  }
-  const top = Math.min(...group.map((item) => item.row));
-  const left = Math.min(...group.map((item) => item.column));
-  const bottom = maxRow([...group, ...others]);
-  let best = null;
-  let bestDistance = Infinity;
-  for (let row = -top; row <= bottom; row++) {
-    for (let column = -left; column < columnCount; column++) {
-      const distance = Math.abs(row) + Math.abs(column);
-      if (distance >= bestDistance) {
-        continue;
-      }
-      const candidate = shifted(column, row);
-      if (free(candidate) && touches(candidate)) {
-        best = candidate;
-        bestDistance = distance;
-      }
-    }
-  }
-  if (best) {
-    return best;
-  }
-  const placed = [];
-  [...group].sort(readingOrder).forEach((item) => {
-    const neighbours = [...others, ...placed];
-    const width = Math.min(item.columns, columnCount);
-    for (let row = 0; ; row++) {
-      const column = [...Array(columnCount - width + 1).keys()].find((candidate) => {
-        const rect = { ...item, column: candidate, row, columns: width };
-        return fits(taken, candidate, row, width, item.rows) && neighbours.some((other) => blocksJoined(rect, other));
-      });
-      if (column !== void 0) {
-        const rect = { ...item, column, row, columns: width };
-        occupy(taken, rect);
-        placed.push(rect);
-        return;
-      }
-    }
-  });
-  return placed;
-}, "placeGroup");
 const AUTO_ROWS_CAP = 8;
 const rowsForHeight = /* @__PURE__ */ __name((height, metrics, minimumRows, cap = AUTO_ROWS_CAP) => {
   const fitted = Math.ceil((Math.max(0, height) + metrics.gap) / (metrics.rowHeight + metrics.gap));
@@ -443,21 +351,19 @@ export {
   SIX_COLUMN_THRESHOLD,
   TWO_COLUMN_THRESHOLD,
   applyRowSpans,
-  blocksJoined,
   collapseEmptyRows,
   columnsForWidth,
   disturbedCount,
   emptyRegions,
   firstFreeSpace,
   fitMinimum,
-  joinUp,
-  joinedGroups,
   maxRow,
   measureNaturalHeight,
   packInOrder,
   packLayout,
   packWithPinned,
   readGridMetrics,
+  riseToFill,
   rowsForHeight,
   stepDraft,
   writeBack

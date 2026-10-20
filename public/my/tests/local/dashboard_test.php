@@ -30,6 +30,7 @@ use PHPUnit\Framework\Attributes\CoversMethod;
  */
 #[CoversMethod(dashboard::class, 'get_skeleton_layout')]
 #[CoversMethod(dashboard::class, 'get_loading_placeholder')]
+#[CoversMethod(dashboard::class, 'rise_to_fill')]
 #[CoversMethod(dashboard::class, 'get')]
 #[CoversMethod(dashboard::class, 'get_block')]
 #[CoversMethod(dashboard::class, 'get_initial_data')]
@@ -270,5 +271,79 @@ final class dashboard_test extends \advanced_testcase {
         $this->assertStringContainsString('core-my-dashboard-loading', $placeholder);
         $this->assertStringNotContainsString('core-my-dashboard-loading__grid--positioned', $placeholder);
         $this->assertSame(6, substr_count($placeholder, 'core-my-dashboard-loading__tile'));
+    }
+
+    /**
+     * Blocks rise within their own columns. A block beside a gap is not pulled sideways, and a
+     * block stops flush under whatever occupies its span.
+     */
+    public function test_rise_to_fill_closes_empty_space_above_a_block(): void {
+        $layout = [
+            ['id' => 1, 'column' => 0, 'row' => 0, 'columns' => 2, 'rows' => 2],
+            ['id' => 2, 'column' => 0, 'row' => 5, 'columns' => 2, 'rows' => 2],
+            ['id' => 3, 'column' => 3, 'row' => 4, 'columns' => 1, 'rows' => 1],
+        ];
+
+        $risen = dashboard::rise_to_fill($layout);
+        $byid = array_column($risen, null, 'id');
+
+        $this->assertSame(0, $byid[1]['row']);
+        // Flush under the block above it, still in its own columns.
+        $this->assertSame(2, $byid[2]['row']);
+        $this->assertSame(0, $byid[2]['column']);
+        // Nothing above it, so it rises to the top and stays on the right.
+        $this->assertSame(['column' => 3, 'row' => 0], ['column' => $byid[3]['column'], 'row' => $byid[3]['row']]);
+        // The caller's layout is left as it was given.
+        $this->assertSame(5, $layout[1]['row']);
+
+        // A wide block stops under the lowest block anywhere in its span, and does not slide sideways.
+        $wide = dashboard::rise_to_fill([
+            ['id' => 1, 'column' => 0, 'row' => 0, 'columns' => 2, 'rows' => 4],
+            ['id' => 2, 'column' => 2, 'row' => 0, 'columns' => 1, 'rows' => 1],
+            ['id' => 3, 'column' => 0, 'row' => 8, 'columns' => 3, 'rows' => 2],
+        ]);
+        $widebyid = array_column($wide, null, 'id');
+        $this->assertSame(['column' => 0, 'row' => 4], ['column' => $widebyid[3]['column'], 'row' => $widebyid[3]['row']]);
+    }
+
+    /**
+     * A layout with nothing above its blocks is returned unchanged.
+     */
+    public function test_rise_to_fill_leaves_a_compact_layout_unchanged(): void {
+        $layout = [
+            ['id' => 1, 'column' => 0, 'row' => 0, 'columns' => 2, 'rows' => 2],
+            ['id' => 2, 'column' => 2, 'row' => 0, 'columns' => 2, 'rows' => 2],
+        ];
+
+        $this->assertSame($layout, dashboard::rise_to_fill($layout));
+        $this->assertSame([], dashboard::rise_to_fill([]));
+    }
+
+    /**
+     * The loading placeholder rises for the current view, and the saved positions are not rewritten.
+     */
+    public function test_skeleton_layout_rises_without_saving(): void {
+        global $DB, $PAGE, $USER;
+
+        $this->resetAfterTest();
+        $this->setAdminUser();
+        $USER->editing = 1;
+
+        $result = get_dashboard::execute(false);
+        $result = external_api::clean_returnvalue(get_dashboard::execute_returns(), $result);
+        $byname = array_column($result['blocks'], null, 'name');
+        $PAGE = new \moodle_page();
+        dashboard::save(false, $result['layout']);
+
+        $timelineid = $byname['timeline']['id'];
+        $DB->set_field('block_positions', 'gridrow', 9, ['blockinstanceid' => $timelineid]);
+
+        $PAGE = new \moodle_page();
+        $skeleton = array_column(dashboard::get_skeleton_layout(false), null, 'id');
+        $myoverview = $skeleton[$byname['myoverview']['id']];
+
+        $this->assertSame($myoverview['row'] + $myoverview['rows'], $skeleton[$timelineid]['row']);
+        $this->assertSame(1, $skeleton[$timelineid]['column']);
+        $this->assertSame(9, (int) $DB->get_field('block_positions', 'gridrow', ['blockinstanceid' => $timelineid]));
     }
 }

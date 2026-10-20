@@ -82,7 +82,6 @@ const DashboardTile = /* @__PURE__ */ __name(({
   dragOrigin,
   shouldAnimatePosition = false,
   isBumped = false,
-  joining = false,
   highlighted = false,
   onStart,
   onKeyDown,
@@ -154,7 +153,6 @@ const DashboardTile = /* @__PURE__ */ __name(({
         activeMode && "core-my-dashboard-tile--active",
         drag && "core-my-dashboard-tile--pointer-dragging",
         isBumped && "core-my-dashboard-tile--bumped",
-        joining && "core-my-dashboard-tile--joining",
         highlighted && "core-my-dashboard-tile--new"
       ].filter(Boolean).join(" "),
       style: {
@@ -178,17 +176,17 @@ const DashboardTile = /* @__PURE__ */ __name(({
         editing && /* @__PURE__ */ jsxDEV(Fragment, { children: [
           /* @__PURE__ */ jsxDEV("span", { id: moveInstructionsId, className: "visually-hidden", children: labels.moveinstructions }, void 0, false, {
             fileName: "public/my/js/esm/src/components/DashboardTile.tsx",
-            lineNumber: 227,
+            lineNumber: 223,
             columnNumber: 13
           }),
           /* @__PURE__ */ jsxDEV("span", { id: resizeInstructionsId, className: "visually-hidden", children: labels.resizeinstructions }, void 0, false, {
             fileName: "public/my/js/esm/src/components/DashboardTile.tsx",
-            lineNumber: 228,
+            lineNumber: 224,
             columnNumber: 13
           })
         ] }, void 0, true, {
           fileName: "public/my/js/esm/src/components/DashboardTile.tsx",
-          lineNumber: 226,
+          lineNumber: 222,
           columnNumber: 21
         }),
         /* @__PURE__ */ jsxDEV("header", { className: "core-my-dashboard-tile__header", children: [
@@ -209,13 +207,13 @@ const DashboardTile = /* @__PURE__ */ __name(({
             false,
             {
               fileName: "public/my/js/esm/src/components/DashboardTile.tsx",
-              lineNumber: 231,
+              lineNumber: 227,
               columnNumber: 25
             }
           ),
           /* @__PURE__ */ jsxDEV("h2", { className: "core-my-dashboard-tile__title", title: block.title, children: block.title }, void 0, false, {
             fileName: "public/my/js/esm/src/components/DashboardTile.tsx",
-            lineNumber: 243,
+            lineNumber: 239,
             columnNumber: 13
           }),
           editing && /* @__PURE__ */ jsxDEV("div", { className: "core-my-dashboard-tile__actions", children: [
@@ -229,7 +227,7 @@ const DashboardTile = /* @__PURE__ */ __name(({
                 title: labels.remove.replace("{$a}", block.title),
                 startIcon: /* @__PURE__ */ jsxDEV("i", { className: "fa fa-xmark", "aria-hidden": "true" }, void 0, false, {
                   fileName: "public/my/js/esm/src/components/DashboardTile.tsx",
-                  lineNumber: 251,
+                  lineNumber: 247,
                   columnNumber: 32
                 }),
                 onClick: () => onRemove(block.id)
@@ -238,7 +236,7 @@ const DashboardTile = /* @__PURE__ */ __name(({
               false,
               {
                 fileName: "public/my/js/esm/src/components/DashboardTile.tsx",
-                lineNumber: 245,
+                lineNumber: 241,
                 columnNumber: 17
               }
             ),
@@ -253,54 +251,54 @@ const DashboardTile = /* @__PURE__ */ __name(({
               false,
               {
                 fileName: "public/my/js/esm/src/components/DashboardTile.tsx",
-                lineNumber: 254,
+                lineNumber: 250,
                 columnNumber: 17
               }
             )
           ] }, void 0, true, {
             fileName: "public/my/js/esm/src/components/DashboardTile.tsx",
-            lineNumber: 244,
+            lineNumber: 240,
             columnNumber: 25
           })
         ] }, void 0, true, {
           fileName: "public/my/js/esm/src/components/DashboardTile.tsx",
-          lineNumber: 230,
+          lineNumber: 226,
           columnNumber: 9
         }),
         !block.loaded && /* @__PURE__ */ jsxDEV("div", { className: "core-my-dashboard-tile__placeholder", "aria-hidden": "true", children: [
           /* @__PURE__ */ jsxDEV("span", { className: "core-my-dashboard-loading__line" }, void 0, false, {
             fileName: "public/my/js/esm/src/components/DashboardTile.tsx",
-            lineNumber: 262,
+            lineNumber: 258,
             columnNumber: 13
           }),
           /* @__PURE__ */ jsxDEV("span", { className: "core-my-dashboard-loading__line" }, void 0, false, {
             fileName: "public/my/js/esm/src/components/DashboardTile.tsx",
-            lineNumber: 263,
+            lineNumber: 259,
             columnNumber: 13
           }),
           /* @__PURE__ */ jsxDEV("span", { className: "core-my-dashboard-loading__line" }, void 0, false, {
             fileName: "public/my/js/esm/src/components/DashboardTile.tsx",
-            lineNumber: 264,
+            lineNumber: 260,
             columnNumber: 13
           })
         ] }, void 0, true, {
           fileName: "public/my/js/esm/src/components/DashboardTile.tsx",
-          lineNumber: 261,
+          lineNumber: 257,
           columnNumber: 27
         }),
         block.failed && /* @__PURE__ */ jsxDEV("p", { className: "core-my-dashboard-tile__failed", children: labels.blockfailed }, void 0, false, {
           fileName: "public/my/js/esm/src/components/DashboardTile.tsx",
-          lineNumber: 266,
+          lineNumber: 262,
           columnNumber: 26
         }),
         /* @__PURE__ */ jsxDEV("div", { ref: contentRef, className: `core-my-dashboard-tile__content block block_${block.name}` }, void 0, false, {
           fileName: "public/my/js/esm/src/components/DashboardTile.tsx",
-          lineNumber: 267,
+          lineNumber: 263,
           columnNumber: 9
         }),
         block.footer && /* @__PURE__ */ jsxDEV("div", { ref: footerRef, className: "core-my-dashboard-tile__block-footer" }, void 0, false, {
           fileName: "public/my/js/esm/src/components/DashboardTile.tsx",
-          lineNumber: 268,
+          lineNumber: 264,
           columnNumber: 26
         }),
         editing && /* @__PURE__ */ jsxDEV("div", { className: "core-my-dashboard-tile__resize", children: /* @__PURE__ */ jsxDEV(
@@ -320,12 +318,12 @@ const DashboardTile = /* @__PURE__ */ __name(({
           false,
           {
             fileName: "public/my/js/esm/src/components/DashboardTile.tsx",
-            lineNumber: 272,
+            lineNumber: 268,
             columnNumber: 13
           }
         ) }, void 0, false, {
           fileName: "public/my/js/esm/src/components/DashboardTile.tsx",
-          lineNumber: 271,
+          lineNumber: 267,
           columnNumber: 21
         })
       ]
@@ -334,7 +332,7 @@ const DashboardTile = /* @__PURE__ */ __name(({
     true,
     {
       fileName: "public/my/js/esm/src/components/DashboardTile.tsx",
-      lineNumber: 196,
+      lineNumber: 193,
       columnNumber: 12
     }
   );

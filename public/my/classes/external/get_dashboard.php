@@ -126,8 +126,6 @@ final class get_dashboard extends external_api {
                 'emptycell' => new external_value(PARAM_RAW, 'Empty cell label.'),
                 'gridcell' => new external_value(PARAM_RAW, 'Grid cell position label.'),
                 'loading' => new external_value(PARAM_RAW, 'Loading label.'),
-                'joinwillmoveone' => new external_value(PARAM_RAW, 'Says which block will move to join the others when editing finishes.'),
-                'joinwillmovemany' => new external_value(PARAM_RAW, 'Says how many blocks will move to join the others when editing finishes.'),
                 'move' => new external_value(PARAM_RAW, 'Move label.'),
                 'movehere' => new external_value(PARAM_RAW, 'Shown on an empty space while a block is picked up to move.'),
                 'moveinstructions' => new external_value(PARAM_RAW, 'Move handle instructions.'),

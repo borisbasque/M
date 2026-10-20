@@ -108,11 +108,18 @@ Feature: Arrange dashboard blocks in a responsive grid
     And "Up" "button" should not exist
 
   @javascript
-  Scenario: A block left on its own joins the others when editing finishes
+  Scenario: Dropping a block lets the blocks below it rise to fill the gap
     When I turn editing mode on
     And I change viewport size to "2600x1000"
     Then "[data-columns='6']" "css_element" should exist
-    And leaving the "Course overview" dashboard block on its own and clicking Done joins it to the others
+    # Calendar starts above Recently accessed items. Moving it out of that column must not
+    # lift the block below until it is dropped, and Done must not move anything further.
+    And dropping the "Calendar" dashboard block beside the block below it raises that block
+    Then I should see "Calendar placed. Blocks below moved up."
+    And the "recentlyaccesseditems" dashboard block should be in row "0"
+    When I click on "Done" "button"
+    Then ".core-my-dashboard-toolbar" "css_element" should not exist
+    And the "recentlyaccesseditems" dashboard block should be in row "0"
 
   @javascript
   Scenario: Resize follows the pointer and previews its snap target

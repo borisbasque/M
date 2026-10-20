@@ -9,7 +9,7 @@ import { jsxDEV } from "react/jsx-dev-runtime";
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
 import { useLayoutEffect, useRef, useState } from "react";
-import { columnsForWidth, packLayout } from "../layout";
+import { columnsForWidth, packLayout, riseToFill } from "../layout";
 const GenericGrid = /* @__PURE__ */ __name(() => /* @__PURE__ */ jsxDEV("div", { className: "core-my-dashboard-loading__grid", "aria-hidden": "true", children: Array.from({ length: 6 }, (_, index) => /* @__PURE__ */ jsxDEV("div", { className: "core-my-dashboard-loading__tile", children: [
   /* @__PURE__ */ jsxDEV("div", { className: "core-my-dashboard-loading__heading" }, void 0, false, {
     fileName: "public/my/js/esm/src/components/DashboardLoading.tsx",
@@ -54,7 +54,7 @@ const PositionedGrid = /* @__PURE__ */ __name(({ layout }) => {
     measure();
     return () => observer.disconnect();
   }, []);
-  const positioned = packLayout(layout, columnCount);
+  const positioned = riseToFill(packLayout(riseToFill(layout), columnCount));
   const rows = Math.max(1, ...positioned.map((item) => item.row + item.rows));
   return /* @__PURE__ */ jsxDEV(
     "div",

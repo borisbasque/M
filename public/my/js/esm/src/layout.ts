@@ -396,6 +396,46 @@ export const stepDraft = (
 };
 
 /**
+ * Raise every block as far as it can go, filling empty space above it.
+ *
+ * Vertical only, and only within the block's own column span: it keeps its column and width, and
+ * stops when a block already placed in that span, or the top of the grid, is in the way. Nothing
+ * moves sideways, so a right-to-left grid is unaffected. Blocks are placed from the top down, so
+ * one never rises through a block that started above it, and a block never moves up while another
+ * is still being moved: callers run this when a block is dropped, added, removed or hidden, not
+ * during the move itself (see packWithPinned()).
+ *
+ * @param items Layout items, none overlapping.
+ * @return The risen layout, in the same order, or the same array when nothing moved.
+ */
+export const riseToFill = <T extends LayoutItem>(items: T[]): T[] => {
+    if (items.length === 0) {
+        return items;
+    }
+    const occupied = new Set<string>();
+    const placed = new Map<number, T>();
+    let moved = false;
+    [...items]
+        .sort((left, right) => left.row - right.row || left.column - right.column || left.id - right.id)
+        .forEach(item => {
+            let row = Math.max(0, item.row);
+            while (row > 0 && fits(occupied, item.column, row - 1, item.columns, item.rows)) {
+                row--;
+            }
+            const next = row === item.row ? item : {...item, row};
+            if (next !== item) {
+                moved = true;
+            }
+            occupy(occupied, next);
+            placed.set(item.id, next);
+        });
+    if (!moved) {
+        return items;
+    }
+    return items.map(item => placed.get(item.id) ?? item);
+};
+
+/**
  * Turn a `derived` layout - produced by packLayout()/packWithPinned() at the current, possibly
  * narrowed, responsive column count - back into a canonical layout safe to persist at the full
  * MAX_COLUMNS width the server always stores.
@@ -429,7 +469,8 @@ export const writeBack = (
     const packed = pinned
         ? packWithPinned(restored, MAX_COLUMNS, pinned, minimum)
         : packInOrder(restored, MAX_COLUMNS);
-    return collapseEmptyRows(packed).map(item => ({
+    // Compaction is a separate step from the move: packWithPinned() never moves a block up.
+    return riseToFill(packed).map(item => ({
         id: item.id,
         column: item.column,
         row: item.row,
@@ -442,8 +483,8 @@ export const writeBack = (
 /**
  * Close up rows that no block occupies, moving everything below them up by as many rows.
  *
- * Applied after a drop, resize, add or remove, so a change never leaves a band of empty space
- * across the whole dashboard. Blocks keep their columns and their order.
+ * Blocks keep their columns and their order. A gap that another block still occupies in a
+ * different column is left as it is; {@link riseToFill} closes those too, one column span at a time.
  *
  * @param items Layout items.
  * @return The layout with empty rows removed, or the same array when there were none.
@@ -537,177 +578,6 @@ export const maxRow = (items: LayoutItem[]): number => items.reduce(
     (maximum, item) => Math.max(maximum, item.row + item.rows),
     0,
 );
-
-/**
- * Whether two blocks are joined: one is directly above, below, left or right of the other, sharing
- * part of an edge. Touching only at a corner doesn't count.
- *
- * @param left A block.
- * @param right Another block.
- * @return Whether they are joined.
- */
-export const blocksJoined = (left: GridRect, right: GridRect): boolean => {
-    const columnsOverlap = left.column < right.column + right.columns && right.column < left.column + left.columns;
-    const rowsOverlap = left.row < right.row + right.rows && right.row < left.row + left.rows;
-    const stacked = left.row + left.rows === right.row || right.row + right.rows === left.row;
-    const besideEachOther = left.column + left.columns === right.column || right.column + right.columns === left.column;
-    return (stacked && columnsOverlap) || (besideEachOther && rowsOverlap);
-};
-
-const readingOrder = (left: GridRect, right: GridRect): number => left.row - right.row || left.column - right.column;
-
-/**
- * Split a layout into groups of blocks joined to each other, directly or through other blocks.
- *
- * @param items Layout items.
- * @return The groups, each in reading order, ordered by where each group starts.
- */
-export const joinedGroups = <T extends LayoutItem>(items: T[]): T[][] => {
-    const ordered = [...items].sort(readingOrder);
-    const seen = new Set<number>();
-    const groups: T[][] = [];
-    ordered.forEach(start => {
-        if (seen.has(start.id)) {
-            return;
-        }
-        const group: T[] = [];
-        const waiting = [start];
-        seen.add(start.id);
-        while (waiting.length) {
-            const item = waiting.pop()!;
-            group.push(item);
-            ordered.forEach(other => {
-                if (!seen.has(other.id) && blocksJoined(item, other)) {
-                    seen.add(other.id);
-                    waiting.push(other);
-                }
-            });
-        }
-        groups.push(group.sort(readingOrder));
-    });
-    return groups;
-};
-
-/**
- * Join up a layout, so that all its blocks form one group.
- *
- * The main group is the one with the most blocks; between groups of the same size, the one that
- * starts nearest the top-left. It never moves. Each other group moves as a whole, keeping its
- * arrangement: up as far as it can go, until a block or the top of the grid stops it, so it ends
- * flush under a block or at the top and lines up with what is there. If it touches nothing there, it
- * takes the highest place on the way up that does touch, so it stays in the columns it was put in.
- * Only if nothing on the way up touches does it go towards the start of the row, the same way. If
- * that still doesn't touch, it goes to the nearest place where it fits and touches. Blocks never
- * overlap and keep their size. Rows left empty close up afterwards.
- *
- * @param items Layout items, none overlapping.
- * @param columnCount The grid's column count.
- * @return The joined-up layout, or the same array when it was already joined up.
- */
-export const joinUp = <T extends LayoutItem>(items: T[], columnCount: number): T[] => {
-    let layout = items;
-    let groups = joinedGroups(layout);
-    if (groups.length < 2) {
-        return items;
-    }
-    // Each round joins one group to another, so there are fewer groups every time.
-    while (groups.length > 1) {
-        const main = groups.reduce((largest, group) => group.length > largest.length ? group : largest);
-        const group = groups.find(candidate => candidate !== main)!;
-        const ids = new Set(group.map(item => item.id));
-        const others = layout.filter(item => !ids.has(item.id));
-        const moved = placeGroup(group, others, columnCount);
-        const byId = new Map(moved.map(item => [item.id, item]));
-        layout = layout.map(item => byId.get(item.id) ?? item);
-        groups = joinedGroups(layout);
-    }
-    return collapseEmptyRows(layout);
-};
-
-/**
- * Move a group of blocks until it touches one of the others, as joinUp() describes.
- *
- * @param group The blocks to move together.
- * @param others Every other block, which stays where it is.
- * @param columnCount The grid's column count.
- * @return The group's blocks at their new places.
- */
-const placeGroup = <T extends LayoutItem>(group: T[], others: T[], columnCount: number): T[] => {
-    const taken = new Set<string>();
-    others.forEach(item => occupy(taken, item));
-    const shifted = (columns: number, rows: number) =>
-        group.map(item => ({...item, column: item.column + columns, row: item.row + rows}));
-    const free = (candidate: T[]) => candidate.every(item => item.row >= 0 && item.column >= 0
-        && item.column + item.columns <= columnCount && fits(taken, item.column, item.row, item.columns, item.rows));
-    const touches = (candidate: T[]) => candidate.some(item => others.some(other => blocksJoined(item, other)));
-
-    // Slide one cell at a time as far as nothing is in the way. Where the slide ends touches if it
-    // can; otherwise the furthest place along it that touches; otherwise nothing does.
-    const slide = (columns: number, rows: number, stepColumns: number, stepRows: number) => {
-        let last: [number, number] = [columns, rows];
-        let touching: [number, number] | null = touches(shifted(columns, rows)) ? [columns, rows] : null;
-        while (free(shifted(last[0] + stepColumns, last[1] + stepRows))) {
-            last = [last[0] + stepColumns, last[1] + stepRows];
-            if (touches(shifted(...last))) {
-                touching = last;
-            }
-        }
-        return {end: last, touching: touches(shifted(...last)) ? last : touching};
-    };
-    const up = slide(0, 0, 0, -1);
-    if (up.touching) {
-        return shifted(...up.touching);
-    }
-    const along = slide(up.end[0], up.end[1], -1, 0);
-    if (along.touching) {
-        return shifted(...along.touching);
-    }
-
-    // The nearest place, by distance in cells from where the group was, where it fits and touches.
-    const top = Math.min(...group.map(item => item.row));
-    const left = Math.min(...group.map(item => item.column));
-    const bottom = maxRow([...group, ...others]);
-    let best: T[] | null = null;
-    let bestDistance = Infinity;
-    for (let row = -top; row <= bottom; row++) {
-        for (let column = -left; column < columnCount; column++) {
-            const distance = Math.abs(row) + Math.abs(column);
-            if (distance >= bestDistance) {
-                continue;
-            }
-            const candidate = shifted(column, row);
-            if (free(candidate) && touches(candidate)) {
-                best = candidate;
-                bestDistance = distance;
-            }
-        }
-    }
-    if (best) {
-        return best;
-    }
-
-    // Otherwise each block on its own, at the first free place in reading order that touches. Just
-    // below the lowest block always does: a block no wider than the grid placed there shares columns
-    // with it.
-    const placed: T[] = [];
-    [...group].sort(readingOrder).forEach(item => {
-        const neighbours = [...others, ...placed];
-        const width = Math.min(item.columns, columnCount);
-        for (let row = 0; ; row++) {
-            const column = [...Array(columnCount - width + 1).keys()].find(candidate => {
-                const rect = {...item, column: candidate, row, columns: width};
-                return fits(taken, candidate, row, width, item.rows) && neighbours.some(other => blocksJoined(rect, other));
-            });
-            if (column !== undefined) {
-                const rect = {...item, column, row, columns: width};
-                occupy(taken, rect);
-                placed.push(rect);
-                return;
-            }
-        }
-    });
-    return placed;
-};
 
 /** The tallest a block opens at when sized to its content, unless the server says otherwise. */
 export const AUTO_ROWS_CAP = 8;

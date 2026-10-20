@@ -31,17 +31,15 @@ import {
     emptyRegions,
     applyRowSpans,
     firstFreeSpace,
-    collapseEmptyRows,
     disturbedCount,
     fitMinimum,
-    joinUp,
-    MAX_COLUMNS,
     maxRow,
     measureNaturalHeight,
     packLayout,
     packWithPinned,
     stepDraft,
     readGridMetrics,
+    riseToFill,
     rowsForHeight,
     writeBack,
     type GridSize,
@@ -140,8 +138,6 @@ type ConfirmAction = {type: 'reset'};
 /** How many changes Undo can reverse within one visit. */
 const HISTORY_LIMIT = 50;
 
-// Carries the names of blocks joined up when editing finished across to the page after Edit mode.
-const JOINED_STORAGE_KEY = 'core_my_dashboard_joined';
 // How long to wait for the page to leave after finishing editing before letting the person carry on.
 const LEAVE_TIMEOUT_MS = 5000;
 // Fired by core/edit_switch when the page's Edit mode switch is used: eventTypes.editModeSet there.
@@ -159,18 +155,6 @@ const maximumRows = (block: {maxrows?: number | null}, fallback: number): number
         return fallback;
     }
     return block.maxrows ?? Infinity;
-};
-
-/**
- * The blocks that are in a different place in one layout than in another.
- *
- * @param before The layout before.
- * @param after The layout after.
- * @return Their ids.
- */
-const movedIds = (before: LayoutItem[], after: LayoutItem[]): Set<number> => {
-    const places = new Map(before.map(item => [item.id, `${item.column}:${item.row}`]));
-    return new Set(after.filter(item => places.get(item.id) !== `${item.column}:${item.row}`).map(item => item.id));
 };
 
 // See the settling MutationObserver in the collected-JS effect below for what these guard.
@@ -475,11 +459,9 @@ const Dashboard = ({loadingLabel = '', initialLayout = [], openBrowser = false, 
     // Set just before the dashboard reloads itself on purpose, so that is not mistaken for the user
     // leaving with changes unsent.
     const reloadingRef = useRef(false);
-    // Set while leaving Edit mode waits for the joined-up dashboard to save (see finishEditing).
+    // Set while leaving Edit mode waits for a change still being saved (see finishEditing).
     const finishingRef = useRef(false);
     const [finishing, setFinishing] = useState(false);
-    // Whether opening Edit mode has said which blocks will move (see joinWarning).
-    const warnedOnOpenRef = useRef(false);
     const siteDefault = isSiteDefault();
     // The revision of the dashboard this window last saw. Every change carries it, so the server
     // refuses one made from an out-of-date window rather than let it undo a newer change made
@@ -700,36 +682,6 @@ const Dashboard = ({loadingLabel = '', initialLayout = [], openBrowser = false, 
     ): Promise<number> => showToast(await getString(key, 'my', value), options), [showToast]);
 
     /**
-     * What to say when a change leaves a block on its own that wasn't before: it will move to join
-     * the others when editing finishes (see finishEditing()). Said once, with the change; the tile's
-     * marker stays until it is joined up.
-     *
-     * @param before The layout before the change.
-     * @param after The layout after it.
-     * @return The message, or '' when the change leaves no block newly on its own.
-     */
-    const joinWarning = useCallback((before: LayoutItem[], after: LayoutItem[]): string => {
-        const current = dataRef.current;
-        if (!current?.editing) {
-            return '';
-        }
-        const willMove = (layout: LayoutItem[]) => {
-            const joined = joinUp(layout, MAX_COLUMNS);
-            return joined === layout ? new Set<number>() : movedIds(layout, joined);
-        };
-        const was = willMove(before);
-        const now = willMove(after);
-        if (![...now].some(id => !was.has(id))) {
-            return '';
-        }
-        if (now.size === 1) {
-            const title = current.blocks.find(block => now.has(block.id))?.title ?? '';
-            return current.labels.joinwillmoveone.replace('{$a}', title);
-        }
-        return current.labels.joinwillmovemany.replace('{$a}', String(now.size));
-    }, []);
-
-    /**
      * React to a change the server did not accept.
      *
      * If the request never got through, even after the queue's retries, keep what is on screen and
@@ -929,24 +881,16 @@ const Dashboard = ({loadingLabel = '', initialLayout = [], openBrowser = false, 
     }, [addedScripts, fitAutoHeights]);
     const [columnCount, columnCountRef] = useResponsiveColumnCount(gridRef, data);
 
-    // While editing, blocks stay exactly where they were put, so a layout can be built in any order.
-    // Outside Edit mode the dashboard is always shown joined up (see joinUp()): blocks left on their
-    // own, or gaps left by blocks this person can't see, close up on screen. Nothing is saved; that
-    // happens when someone finishes editing (see finishEditing()). It is joined up at full width
-    // first, so a narrower grid keeps the joined-up order, and again in case narrowing splits it.
+    // Shown risen for this person, in Edit mode and out of it: empty space above a block closes,
+    // including a gap left by a block they can't see. Nothing is saved here. A drop, add, remove or
+    // hide saves the risen layout. Risen at full width first, so a narrower grid keeps that order,
+    // then again in case packing left a gap. A move in progress does not rise (see previewLayout):
+    // packWithPinned() never moves a block up.
     const editing = Boolean(data?.editing);
-    const displayLayout = useMemo(() => editing
-        ? packLayout(canonical, columnCount)
-        : joinUp(packLayout(joinUp(canonical, MAX_COLUMNS), columnCount), columnCount),
-    [canonical, columnCount, editing]);
-    // The blocks that will move to join the others when editing finishes, marked while editing.
-    const joiningIds = useMemo(() => {
-        const joined = editing ? joinUp(canonical, MAX_COLUMNS) : canonical;
-        if (joined === canonical) {
-            return new Set<number>();
-        }
-        return movedIds(canonical, joined);
-    }, [canonical, editing]);
+    const displayLayout = useMemo(
+        () => riseToFill(packLayout(riseToFill(canonical), columnCount)),
+        [canonical, columnCount],
+    );
     displayLayoutRef.current = displayLayout;
     const previewLayout = useMemo(() => interaction
         ? packWithPinned(displayLayout, columnCount, interaction.draft,
@@ -1014,16 +958,14 @@ const Dashboard = ({loadingLabel = '', initialLayout = [], openBrowser = false, 
     }, [flushRemoval]);
 
     /**
-     * Leave Edit mode, joining up the dashboard first.
+     * Leave Edit mode.
      *
-     * Blocks left on their own, or in a small group apart from the rest, slide back to join the
-     * others (see joinUp()), and that layout is saved before leaving. A removal still showing its
-     * Undo is sent first: the server only accepts a layout that has every block it has. While
-     * offline the save waits for the connection, and leaving waits with it; if the server refuses
-     * the save, the person stays to see why. The moved blocks are named once the page has left
-     * Edit mode (see the effect that reads JOINED_STORAGE_KEY).
+     * Done does not move blocks or save a layout of its own. A removal still showing its Undo is
+     * sent first, and a change already being saved is waited for: the server only accepts a layout
+     * that has every block it has. While offline that save waits for the connection, and leaving
+     * waits with it; if the server refuses it, the person stays to see why.
      *
-     * @param url Where to go once saved: Done's link, or the Edit mode switch's page.
+     * @param url Where to go: Done's link, or the Edit mode switch's page.
      */
     const finishEditing = useCallback(async(url: string) => {
         if (finishingRef.current) {
@@ -1033,20 +975,8 @@ const Dashboard = ({loadingLabel = '', initialLayout = [], openBrowser = false, 
         setFinishing(true);
         try {
             await flushRemoval();
-            const current = canonicalRef.current;
-            const joined = joinUp(current, MAX_COLUMNS);
-            if (joined !== current) {
-                const moved = movedIds(current, joined);
-                updateCanonical(joined);
-                await queue.saveLayout(joined);
-                const titles = (dataRef.current?.blocks ?? []).filter(block => moved.has(block.id)).map(block => block.title);
-                try {
-                    window.sessionStorage.setItem(JOINED_STORAGE_KEY, JSON.stringify(titles));
-                } catch {
-                    // Without storage, the message is simply not shown.
-                }
-            } else if (queue.busy) {
-                await queue.saveLayout(current);
+            if (queue.busy) {
+                await queue.saveLayout(canonicalRef.current);
             }
         } catch (caught) {
             finishingRef.current = false;
@@ -1064,10 +994,11 @@ const Dashboard = ({loadingLabel = '', initialLayout = [], openBrowser = false, 
             finishingRef.current = false;
             setFinishing(false);
         }, LEAVE_TIMEOUT_MS);
-    }, [flushRemoval, handleSyncFailure, queue, updateCanonical]);
+    }, [flushRemoval, handleSyncFailure, queue]);
 
-    // The page's own Edit mode switch leaves Edit mode too. It has already told the server; it lets
-    // the dashboard hold the page while it joins up and saves, then goes where the switch would have.
+    // The page's own Edit mode switch leaves Edit mode too. It has already told the server. The
+    // dashboard only holds the page while a change is still being saved, then goes where the switch
+    // would have.
     useEffect(() => {
         if (!editing) {
             return undefined;
@@ -1076,8 +1007,9 @@ const Dashboard = ({loadingLabel = '', initialLayout = [], openBrowser = false, 
             if ((event as CustomEvent<{editMode?: boolean}>).detail?.editMode !== false) {
                 return;
             }
-            const current = canonicalRef.current;
-            if (joinUp(current, MAX_COLUMNS) === current && !queue.busy) {
+            // Only hold the page for a change that is still being saved. Rising to fill a gap is
+            // already on screen, and Done does not save it.
+            if (!queue.busy && !pendingRemovalRef.current) {
                 return;
             }
             event.preventDefault();
@@ -1089,37 +1021,6 @@ const Dashboard = ({loadingLabel = '', initialLayout = [], openBrowser = false, 
         document.addEventListener(EDIT_MODE_SET, onEditModeSet);
         return () => document.removeEventListener(EDIT_MODE_SET, onEditModeSet);
     }, [editing, finishEditing, queue, siteDefault]);
-
-    // Opening Edit mode on a dashboard that already has a block on its own says so, once.
-    useEffect(() => {
-        if (!editing || warnedOnOpenRef.current || !canonical.length) {
-            return;
-        }
-        warnedOnOpenRef.current = true;
-        const warning = joinWarning([], canonical);
-        if (warning) {
-            showToast(warning);
-        }
-    }, [canonical, editing, joinWarning, showToast]);
-
-    // After leaving Edit mode, say which blocks moved to join the others.
-    useEffect(() => {
-        if (!data || data.editing) {
-            return;
-        }
-        let titles: string[] = [];
-        try {
-            titles = JSON.parse(window.sessionStorage.getItem(JOINED_STORAGE_KEY) ?? '[]');
-            window.sessionStorage.removeItem(JOINED_STORAGE_KEY);
-        } catch {
-            return;
-        }
-        if (titles.length === 1) {
-            void toastString('dashboardjoinmovedone', titles[0]);
-        } else if (titles.length > 1) {
-            void toastString('dashboardjoinmovedmany', String(titles.length));
-        }
-    }, [data, toastString]);
 
     /**
      * Reverse the most recent change.
@@ -1148,16 +1049,12 @@ const Dashboard = ({loadingLabel = '', initialLayout = [], openBrowser = false, 
         const added = canonicalRef.current.filter(item => !wanted.has(item.id)).map(item => item.id);
         const layout = previous.filter(item => existing.has(item.id));
 
-        const warning = joinWarning(canonicalRef.current, layout);
         updateCanonical(layout);
         if (added.length) {
             patchData({blocks: current.blocks.filter(block => !added.includes(block.id))});
         }
         hideToast();
         void announce('dashboardundone');
-        if (warning) {
-            showToast(warning);
-        }
 
         try {
             const removals = added.map(id => queue.call(() => send('remove', [], '', id), true));
@@ -1171,7 +1068,7 @@ const Dashboard = ({loadingLabel = '', initialLayout = [], openBrowser = false, 
         } catch (caught) {
             handleSyncFailure(caught);
         }
-    }, [announce, handleSyncFailure, hideToast, joinWarning, patchData, queue, showToast, siteDefault, updateCanonical]);
+    }, [announce, handleSyncFailure, hideToast, patchData, queue, siteDefault, updateCanonical]);
 
     // Ctrl+Z, or Cmd+Z, undoes the last change while editing, except while typing in a field or
     // while a block is picked up (Escape puts that back instead).
@@ -1353,34 +1250,56 @@ const Dashboard = ({loadingLabel = '', initialLayout = [], openBrowser = false, 
         const minimum = minimumSize(current.id);
         const derived = packWithPinned(currentDisplay, currentColumns, current.draft, fitMinimum(minimum, currentColumns));
         const disturbed = disturbedCount(current.before, derived, current.id);
+        // Rising happens at the drop, never while the block is still moving. The saved layout is
+        // this risen result (writeBack() raises blocks the same way at the stored width).
+        const settled = riseToFill(derived);
+        const othersRose = current.mode === 'move' && settled.some(item => {
+            if (item.id === current.id) {
+                return false;
+            }
+            const prior = derived.find(candidate => candidate.id === item.id);
+            return prior !== undefined && item.row < prior.row;
+        });
         // Resizing a block fixes its height: it no longer follows its content.
         const next = writeBack(currentCanonical, derived, current.id, minimum).map(item =>
             current.mode === 'resize' && item.id === current.id ? {...item, autorows: false} : item);
-        const item = derived.find(candidate => candidate.id === current.id)!;
+        const item = settled.find(candidate => candidate.id === current.id)!;
+        const blockTitle = currentData.blocks.find(block => block.id === current.id)?.title ?? '';
 
         // Optimistic: settle the tile where it was dropped straight away, and save in the
         // background. The layout is fully known client-side, so there is nothing to wait for.
-        const warning = joinWarning(currentCanonical, next);
         updateCanonical(next);
         endInteraction();
-        if (warning) {
-            showToast(warning);
-        }
-        void announce(current.mode === 'move' ? 'dashboardmovecommitted' : 'dashboardresizecommitted', {
-            block: currentData.blocks.find(block => block.id === current.id)?.title ?? '',
+        const committedKey = current.mode === 'move' ? 'dashboardmovecommitted' : 'dashboardresizecommitted';
+        const committedParams = {
+            block: blockTitle,
             row: item.row + 1,
             column: item.column + 1,
             columns: item.columns,
             rows: item.rows,
             disturbed,
-        });
+        };
+        if (othersRose) {
+            void Promise.all([
+                getString(committedKey, 'my', committedParams),
+                getString('dashboardblockplaced', 'my', blockTitle),
+            ]).then(([committed, placed]) => {
+                const text = `${committed} ${placed}`;
+                if (toastRef.current?.text !== text) {
+                    setAnnouncement(text);
+                }
+                return undefined;
+            });
+        } else {
+            void announce(committedKey, committedParams);
+        }
 
         try {
             await queue.saveLayout(next);
         } catch (caught) {
             handleSyncFailure(caught);
         }
-    }, [announce, endInteraction, handleSyncFailure, joinWarning, pushHistory, queue, showToast, updateCanonical]);
+    }, [announce, endInteraction, handleSyncFailure, pushHistory, queue, updateCanonical]);
 
     /** Abandon the in-progress interaction, discarding its draft rectangle unsaved. */
     const cancel = useCallback(() => {
@@ -1690,7 +1609,7 @@ const Dashboard = ({loadingLabel = '', initialLayout = [], openBrowser = false, 
     /**
      * Remove a block: one click, no confirmation, because it can be undone.
      *
-     * The tile disappears at once and the rows it leaves empty close up, but the block is only
+     * The tile disappears at once and blocks below it rise to fill the gap, but the block is only
      * hidden until its toast closes or the next change is made (see flushRemoval), so Undo brings
      * it back exactly as it was. Focus moves to the next block, or the previous one if it was the
      * last, or to Add a block when none are left.
@@ -1708,21 +1627,19 @@ const Dashboard = ({loadingLabel = '', initialLayout = [], openBrowser = false, 
 
         setHiddenIds(hidden => new Set([...hidden, id]));
         const before = canonicalRef.current;
-        const after = collapseEmptyRows(before.filter(item => item.id !== id));
+        // Hidden straight away: the rows it leaves empty rise, and that risen layout is what is saved.
+        const after = riseToFill(before.filter(item => item.id !== id));
         updateCanonical(after);
 
         // Said in the same toast as Undo: a second toast would replace it, and Undo with it.
-        const text = [
-            await getString('dashboardblockremovednamed', 'my', block.title),
-            joinWarning(before, after),
-        ].filter(Boolean).join(' ');
+        const text = await getString('dashboardblockremovednamed', 'my', block.title);
         const pending = {id, toastId: 0};
         pendingRemovalRef.current = pending;
         pending.toastId = showToast(text, {
             action: {label: current.labels.undo, onClick: () => void undo()},
             onClose: () => void flushRemoval(),
         });
-    }, [flushRemoval, joinWarning, pushHistory, showToast, undo, updateCanonical]);
+    }, [flushRemoval, pushHistory, showToast, undo, updateCanonical]);
 
     /**
      * Add the block chosen in the block browser.
@@ -1795,13 +1712,11 @@ const Dashboard = ({loadingLabel = '', initialLayout = [], openBrowser = false, 
         const appended = [...others, item];
         const next = writeBack(appended,
             packWithPinned(packLayout(appended, columns), columns, pinned, fitMinimum(minimum, columns)), item.id, minimum);
-        const warning = joinWarning(canonicalRef.current, next);
         updateCanonical(next);
         newBlockRef.current = {id: item.id, pickUp: !targeted};
         if (targeted) {
-            // One toast, so the warning doesn't replace the one with Undo.
             void getString('dashboardblockadded', 'my', block.title).then(text => showToast(
-                [text, warning].filter(Boolean).join(' '),
+                text,
                 {action: {label: current.labels.undo, onClick: () => void undo()}},
             ));
         } else {
@@ -1813,7 +1728,7 @@ const Dashboard = ({loadingLabel = '', initialLayout = [], openBrowser = false, 
         } catch (caught) {
             handleSyncFailure(caught);
         }
-    }, [announce, handleSyncFailure, joinWarning, load, palette, patchData, pushHistory, queue, send, showToast, toastString, undo, updateCanonical]);
+    }, [announce, handleSyncFailure, load, palette, patchData, pushHistory, queue, send, showToast, toastString, undo, updateCanonical]);
 
     // Once a newly added block is on screen: scroll it into view, highlight it briefly, and pick it
     // up ready to move when it went in the first free space rather than one the person picked.
@@ -1894,7 +1809,6 @@ const Dashboard = ({loadingLabel = '', initialLayout = [], openBrowser = false, 
             dragOrigin={interaction?.id === item.id ? interaction.original : undefined}
             shouldAnimatePosition={interaction?.origin === 'pointer' && interaction.id !== item.id}
             isBumped={bumpedBlockIds.has(item.id)}
-            joining={joiningIds.has(item.id)}
             highlighted={highlightId === item.id}
             onStart={pickUp}
             onKeyDown={keyDown}

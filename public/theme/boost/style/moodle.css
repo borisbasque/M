@@ -36953,11 +36953,6 @@ body.behat-site.core-my-dashboard-page #sticky-footer {
   scroll-margin-bottom: var(--core-my-dashboard-footer-height, 0);
 }
 
-.core-my-dashboard-tile.core-my-dashboard-tile--joining {
-  outline: var(--mds-stroke-weight-md) dashed var(--mds-text-feedback-warning);
-  outline-offset: var(--mds-spacing-xxs);
-}
-
 .core-my-dashboard-toolbar__actions {
   display: flex;
   flex-wrap: wrap;

@@ -27,9 +27,7 @@ import {
     writeBack,
     collapseEmptyRows,
     emptyRegions,
-    blocksJoined,
-    joinedGroups,
-    joinUp,
+    riseToFill,
     type LayoutItem,
 } from '../src/layout';
 
@@ -410,87 +408,69 @@ describe('writeBack and content-fit sizing', () => {
         expect(next.find(item => item.id === 2)?.autorows).toBe(true);
     });
 
-    describe('joining up blocks left on their own', () => {
+    describe('rising to fill empty space above a block', () => {
         const block = (id: number, column: number, row: number, columns = 2, rows = 2): LayoutItem =>
             ({id, column, row, columns, rows});
         const overlaps = (items: LayoutItem[]) => items.some((left, index) => items.slice(index + 1).some(right =>
             left.column < right.column + right.columns && right.column < left.column + left.columns
             && left.row < right.row + right.rows && right.row < left.row + left.rows));
 
-        it('counts blocks sharing part of an edge as joined, but not a corner', () => {
-            expect(blocksJoined(block(1, 0, 0), block(2, 2, 0))).toBe(true);
-            expect(blocksJoined(block(1, 0, 0), block(2, 1, 2))).toBe(true);
-            expect(blocksJoined(block(1, 0, 0), block(2, 2, 2))).toBe(false);
-            expect(blocksJoined(block(1, 0, 0), block(2, 3, 0))).toBe(false);
-        });
-
-        it('finds groups joined directly or through other blocks', () => {
-            const groups = joinedGroups([block(1, 0, 0), block(2, 2, 0), block(3, 2, 2), block(4, 0, 6)]);
-            expect(groups.map(group => group.map(item => item.id))).toEqual([[1, 2, 3], [4]]);
-        });
-
-        it('leaves a joined-up layout as it is', () => {
+        it('leaves a layout that is already risen, including an empty one, as it is', () => {
             const layout = [block(1, 0, 0), block(2, 2, 0), block(3, 0, 2)];
-            expect(joinUp(layout, 6)).toBe(layout);
-            expect(joinUp([], 6)).toEqual([]);
-            const single = [block(1, 4, 3)];
-            expect(joinUp(single, 6)).toBe(single);
+            expect(riseToFill(layout)).toBe(layout);
+            expect(riseToFill([])).toEqual([]);
+            const single = [block(1, 4, 0)];
+            expect(riseToFill(single)).toBe(single);
         });
 
-        it('slides a block towards the start of the row to rejoin the others', () => {
-            // A and B side by side, then B moved below A: C, on the far right, is on its own.
-            const joined = joinUp([block(1, 0, 0), block(2, 0, 2), block(3, 4, 0)], 6);
-            expect(joined.find(item => item.id === 3)).toMatchObject({column: 2, row: 0});
-            expect(joined.find(item => item.id === 1)).toMatchObject({column: 0, row: 0});
-            expect(joined.find(item => item.id === 2)).toMatchObject({column: 0, row: 2});
+        it('raises a block through empty space in its own columns and does not move it sideways', () => {
+            // A block on the far right, with nothing above it, rises to the top and stays on the right.
+            const risen = riseToFill([block(1, 0, 0), block(2, 4, 4)]);
+            expect(risen.find(item => item.id === 2)).toMatchObject({column: 4, row: 0});
+            expect(risen.find(item => item.id === 1)).toMatchObject({column: 0, row: 0});
+            expect(risen.map(item => item.id)).toEqual([1, 2]);
         });
 
-        it('slides a block up as far as it can, so it lines up with the top', () => {
-            // Course overview, Calendar above Recently accessed, Timeline, and Tags below Recently
-            // accessed in the next column, touching it only at a corner.
-            const layout = [
-                block(1, 0, 0, 3, 7), block(2, 3, 0, 1, 5), block(3, 3, 5, 1, 4), block(4, 0, 7, 3, 4),
-                block(5, 4, 9, 1, 4),
-            ];
-            const joined = joinUp(layout, 6);
-            expect(joined.find(item => item.id === 5)).toMatchObject({column: 4, row: 0});
-            layout.slice(0, 4).forEach(item => expect(joined.find(candidate => candidate.id === item.id)).toEqual(item));
-        });
-
-        it('stops flush under a block in its way', () => {
+        it('stops flush under a block in its column span', () => {
             const layout = [
                 block(1, 0, 0, 3, 7), block(2, 3, 0, 1, 5), block(3, 3, 5, 1, 4), block(4, 4, 0, 1, 3),
                 block(5, 4, 9, 1, 4),
             ];
-            const joined = joinUp(layout, 6);
-            expect(joined.find(item => item.id === 5)).toMatchObject({column: 4, row: 3});
+            const risen = riseToFill(layout);
+            expect(risen.find(item => item.id === 5)).toMatchObject({column: 4, row: 3});
+            layout.slice(0, 4).forEach(item => expect(risen.find(candidate => candidate.id === item.id)).toEqual(item));
         });
 
-        it('keeps to its columns, at the highest place that touches, when the top touches nothing', () => {
-            const layout = [block(1, 0, 0, 2, 2), block(2, 0, 2, 2, 2), block(3, 2, 2, 1, 2), block(4, 3, 6, 1, 2)];
-            const joined = joinUp(layout, 6);
-            expect(joined.find(item => item.id === 4)).toMatchObject({column: 3, row: 1});
+        it('raises only within a column span, so a shorter neighbour does not hold a block down', () => {
+            // A is tall on the left, B is short beside it, C is below A. C rises to sit under A.
+            // B is not in C's columns, so it neither blocks C nor is itself moved.
+            const layout = [block(1, 0, 0, 2, 4), block(2, 2, 0, 2, 1), block(3, 0, 8, 2, 2)];
+            const risen = riseToFill(layout);
+            expect(risen.find(item => item.id === 3)).toMatchObject({column: 0, row: 4});
+            expect(risen.find(item => item.id === 2)).toEqual(layout[1]);
         });
 
-        it('moves a small group as a whole, keeping its arrangement, and keeps the larger group still', () => {
-            const main = [block(1, 0, 0), block(2, 2, 0), block(3, 0, 2)];
-            const island = [block(4, 4, 6, 1, 1), block(5, 5, 6, 1, 1)];
-            const joined = joinUp([...main, ...island], 6);
-            main.forEach(item => expect(joined.find(candidate => candidate.id === item.id)).toEqual(item));
-            const four = joined.find(item => item.id === 4)!;
-            const five = joined.find(item => item.id === 5)!;
-            expect(five.column - four.column).toBe(1);
-            expect(five.row).toBe(four.row);
-            expect(joinedGroups(joined)).toHaveLength(1);
+        it('keeps a wide block under the lowest block anywhere in its span', () => {
+            const layout = [block(1, 0, 0, 2, 4), block(2, 2, 0, 1, 2), block(3, 0, 8, 3, 2)];
+            const risen = riseToFill(layout);
+            expect(risen.find(item => item.id === 3)).toMatchObject({column: 0, row: 4});
         });
 
-        it('closes up rows left empty', () => {
-            const joined = joinUp([block(1, 0, 0), block(2, 4, 4)], 6);
-            expect(maxRow(joined)).toBe(2);
+        it('raises a block that was left below a gap, and keeps every block\'s size', () => {
+            const layout = [block(1, 0, 0), {...block(2, 0, 6), autorows: false}];
+            const risen = riseToFill(layout);
+            expect(risen.find(item => item.id === 2)).toMatchObject({column: 0, row: 2, columns: 2, rows: 2, autorows: false});
+            expect(maxRow(risen)).toBe(4);
         });
 
-        it('always ends with one group, no overlaps, and every block at its size', () => {
-            // A small deterministic generator, so a failure can be reproduced.
+        it('does not move other blocks up while one is still being moved', () => {
+            const layout = [block(1, 0, 0), block(2, 0, 4)];
+            const during = packWithPinned(layout, 6, {...layout[0], column: 3, row: 0});
+            expect(during.find(item => item.id === 2)).toMatchObject({column: 0, row: 4});
+            expect(riseToFill(during).find(item => item.id === 2)).toMatchObject({column: 0, row: 0});
+        });
+
+        it('never overlaps, never changes a column or a size, and never goes above the grid', () => {
             let seed = 42;
             const random = (limit: number) => {
                 seed = (seed * 1103515245 + 12345) % 2147483648;
@@ -507,15 +487,13 @@ describe('writeBack and content-fit sizing', () => {
                         layout.push(candidate);
                     }
                 }
-                const joined = joinUp(layout, columnCount);
-                expect(joinedGroups(joined).length).toBeLessThanOrEqual(1);
-                expect(overlaps(joined)).toBe(false);
-                expect(joined.map(item => [item.id, item.columns, item.rows]))
-                    .toEqual(layout.map(item => [item.id, item.columns, item.rows]));
-                joined.forEach(item => {
-                    expect(item.column).toBeGreaterThanOrEqual(0);
-                    expect(item.column + item.columns).toBeLessThanOrEqual(columnCount);
+                const risen = riseToFill(layout);
+                expect(overlaps(risen)).toBe(false);
+                expect(risen.map(item => [item.id, item.column, item.columns, item.rows]))
+                    .toEqual(layout.map(item => [item.id, item.column, item.columns, item.rows]));
+                risen.forEach((item, index) => {
                     expect(item.row).toBeGreaterThanOrEqual(0);
+                    expect(item.row).toBeLessThanOrEqual(layout[index].row);
                 });
             }
         });

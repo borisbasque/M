@@ -14,7 +14,7 @@
  */
 
 import React, {useLayoutEffect, useRef, useState} from 'react';
-import {columnsForWidth, packLayout, type LayoutItem} from '../layout';
+import {columnsForWidth, packLayout, riseToFill, type LayoutItem} from '../layout';
 
 interface DashboardLoadingProps {
     label: string;
@@ -51,7 +51,7 @@ const PositionedGrid = ({layout}: {layout: LayoutItem[]}) => {
         return () => observer.disconnect();
     }, []);
 
-    const positioned = packLayout(layout, columnCount);
+    const positioned = riseToFill(packLayout(riseToFill(layout), columnCount));
     const rows = Math.max(1, ...positioned.map(item => item.row + item.rows));
 
     return <div

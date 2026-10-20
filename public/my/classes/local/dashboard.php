@@ -201,8 +201,6 @@ final class dashboard {
                 'emptycell' => get_string('emptygridcell', 'my'),
                 'gridcell' => get_string('gridcellposition', 'my'),
                 'loading' => get_string('loading'),
-                'joinwillmoveone' => get_string('dashboardjoinwillmoveone', 'my'),
-                'joinwillmovemany' => get_string('dashboardjoinwillmovemany', 'my'),
                 'move' => get_string('moveblock', 'block'),
                 'movehere' => get_string('dashboardmovehere', 'my'),
                 'moveinstructions' => get_string('dashboardmovehandleinstructions', 'my'),
@@ -780,7 +778,60 @@ final class dashboard {
 
         usort($layout, static fn(array $left, array $right): int =>
             [$left['row'], $left['column'], $left['id']] <=> [$right['row'], $right['column'], $right['id']]);
+        // The first paint matches what the editor shows: gaps above a block close, and nothing is saved.
+        $layout = self::rise_to_fill($layout);
+        usort($layout, static fn(array $left, array $right): int =>
+            [$left['row'], $left['column'], $left['id']] <=> [$right['row'], $right['column'], $right['id']]);
         return $layout;
+    }
+
+    /**
+     * Raise every block as far as it can, filling empty space above it.
+     *
+     * Vertical only, within the block's own column span: it keeps its column and width, and stops
+     * when another block in that span, or the top of the grid, is in the way. Nothing moves
+     * sideways. The same rules as riseToFill() in core_my/layout. Callers use this when drawing a
+     * layout, not when saving one.
+     *
+     * @param array $layout Layout items (id, column, row, columns, rows), none overlapping.
+     * @return array The risen layout, in the original order, or the same array when nothing moved.
+     */
+    public static function rise_to_fill(array $layout): array {
+        if ($layout === []) {
+            return $layout;
+        }
+        $ordered = $layout;
+        usort($ordered, static fn(array $left, array $right): int =>
+            [$left['row'], $left['column'], $left['id']] <=> [$right['row'], $right['column'], $right['id']]);
+
+        $occupied = [];
+        $placed = [];
+        $moved = false;
+        foreach ($ordered as $item) {
+            $row = max(0, (int) $item['row']);
+            while ($row > 0 && self::rectangle_is_free($occupied, [
+                'column' => $item['column'],
+                'row' => $row - 1,
+                'columns' => $item['columns'],
+                'rows' => $item['rows'],
+            ])) {
+                $row--;
+            }
+            if ($row !== (int) $item['row']) {
+                $item['row'] = $row;
+                $moved = true;
+            }
+            for ($y = $item['row']; $y < $item['row'] + $item['rows']; $y++) {
+                for ($x = $item['column']; $x < $item['column'] + $item['columns']; $x++) {
+                    $occupied[$x . ':' . $y] = true;
+                }
+            }
+            $placed[$item['id']] = $item;
+        }
+        if (!$moved) {
+            return $layout;
+        }
+        return array_map(static fn(array $item): array => $placed[$item['id']], $layout);
     }
 
     /**
