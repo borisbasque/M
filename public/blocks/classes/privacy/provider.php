@@ -56,6 +56,23 @@ class provider implements
     public static function get_metadata(collection $collection): collection {
         $collection->add_user_preference('blockIDhidden', 'privacy:metadata:userpref:hiddenblock');
         $collection->add_user_preference('docked_block_instance_ID', 'privacy:metadata:userpref:dockedinstance');
+        // Block positions are keyed by the context of the page they belong to. On a user's own
+        // dashboard that is the user's context, and the row records how that user arranged their
+        // blocks (region and weight, and the grid position for the flexible dashboard), which is
+        // personal data in a way a course page's block positions are not.
+        $collection->add_database_table('block_positions', [
+            'blockinstanceid' => 'privacy:metadata:block_positions:blockinstanceid',
+            'contextid' => 'privacy:metadata:block_positions:contextid',
+            'pagetype' => 'privacy:metadata:block_positions:pagetype',
+            'subpage' => 'privacy:metadata:block_positions:subpage',
+            'visible' => 'privacy:metadata:block_positions:visible',
+            'region' => 'privacy:metadata:block_positions:region',
+            'weight' => 'privacy:metadata:block_positions:weight',
+            'gridcolumn' => 'privacy:metadata:block_positions:gridcolumn',
+            'gridrow' => 'privacy:metadata:block_positions:gridrow',
+            'gridcolumns' => 'privacy:metadata:block_positions:gridcolumns',
+            'gridrows' => 'privacy:metadata:block_positions:gridrows',
+        ], 'privacy:metadata:block_positions');
         return $collection;
     }
 
@@ -68,6 +85,14 @@ class provider implements
     public static function get_contexts_for_userid(int $userid): \core_privacy\local\request\contextlist {
         global $DB;
         $contextlist = new \core_privacy\local\request\contextlist();
+
+        // The user's own context, if they have arranged blocks on a page within it (their dashboard).
+        $sql = "SELECT ctx.id
+                  FROM {context} ctx
+                  JOIN {block_positions} bp ON bp.contextid = ctx.id
+                 WHERE ctx.contextlevel = :userlevel
+                   AND ctx.instanceid = :userid";
+        $contextlist->add_from_sql($sql, ['userlevel' => CONTEXT_USER, 'userid' => $userid]);
 
         // Fetch the block instance IDs.
         $likehidden = $DB->sql_like('name', ':hidden', false, false);
@@ -113,6 +138,15 @@ class provider implements
         global $DB;
 
         $context = $userlist->get_context();
+        if ($context->contextlevel == CONTEXT_USER) {
+            // The only user who can have block positions in a user context is that user.
+            $sql = "SELECT ctx.instanceid
+                      FROM {context} ctx
+                      JOIN {block_positions} bp ON bp.contextid = ctx.id
+                     WHERE ctx.id = :contextid";
+            $userlist->add_from_sql('instanceid', $sql, ['contextid' => $context->id]);
+            return;
+        }
         if ($context->contextlevel != CONTEXT_BLOCK) {
             return;
         }
@@ -134,6 +168,12 @@ class provider implements
     public static function export_user_data(approved_contextlist $contextlist) {
         global $DB;
         $userid = $contextlist->get_user()->id;
+
+        foreach ($contextlist->get_contexts() as $context) {
+            if ($context->contextlevel == CONTEXT_USER && $context->instanceid == $userid) {
+                self::export_block_positions($context);
+            }
+        }
 
         // Extract the block instance IDs.
         $instanceids = array_reduce($contextlist->get_contexts(), function($carry, $context) {
@@ -194,6 +234,44 @@ class provider implements
     }
 
     /**
+     * Export the arrangement of blocks on the pages within a user's own context (their dashboard).
+     *
+     * @param context $context The user context to export for.
+     */
+    private static function export_block_positions(context $context): void {
+        global $DB;
+
+        $sql = "SELECT bp.id, bi.blockname, bp.pagetype, bp.subpage, bp.visible, bp.region, bp.weight,
+                       bp.gridcolumn, bp.gridrow, bp.gridcolumns, bp.gridrows
+                  FROM {block_positions} bp
+                  JOIN {block_instances} bi ON bi.id = bp.blockinstanceid
+                 WHERE bp.contextid = :contextid
+              ORDER BY bp.pagetype, bp.subpage, bp.gridrow, bp.gridcolumn, bp.region, bp.weight";
+        $positions = [];
+        foreach ($DB->get_records_sql($sql, ['contextid' => $context->id]) as $position) {
+            $positions[] = (object) [
+                'block' => $position->blockname,
+                'pagetype' => $position->pagetype,
+                'subpage' => $position->subpage,
+                'visible' => transform::yesno($position->visible),
+                'region' => $position->region,
+                'weight' => $position->weight,
+                'gridcolumn' => $position->gridcolumn,
+                'gridrow' => $position->gridrow,
+                'gridcolumns' => $position->gridcolumns,
+                'gridrows' => $position->gridrows,
+            ];
+        }
+        if (empty($positions)) {
+            return;
+        }
+        writer::with_context($context)->export_data(
+            [get_string('privacy:export:blockpositions', 'core_block')],
+            (object) ['positions' => $positions],
+        );
+    }
+
+    /**
      * Export all user preferences for the plugin.
      *
      * @param int $userid The userid of the user whose data is to be exported.
@@ -209,6 +287,10 @@ class provider implements
      */
     public static function delete_data_for_all_users_in_context(context $context) {
         global $DB;
+        if ($context->contextlevel == CONTEXT_USER) {
+            $DB->delete_records('block_positions', ['contextid' => $context->id]);
+            return;
+        }
         if ($context->contextlevel != CONTEXT_BLOCK) {
             return;
         }
@@ -229,6 +311,13 @@ class provider implements
     public static function delete_data_for_user(approved_contextlist $contextlist) {
         global $DB;
         $userid = $contextlist->get_user()->id;
+
+        foreach ($contextlist->get_contexts() as $context) {
+            if ($context->contextlevel == CONTEXT_USER && $context->instanceid == $userid) {
+                $DB->delete_records('block_positions', ['contextid' => $context->id]);
+            }
+        }
+
         $prefnames = array_reduce($contextlist->get_contexts(), function($carry, $context) {
             if ($context->contextlevel == CONTEXT_BLOCK) {
                 $carry[] = "block{$context->instanceid}hidden";
@@ -257,6 +346,12 @@ class provider implements
     public static function delete_data_for_users(\core_privacy\local\request\approved_userlist $userlist) {
         global $DB;
         $context = $userlist->get_context();
+        if ($context->contextlevel == CONTEXT_USER) {
+            if (in_array($context->instanceid, $userlist->get_userids())) {
+                $DB->delete_records('block_positions', ['contextid' => $context->id]);
+            }
+            return;
+        }
         if ($context->contextlevel != CONTEXT_BLOCK) {
             return;
         }

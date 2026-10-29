@@ -1,0 +1,9 @@
+issueNumber: MDL-89636
+notes:
+  core_block:
+    - message: >-
+        New public method block_manager::refresh_cached_content() re-renders
+        every loaded block instance's content without reloading the instances,
+        for pages which have already rendered their blocks into the page header
+        and need the same content again in a separately collected response.
+      type: improved

@@ -7,6 +7,8 @@ Feature: Adding and configuring Text blocks
   @javascript
   Scenario: Configuring the Text block with Javascript on
     Given I log in as "admin"
+    And the following config values are set as admin:
+      | enablemyhome | 1 |
     And I am on site homepage
     When I turn editing mode on
     And I add the "Text" block to the default region with:
@@ -23,6 +25,8 @@ Feature: Adding and configuring Text blocks
 
   Scenario: Configuring the Text block with Javascript off
     Given I log in as "admin"
+    And the following config values are set as admin:
+      | enablemyhome | 1 |
     And I am on site homepage
     When I turn editing mode on
     And I add the "Text" block

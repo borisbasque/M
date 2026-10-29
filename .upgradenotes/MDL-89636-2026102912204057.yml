@@ -1,0 +1,11 @@
+issueNumber: MDL-89636
+notes:
+  core_block:
+    - message: >-
+        core_block_external::get_dashboard_blocks() still reports each block's
+        legacy region and weight. On the default dashboard (mypage =
+        MY_PAGE_DEFAULT) those no longer describe the flexible dashboard grid
+        once a user edits their layout; use core_my_get_dashboard_blocks for the
+        real grid position and reading order. The function is unchanged for the
+        My courses page (mypage = MY_PAGE_COURSES).
+      type: changed

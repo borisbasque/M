@@ -1,0 +1,9 @@
+issueNumber: MDL-89636
+notes:
+  core_block:
+    - message: >-
+        The "Permissions" entry of the block actions menu built by
+        block_manager::edit_controls() is now labelled "Manage permissions" (new
+        string managepermissions in the block component) on every block region
+        in LMS, not only the dashboard.
+      type: changed

@@ -43,6 +43,7 @@ use core_block\privacy\provider;
  * @author     Frédéric Massart <fred@branchup.tech>
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
+#[\PHPUnit\Framework\Attributes\CoversClass(provider::class)]
 final class provider_test extends provider_testcase {
 
     public function setUp(): void {
@@ -388,6 +389,95 @@ final class provider_test extends provider_testcase {
         $prefs = writer::with_context($bmyprofile->context)->get_user_context_preferences('core_block');
         $this->assertEquals($yes, $prefs->block_is_docked->value);
         $this->assertObjectNotHasProperty('block_is_hidden', $prefs);
+    }
+
+    /**
+     * A user's arrangement of the blocks on their own dashboard (block_positions rows in their
+     * user context) is located, exported and deleted through every path of the provider, without
+     * touching another user's arrangement or a course page's positions.
+     */
+    public function test_dashboard_block_positions(): void {
+        global $DB;
+        $dg = $this->getDataGenerator();
+        $u1 = $dg->create_user();
+        $u2 = $dg->create_user();
+        $course = $dg->create_course();
+        $u1ctx = \context_user::instance($u1->id);
+        $u2ctx = \context_user::instance($u2->id);
+        $coursectx = \context_course::instance($course->id);
+
+        $positionids = [];
+        foreach ([$u1ctx, $u2ctx, $coursectx] as $context) {
+            $manager = $this->get_block_manager(['region-a'], $context, 'my-index', '42');
+            $manager->add_block('html', 'region-a', 0, false);
+            $manager->load_blocks();
+            $block = $manager->get_blocks_for_region('region-a')[0];
+            $positionids[$context->id] = $DB->insert_record('block_positions', (object) [
+                'blockinstanceid' => $block->instance->id,
+                'contextid' => $context->id,
+                'pagetype' => 'my-index',
+                'subpage' => '42',
+                'visible' => 1,
+                'region' => 'region-a',
+                'weight' => 3,
+                'gridcolumn' => 1,
+                'gridrow' => 0,
+                'gridcolumns' => 3,
+                'gridrows' => 5,
+            ]);
+        }
+
+        // Each user's own context is found for them, and nobody else's.
+        $contextids = array_map('intval', provider::get_contexts_for_userid($u1->id)->get_contextids());
+        $this->assertContains((int) $u1ctx->id, $contextids);
+        $this->assertNotContains((int) $u2ctx->id, $contextids);
+        $this->assertNotContains((int) $coursectx->id, $contextids);
+
+        $userlist = new \core_privacy\local\request\userlist($u1ctx, 'core_block');
+        provider::get_users_in_context($userlist);
+        $this->assertEquals([$u1->id], $userlist->get_userids());
+
+        // Export.
+        provider::export_user_data(new approved_contextlist($u1, 'core_block', [$u1ctx->id]));
+        $exported = writer::with_context($u1ctx)->get_data([get_string('privacy:export:blockpositions', 'core_block')]);
+        $this->assertCount(1, $exported->positions);
+        $this->assertSame('html', $exported->positions[0]->block);
+        $this->assertEquals(1, $exported->positions[0]->gridcolumn);
+        $this->assertEquals(5, $exported->positions[0]->gridrows);
+        $this->assertEmpty((array) writer::with_context($u2ctx)->get_data([
+            get_string('privacy:export:blockpositions', 'core_block'),
+        ]));
+
+        // Delete for one user: only their own rows go.
+        provider::delete_data_for_user(new approved_contextlist($u1, 'core_block', [$u1ctx->id, $coursectx->id]));
+        $this->assertFalse($DB->record_exists('block_positions', ['id' => $positionids[$u1ctx->id]]));
+        $this->assertTrue($DB->record_exists('block_positions', ['id' => $positionids[$u2ctx->id]]));
+        $this->assertTrue($DB->record_exists('block_positions', ['id' => $positionids[$coursectx->id]]));
+
+        // Delete for users in a context: a user not in the list keeps their rows.
+        provider::delete_data_for_users(
+            new \core_privacy\local\request\approved_userlist($u2ctx, 'core_block', [$u1->id]),
+        );
+        $this->assertTrue($DB->record_exists('block_positions', ['id' => $positionids[$u2ctx->id]]));
+        provider::delete_data_for_users(
+            new \core_privacy\local\request\approved_userlist($u2ctx, 'core_block', [$u2->id]),
+        );
+        $this->assertFalse($DB->record_exists('block_positions', ['id' => $positionids[$u2ctx->id]]));
+
+        // Delete for a whole user context, and leave course pages alone.
+        $positionids[$u2ctx->id] = $DB->insert_record('block_positions', (object) [
+            'blockinstanceid' => $DB->get_field('block_instances', 'id', ['parentcontextid' => $u2ctx->id]),
+            'contextid' => $u2ctx->id,
+            'pagetype' => 'my-index',
+            'subpage' => '42',
+            'visible' => 1,
+            'region' => 'region-a',
+            'weight' => 0,
+        ]);
+        provider::delete_data_for_all_users_in_context($u2ctx);
+        provider::delete_data_for_all_users_in_context($coursectx);
+        $this->assertFalse($DB->record_exists('block_positions', ['id' => $positionids[$u2ctx->id]]));
+        $this->assertTrue($DB->record_exists('block_positions', ['id' => $positionids[$coursectx->id]]));
     }
 
     /**

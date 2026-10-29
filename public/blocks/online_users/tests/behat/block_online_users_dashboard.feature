@@ -23,11 +23,13 @@ Feature: The online users block allow you to see who is currently online on dash
       | blockname           | contextlevel | reference | pagetypepattern | defaultregion |
       | online_users        | System       | 1         | my-index        | side-post     |
 
+  @javascript
   Scenario: View the online users block on the dashboard and see myself
     Given I log in as "teacher1"
     Then I should see "Teacher 1" in the "Online users" "block"
     And I should see "1 online user" in the "Online users" "block"
 
+  @javascript
   Scenario: View the online users block on the dashboard and see other logged in users
     Given I log in as "student2"
     And I log out

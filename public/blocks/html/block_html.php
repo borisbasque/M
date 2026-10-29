@@ -173,11 +173,15 @@ class block_html extends block_base {
         if ($context->contextlevel == CONTEXT_USER) {
             $usersubpage = my_get_page($USER->id);
             $usersubpage = $usersubpage->id ?? null;
+            // The dashboard's own page, or its content fetched for it over a web service or the
+            // AJAX service (the flexible dashboard grid renders its blocks through
+            // core_my_get_dashboard): in every case the page must be this user's own private
+            // dashboard page, never another user's or a public one.
+            $servedremotely = (defined('WS_SERVER') && WS_SERVER) || (defined('AJAX_SCRIPT') && AJAX_SCRIPT);
             if (
                 $SCRIPT === '/my/index.php' ||
                 (
-                    defined('WS_SERVER') &&
-                    WS_SERVER &&
+                    $servedremotely &&
                     !empty($this->page) &&
                     $this->page->pagetype === 'my-index' &&
                     $this->page->subpage === $usersubpage

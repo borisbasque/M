@@ -864,4 +864,76 @@ final class blocklib_test extends \advanced_testcase {
         // Assert that no blocks are excluded for a theme without unaddable blocks.
         $this->assertEmpty($blocks);
     }
+
+    /**
+     * Saving a block's configuration on the flexible dashboard grid leaves the grid
+     * position in block_positions alone: the grid owns page position there (block_edit_form hides
+     * the region and weight fields), and the classic path - which matches region, weight and
+     * visibility against the instance defaults and deletes the row when they are equal - would
+     * have destroyed the grid coordinates stored in it.
+     */
+    public function test_save_block_data_keeps_dashboard_grid_position(): void {
+        global $CFG, $DB;
+        require_once($CFG->dirroot . '/my/lib.php');
+
+        $this->resetAfterTest();
+        $user = $this->getDataGenerator()->create_user();
+        $this->setUser($user);
+        $context = \context_user::instance($user->id);
+        $mypage = my_copy_page($user->id, MY_PAGE_PRIVATE);
+
+        $page = new \moodle_page();
+        $page->set_context($context);
+        $page->set_pagetype('my-index');
+        $page->set_subpage((string) $mypage->id);
+        $page->set_url(new \moodle_url('/my/index.php'));
+        $page->blocks->add_region('content');
+        $page->blocks->load_blocks();
+        $block = $page->blocks->add_block(
+            'online_users',
+            'content',
+            0,
+            false,
+            'my-index',
+            (string) $mypage->id,
+        );
+        $DB->insert_record('block_positions', (object) [
+            'blockinstanceid' => $block->instance->id,
+            'contextid' => $context->id,
+            'pagetype' => 'my-index',
+            'subpage' => (string) $mypage->id,
+            'visible' => 1,
+            'region' => 'content',
+            'weight' => 0,
+            'gridcolumn' => 2,
+            'gridrow' => 4,
+            'gridcolumns' => 3,
+            'gridrows' => 2,
+        ]);
+        // What block_edit_form submits for this block: its position fields equal to the instance
+        // defaults, as they always are for a block added on the grid.
+        $page->blocks->save_block_data($block, (object) [
+            'bui_parentcontextid' => $context->id,
+            'bui_editingatfrontpage' => 0,
+            'bui_pagetypepattern' => 'my-index',
+            'bui_subpagepattern' => (string) $mypage->id,
+            'bui_contexts' => 0,
+            'bui_defaultregion' => 'content',
+            'bui_defaultweight' => 0,
+            'bui_visible' => 1,
+            'bui_region' => 'content',
+            'bui_weight' => 0,
+        ]);
+
+        $position = $DB->get_record(
+            'block_positions',
+            ['blockinstanceid' => $block->instance->id],
+            '*',
+            MUST_EXIST,
+        );
+        $this->assertEquals(2, $position->gridcolumn);
+        $this->assertEquals(4, $position->gridrow);
+        $this->assertEquals(3, $position->gridcolumns);
+        $this->assertEquals(2, $position->gridrows);
+    }
 }

@@ -98,15 +98,17 @@ Feature: The recently accessed courses block allows users to easily access their
     Then "[data-region='paging-bar-container']" "css_element" should exist in the "Recently accessed courses" "block"
     And the "Recently accessed courses" "block" should meet accessibility standards with "best-practice" extra tests
     And I turn editing mode on
-    # Move the focus to the blocks controls before running a11y tests.
-    And I click on "Move Recently accessed courses block" "menuitem"
-    And I press the escape key
+    # On the flexible dashboard grid a block is moved with its own move handle and
+    # on-screen direction controls, not the classic block menu. Reveal those controls before
+    # running the a11y tests, then dismiss them.
+    And I click on "Move Recently accessed courses block" "button" in the "Recently accessed courses" "block"
     And the "Recently accessed courses" "block" should meet accessibility standards with "best-practice" extra tests
-    # Move the block to the blocks drawer.
-    And I click on "Move Recently accessed courses block" "menuitem"
-    And I press "To item \"Calendar\""
-    # Ensure the block move overlay is hidden before continuing with the rest of the tests.
-    And I wait until ".lightbox[hidden]" "css_element" exists
-    And I click on "Move Recently accessed courses block" "menuitem"
     And I press the escape key
+    # Narrow the block to a single column, as narrow as the classic blocks drawer made it.
+    And I click on "Resize block" "button" in the "Recently accessed courses" "block"
+    And I press the left key
+    And I press the left key
+    And I press the enter key
+    And I click on "Move Recently accessed courses block" "button" in the "Recently accessed courses" "block"
     And the "Recently accessed courses" "block" should meet accessibility standards with "best-practice" extra tests
+    And I press the escape key

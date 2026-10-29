@@ -55,11 +55,7 @@ Feature: The recently accessed items block allows users to easily access their m
     And I should not see "Test forum name" in the "Recently accessed items" "block"
     And I click on "Show more items" "button" in the "Recently accessed items" "block"
     And I should see "Test forum name" in the "Recently accessed items" "block"
-    And I turn editing mode on
-    And I am on homepage
-    And I configure the "Recently accessed items" block
-    And I set the following fields to these values:
-      | Region | content |
-    And I press "Save changes"
-    And I turn editing mode off
-    And I should not see "Show more items" in the "Recently accessed items" "block"
+    # On the flexible dashboard grid every tile is space-constrained, so the block
+    # keeps its "Show more items" control at any width; the classic main content area, where it
+    # was hidden, has no equivalent there. Widening the tile therefore changes nothing here, and
+    # a block's region is no longer something its configuration form offers on the dashboard.
