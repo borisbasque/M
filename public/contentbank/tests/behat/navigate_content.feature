@@ -27,7 +27,9 @@ Feature: Navigate to different contexts in the content bank
       | Course       | C2        | contenttype_h5p | admin    | mathsbook.h5p        | /h5p/tests/fixtures/filltheblanks.h5p   |
 
   Scenario: Admins can view and navigate to all the contexts in the content bank
-    Given I am on site homepage
+    Given the following config values are set as admin:
+      | enablemyhome | 1 |
+    And I am on site homepage
     And I turn editing mode on
     And the following config values are set as admin:
       | unaddableblocks | | theme_boost|

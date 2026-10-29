@@ -25,7 +25,9 @@ Feature: Sort content in the content bank
         | System       |           | contenttype_h5p   | admin   | SantJordi_book       | /h5p/tests/fixtures/filltheblanks.h5p   |
 
   Scenario: Admins can order content in the content bank
-    Given I am on site homepage
+    Given the following config values are set as admin:
+      | enablemyhome | 1 |
+    And I am on site homepage
     And I turn editing mode on
     And the following config values are set as admin:
       | unaddableblocks | | theme_boost|
@@ -43,7 +45,9 @@ Feature: Sort content in the content bank
     Then "santjordi_rose.h5p" "text" should appear before "SantJordi_book" "text"
 
   Scenario: Admins can order content depending on the author
-    Given I am on site homepage
+    Given the following config values are set as admin:
+      | enablemyhome | 1 |
+    And I am on site homepage
     And I turn editing mode on
     And the following config values are set as admin:
       | unaddableblocks | | theme_boost|

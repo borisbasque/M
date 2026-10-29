@@ -21,7 +21,9 @@ Feature: Search content in the content bank
       | System       |           | contenttype_h5p | admin    | santvicenc.h5p       | /h5p/tests/fixtures/filltheblanks.h5p   |
 
   Scenario: Admins can search content in the content bank
-    Given I am on site homepage
+    Given the following config values are set as admin:
+      | enablemyhome | 1 |
+    And I am on site homepage
     And I turn editing mode on
     And the following config values are set as admin:
       | unaddableblocks | | theme_boost|

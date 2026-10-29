@@ -4977,11 +4977,15 @@ EOD;
         if (count($regions) == 0) {
             return '';
         }
+        // The flexible dashboard grid renders its own blocks and its own add-a-block
+        // control (which opens this same core/add_block_body modal), so the theme's button for its
+        // legacy block regions is not shown there, just as it is not on My courses.
         if (
             isset($this->page->theme->addblockposition) &&
                 $this->page->user_is_editing() &&
                 $this->page->user_can_edit_blocks() &&
-                $this->page->pagelayout !== 'mycourses'
+                $this->page->pagelayout !== 'mycourses' &&
+                !\core_my\local\dashboard::is_dashboard_page($this->page)
         ) {
             $params = ['bui_addblock' => '', 'sesskey' => sesskey()];
             if (!empty($region)) {

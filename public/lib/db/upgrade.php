@@ -2418,5 +2418,150 @@ function xmldb_main_upgrade($oldversion) {
         upgrade_main_savepoint(true, 2026101600.00);
     }
 
+    if ($oldversion < 2026102100.01) {
+        $table = new xmldb_table('block_positions');
+        $fields = [
+            new xmldb_field('gridcolumn', XMLDB_TYPE_INTEGER, '4', null, null, null, null, 'weight'),
+            new xmldb_field('gridrow', XMLDB_TYPE_INTEGER, '10', null, null, null, null, 'gridcolumn'),
+            new xmldb_field('gridcolumns', XMLDB_TYPE_INTEGER, '4', null, null, null, null, 'gridrow'),
+            new xmldb_field('gridrows', XMLDB_TYPE_INTEGER, '10', null, null, null, null, 'gridcolumns'),
+        ];
+        foreach ($fields as $field) {
+            if (!$dbman->field_exists($table, $field)) {
+                $dbman->add_field($table, $field);
+            }
+        }
+
+        // Translate the legacy dashboard's centre and drawer stacks to one six-column grid. This is
+        // core upgrade code, so it talks to the database directly throughout: each page's context
+        // comes from a join rather than from the context classes, and the blocks of a whole chunk
+        // of pages are read in one query and grouped here, so that a site with very many customised
+        // dashboards costs two reads per 500 pages plus the position writes.
+        $chunksize = 500;
+        $pagesql = "SELECT mp.id, mp.userid, ctx.id AS contextid
+                      FROM {my_pages} mp
+                      JOIN {context} ctx
+                        ON (ctx.contextlevel = :userlevel AND ctx.instanceid = mp.userid)
+                        OR (ctx.contextlevel = :systemlevel AND (mp.userid IS NULL OR mp.userid = 0))
+                     WHERE mp.id > :lastpageid
+                       AND mp.name = :name
+                       AND mp.private = :private
+                  ORDER BY mp.id ASC";
+        $blocksqlhead = "SELECT bi.id, bi.parentcontextid, bi.subpagepattern, bi.defaultregion, bi.defaultweight,
+                            bp.id AS positionid, bp.region, bp.weight, bp.visible, bp.gridcolumn
+                       FROM {block_instances} bi
+                  LEFT JOIN {block_positions} bp
+                         ON bp.blockinstanceid = bi.id
+                        AND bp.contextid = bi.parentcontextid
+                        AND bp.pagetype = :positionpagetype
+                        AND bp.subpage = bi.subpagepattern
+                      WHERE bi.parentcontextid ";
+        $blocksqltail = " AND bi.pagetypepattern = :instancepagetype
+                        AND bi.subpagepattern ";
+        $regionorder = ['content' => 0, 'side-pre' => 1];
+        $lastpageid = 0;
+        do {
+            $pages = $DB->get_records_sql($pagesql, [
+                'userlevel' => CONTEXT_USER,
+                'systemlevel' => CONTEXT_SYSTEM,
+                'lastpageid' => $lastpageid,
+                'name' => '__default',
+                'private' => 1,
+            ], 0, $chunksize);
+            if (!$pages) {
+                break;
+            }
+            $lastpageid = (int) array_key_last($pages);
+
+            // The context filter is what lets the query use block_instances' parentcontextid
+            // index; page type and sub page alone would scan the whole table for every chunk.
+            [$incontexts, $contextparams] = $DB->get_in_or_equal(
+                array_unique(array_map(static fn($page): int => (int) $page->contextid, $pages)),
+                SQL_PARAMS_NAMED,
+                'ctx',
+            );
+            [$insubpages, $subpageparams] = $DB->get_in_or_equal(
+                array_map('strval', array_keys($pages)),
+                SQL_PARAMS_NAMED,
+                'subpage',
+            );
+            $blocksbypage = [];
+            $blocks = $DB->get_records_sql(
+                $blocksqlhead . $incontexts . $blocksqltail . $insubpages,
+                $contextparams + $subpageparams + [
+                    'positionpagetype' => 'my-index',
+                    'instancepagetype' => 'my-index',
+                ],
+            );
+            foreach ($blocks as $block) {
+                $blocksbypage[$block->subpagepattern][] = $block;
+            }
+
+            $inserts = [];
+            foreach ($pages as $mypage) {
+                $pageblocks = array_filter(
+                    $blocksbypage[(string) $mypage->id] ?? [],
+                    static fn($block): bool => (int) $block->parentcontextid === (int) $mypage->contextid,
+                );
+                usort($pageblocks, static function ($left, $right) use ($regionorder): int {
+                    $leftregion = $left->region ?? $left->defaultregion;
+                    $rightregion = $right->region ?? $right->defaultregion;
+                    $regioncomparison = ($regionorder[$leftregion] ?? 2) <=> ($regionorder[$rightregion] ?? 2);
+                    if ($regioncomparison !== 0) {
+                        return $regioncomparison;
+                    }
+                    return ($left->weight ?? $left->defaultweight) <=> ($right->weight ?? $right->defaultweight);
+                });
+
+                $nextrow = ['content' => 0, 'drawer' => 0];
+                foreach ($pageblocks as $block) {
+                    if ($block->gridcolumn !== null) {
+                        // Already on the grid (for example a site that ran an earlier build of this
+                        // step): a position the user may have arranged since is never overwritten.
+                        continue;
+                    }
+                    $region = $block->region ?? $block->defaultregion;
+                    $isdrawer = $region !== 'content';
+                    $stack = $isdrawer ? 'drawer' : 'content';
+                    $position = (object) [
+                        'blockinstanceid' => $block->id,
+                        'contextid' => $mypage->contextid,
+                        'pagetype' => 'my-index',
+                        'subpage' => (string) $mypage->id,
+                        'visible' => $block->visible ?? 1,
+                        'region' => $region,
+                        'weight' => $block->weight ?? $block->defaultweight,
+                        // Leave an empty column on each side: legacy content blocks take
+                        // the next three columns, legacy side-region blocks the column after.
+                        // The first block in each stack is taller than the rest. The row spans
+                        // are the same constants core_my\local\dashboard::get_layout() derives
+                        // for an unmigrated block at runtime, so an upgraded dashboard and a
+                        // freshly defaulted one get the same shape for the same blocks.
+                        'gridcolumn' => $isdrawer ? 4 : 1,
+                        'gridrow' => $nextrow[$stack],
+                        'gridcolumns' => $isdrawer ? 1 : 3,
+                        'gridrows' => $nextrow[$stack] === 0
+                            ? \core_my\local\dashboard::DEFAULT_ROWS_FIRST
+                            : \core_my\local\dashboard::DEFAULT_ROWS,
+                    ];
+                    $nextrow[$stack] = $position->gridrow + $position->gridrows;
+                    if ($block->positionid) {
+                        $position->id = $block->positionid;
+                        $DB->update_record('block_positions', $position);
+                    } else {
+                        $inserts[] = $position;
+                    }
+                }
+            }
+            if ($inserts) {
+                $DB->insert_records('block_positions', $inserts);
+            }
+            // Reset the timeout after each chunk to avoid timeouts on large sites.
+            upgrade_set_timeout();
+        } while (count($pages) === $chunksize);
+
+        upgrade_main_savepoint(true, 2026102100.01);
+    }
+
     return true;
 }
