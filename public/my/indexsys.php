@@ -16,20 +16,20 @@
 // along with Moodle.  If not, see <http://www.gnu.org/licenses/>.
 
 /**
- * My Moodle -- a user's personal dashboard
+ * My Moodle -- the site-default dashboard, editable by admins for users who have not customised
+ * their own.
  *
- * - each user can currently have their own page (cloned from system and then customised)
- * - only the user can see their own dashboard
- * - users can add any blocks they want
- * - the administrators can define a default site dashboard for users who have
- *   not created their own dashboard
- *
- * This script implements the user's view of the dashboard, and allows editing
- * of the dashboard.
+ * This is the admin-facing sibling of my/index.php: same page setup (context, blocks, mount
+ * point) but for the shared system dashboard rather than a single user's own. It renders the same
+ * core_my/index.tsx React component into the same kind of mount point, with the siteDefault prop
+ * set (see \core_my\local\dashboard::render_mount_point()); that prop determines which web service
+ * calls (and which capability, moodle/my:configsyspages vs moodle/my:manageblocks) are appropriate
+ * for the rest of the session.
  *
  * @package    moodlecore
  * @subpackage my
  * @copyright  2010 Remote-Learner.net
+ * @copyright  2026 Matt Porritt <matt.porritt@moodle.com>
  * @author     Hubert Chathi <hubert@remote-learner.net>
  * @author     Olav Jordan <olav.jordan@remote-learner.net>
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
@@ -50,14 +50,33 @@ $PAGE->set_secondary_active_tab('appearance');
 $PAGE->set_blocks_editing_capability('moodle/my:configsyspages');
 $PAGE->set_url(new moodle_url('/my/indexsys.php'));
 admin_externalpage_setup('mypage', '', null, '', ['pagelayout' => 'mydashboard', 'nosearch' => true]);
-$PAGE->add_body_class('limitedwidth');
+$PAGE->add_body_class('core-my-dashboard-page');
 $PAGE->set_pagetype('my-index');
 $PAGE->blocks->add_region('content');
+// The grid renders the blocks itself, so this page normally loads no real block: creating their
+// content here as well would run every block's JavaScript against markup that is not on the page.
+// The one exception is a request carrying a block action from the standard block menu (hide,
+// show, delete, the classic edit and add fallbacks): block_manager processes those from the URL
+// and must find the block on this page, then redirects before anything is rendered. A block still
+// positioned in the old drawer region is loaded into the content region then, as any block in an
+// unregistered region is.
+$blockaction = false;
+foreach (['bui_hideid', 'bui_showid', 'bui_deleteid', 'bui_editid', 'bui_addblock', 'bui_moveid'] as $param) {
+    $blockaction = $blockaction || optional_param($param, null, PARAM_RAW) !== null;
+}
+if (!$blockaction) {
+    $PAGE->blocks->show_only_fake_blocks(true);
+}
 $PAGE->set_title($pagetitle);
 $PAGE->set_heading($pagetitle);
 $PAGE->set_secondary_navigation(false);
 $PAGE->set_primary_active_tab('myhome');
 
+// Resetting every user's dashboard back to this site default can take a while on a large site
+// (my_reset_page_for_all_users() iterates every customised page), so this is a distinct,
+// synchronous admin action outside the React application entirely: the session is closed early
+// so the progress bar's output actually reaches the browser as it happens, rather than being
+// buffered until the whole loop finishes.
 // If we are resetting all, just output a progress bar.
 if ($resetall && confirm_sesskey()) {
     echo $OUTPUT->header($pagetitle);
@@ -86,10 +105,12 @@ $url->params(['resetall' => true, 'sesskey' => sesskey()]);
 $button = $OUTPUT->single_button($url, get_string('reseteveryonesdashboard', 'my'));
 $PAGE->set_button($button . $PAGE->button);
 
+// The React application's mount point for the site-default dashboard; see
+// \core_my\local\dashboard::render_mount_point() for what it and its placeholder are for.
+$mountpoint = \core_my\local\dashboard::render_mount_point(true);
+
 echo $OUTPUT->header();
 
-echo $OUTPUT->addblockbutton('content');
-
-echo $OUTPUT->custom_block_region('content');
+echo $mountpoint;
 
 echo $OUTPUT->footer();

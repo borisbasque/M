@@ -20,12 +20,14 @@ Feature: Reset dashboard page to default
     When I log in as "student1"
     And I turn editing mode on
     And I add the "Latest announcements" block
-    And I press "Reset page to default"
-    And I click on "Yes" "button" in the "Confirm" "dialogue"
-    Then "Latest announcements" "block" should not exist
+    And I click on "Reset page to default" "button" in the ".core-my-dashboard-toolbar" "css_element"
+    And I click on "Confirm" "button" in the "Reset dashboard" "dialogue"
+    # Resetting keeps Edit mode on, now on a fresh copy of the site default.
+    Then the dashboard edit mode switch should be on
+    And "Latest announcements" "block" should not exist
     And "Course overview" "block" should exist
     And "Timeline" "block" should exist
     And "Calendar" "block" should exist
-    # The calendar block is on the side.
-    And "Calendar" "block" should not exist in the "region-main" "region"
-    And I should not see "Reset page to default"
+    And I should see "Reset page to default"
+    When I turn editing mode off
+    Then I should not see "Reset page to default"
