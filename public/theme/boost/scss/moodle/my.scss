@@ -432,8 +432,9 @@ body.behat-site.core-my-dashboard-page #sticky-footer {
     flex: 1 1 auto;
     min-height: 0;
     padding: var(--mds-spacing-md);
+    // Taller content scrolls inside the tile; once it reaches either end, scrolling carries on to
+    // the page (the default overscroll-behavior), so the dashboard can always be scrolled over a block.
     overflow: auto;
-    overscroll-behavior: contain;
 }
 
 .core-my-dashboard-tile__block-footer {

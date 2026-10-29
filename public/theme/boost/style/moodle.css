@@ -37156,7 +37156,6 @@ body.behat-site.core-my-dashboard-page #sticky-footer {
   min-height: 0;
   padding: var(--mds-spacing-md);
   overflow: auto;
-  overscroll-behavior: contain;
 }
 
 .core-my-dashboard-tile__block-footer {
