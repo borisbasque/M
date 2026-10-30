@@ -34,47 +34,59 @@ import {getString, getStrings, type StringParams} from '@moodle/lms/core/stringU
 /** The fixed set of strings the application needs, by the short name the components use. */
 export interface DashboardLabels {
     addblock: string;
-    addblocktop: string;
+    addblockhere: string;
+    addblockshort: string;
     cancel: string;
     confirm: string;
     confirmreset: string;
     down: string;
-    emptycell: string;
+    editing: string;
+    edithint: string;
     left: string;
     loading: string;
     movecontrols: string;
     moveinstructions: string;
     reset: string;
+    resettodefault: string;
     resetheading: string;
     resize: string;
     resizecontrols: string;
     resizeinstructions: string;
     right: string;
+    scopedefaultshort: string;
     scopeown: string;
+    scopeownshort: string;
     scopesitedefault: string;
+    undo: string;
     up: string;
 }
 
 const LABEL_STRINGS: Record<keyof DashboardLabels, {key: string; component: string}> = {
     addblock: {key: 'addblock', component: 'core'},
-    addblocktop: {key: 'addblocktop', component: 'my'},
+    addblockhere: {key: 'addblockhere', component: 'my'},
+    addblockshort: {key: 'dashboardaddblock', component: 'my'},
     cancel: {key: 'dashboardcancel', component: 'my'},
     confirm: {key: 'confirm', component: 'core'},
     confirmreset: {key: 'confirmresetdashboard', component: 'my'},
     down: {key: 'dashboarddown', component: 'my'},
-    emptycell: {key: 'emptygridcell', component: 'my'},
+    editing: {key: 'dashboardediting', component: 'my'},
+    edithint: {key: 'dashboardedithint', component: 'my'},
     left: {key: 'dashboardleft', component: 'my'},
     loading: {key: 'loading', component: 'core'},
     movecontrols: {key: 'dashboardmovecontrols', component: 'my'},
     moveinstructions: {key: 'dashboardmovehandleinstructions', component: 'my'},
     reset: {key: 'resetpage', component: 'my'},
+    resettodefault: {key: 'dashboardreset', component: 'my'},
     resetheading: {key: 'resetdashboardheading', component: 'my'},
     resize: {key: 'resizeblock', component: 'my'},
     resizecontrols: {key: 'dashboardresizecontrols', component: 'my'},
     resizeinstructions: {key: 'dashboardresizehandleinstructions', component: 'my'},
     right: {key: 'dashboardright', component: 'my'},
+    scopedefaultshort: {key: 'dashboardscopedefaultshort', component: 'my'},
     scopeown: {key: 'dashboardscopeown', component: 'my'},
+    scopeownshort: {key: 'dashboardscopeownshort', component: 'my'},
     scopesitedefault: {key: 'dashboardscopesitedefault', component: 'my'},
+    undo: {key: 'dashboardundo', component: 'my'},
     up: {key: 'dashboardup', component: 'my'},
 };
 

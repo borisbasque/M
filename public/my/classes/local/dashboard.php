@@ -213,7 +213,7 @@ final class dashboard {
                     'region' => $region,
                     'weight' => (int) $instance->instance->weight,
                     'visible' => (bool) $instance->instance->visible,
-                    'controls' => self::render_block_controls($content->controls),
+                    'actions' => self::export_block_actions($content->controls),
                 ];
             }
         }
@@ -248,6 +248,8 @@ final class dashboard {
             'layout' => $layout,
             'availableblocks' => $available,
             'canedit' => $canedit,
+            // Whether the edit bar may offer to switch to the default dashboard for all users.
+            'caneditdefault' => has_capability('moodle/my:configsyspages', context_system::instance()),
             'editing' => $editing,
             'sitedefault' => $sitedefault,
             'limits' => [
@@ -257,38 +259,74 @@ final class dashboard {
                 'maxrows' => self::MAX_ROWS,
             ],
             'icons' => [
-                'move' => $OUTPUT->pix_icon('i/move_2d', ''),
+                'move' => $OUTPUT->pix_icon('i/grip', ''),
                 'resize' => $OUTPUT->pix_icon('e/resize', ''),
                 'add' => $OUTPUT->pix_icon('t/add', ''),
                 'up' => $OUTPUT->pix_icon('t/up', ''),
                 'down' => $OUTPUT->pix_icon('t/down', ''),
                 'left' => $OUTPUT->pix_icon('t/left', ''),
                 'right' => $OUTPUT->pix_icon('t/right', ''),
+                'remove' => $OUTPUT->pix_icon('t/less', ''),
+                'menu' => $OUTPUT->pix_icon('i/menu', ''),
+                'edit' => $OUTPUT->pix_icon('i/edit', ''),
+                'undo' => $OUTPUT->pix_icon('e/undo', ''),
+                'reset' => $OUTPUT->pix_icon('t/reset', ''),
             ],
             'javascript' => $PAGE->requires->get_end_code(),
         ];
     }
 
     /**
-     * Render a block's standard editing-controls menu for its tile, as the classic block header
-     * renders it on every other page: the same action menu with the same items (Configure, Hide
-     * or Show, Assign roles, Manage permissions, Check permissions, Delete), so that nothing a
-     * block offers elsewhere is missing on the dashboard. Only Move is left out: the grid's own
-     * move handle and keyboard controls reposition a tile directly, and the classic region picker
-     * that Move opens has no regions to offer here.
+     * Export a block's standard editing controls for its tile's menu, the design system Dropdown.
+     *
+     * The same actions the classic block header offers on every other page (Configure, Hide or
+     * Show, Assign roles, Manage permissions, Check permissions, Delete), as data rather than
+     * rendered markup, so the client draws them with its own menu. Each keeps its link and its
+     * data-* attributes, so the handlers core already attaches to the whole page still pick them up
+     * (core_block/edit opens Configure's form; core/utility asks before following a link that
+     * carries data-modal). Move is left out: the grid's own handle repositions a tile, and the
+     * classic region picker has no regions here.
      *
      * @param array $controls The block's controls, as block_manager::edit_controls() builds them.
-     * @return string The rendered menu, or '' when there is nothing to show (view mode).
+     * @return array The actions (key, label, url, icon, attributes as JSON, danger), none outside Edit mode.
      */
-    private static function render_block_controls(array $controls): string {
+    private static function export_block_actions(array $controls): array {
         global $OUTPUT;
 
-        $controls = array_values(array_filter($controls, static function ($control): bool {
+        $actions = [];
+        foreach ($controls as $control) {
+            if (!$control instanceof \action_menu_link) {
+                continue;
+            }
             $classes = explode(' ', (string) ($control->attributes['class'] ?? ''));
-            return !in_array('editing_move', $classes, true);
-        }));
-        return $OUTPUT->block_controls($controls);
+            if (in_array('editing_move', $classes, true)) {
+                continue;
+            }
+            $key = 'action';
+            foreach ($classes as $class) {
+                if (str_starts_with($class, 'editing_')) {
+                    $key = substr($class, strlen('editing_'));
+                    break;
+                }
+            }
+            $attributes = array_filter(
+                $control->attributes,
+                static fn($value, $name): bool => str_starts_with((string) $name, 'data-'),
+                ARRAY_FILTER_USE_BOTH,
+            );
+            $actions[] = [
+                'key' => $key,
+                'label' => (string) $control->text,
+                'url' => $control->url instanceof \moodle_url ? $control->url->out(false) : (string) $control->url,
+                // Decorative: the label names the action.
+                'icon' => $control->icon ? $OUTPUT->pix_icon($control->icon->pix, '', $control->icon->component) : '',
+                'attributes' => json_encode((object) $attributes),
+                'danger' => $key === 'delete',
+            ];
+        }
+        return $actions;
     }
+
     /**
      * Render the React application's mount point for a dashboard page.
      *
@@ -574,7 +612,62 @@ final class dashboard {
 
         usort($layout, static fn(array $left, array $right): int =>
             [$left['row'], $left['column'], $left['id']] <=> [$right['row'], $right['column'], $right['id']]);
-        return $layout;
+        // The first paint matches what the application shows: gaps above a block close.
+        return self::rise_to_fill($layout);
+    }
+
+    /**
+     * Raise every block as far as it can, filling empty space above it.
+     *
+     * Vertical only, within the block's own column span: it keeps its column and width, and stops
+     * when another block in that span, or the top of the grid, is in the way. Nothing moves
+     * sideways. The same rules as riseToFill() in core_my/layout. Used when drawing a layout, not
+     * when saving one.
+     *
+     * @param array $layout Layout items (id, column, row, columns, rows), none overlapping.
+     * @return array The risen layout, in the original order, or the same array when nothing moved.
+     */
+    public static function rise_to_fill(array $layout): array {
+        if ($layout === []) {
+            return $layout;
+        }
+        $ordered = $layout;
+        usort($ordered, static fn(array $left, array $right): int =>
+            [$left['row'], $left['column'], $left['id']] <=> [$right['row'], $right['column'], $right['id']]);
+
+        $occupied = [];
+        $isfree = static function (int $column, int $row, int $columns, int $rows) use (&$occupied): bool {
+            for ($y = $row; $y < $row + $rows; $y++) {
+                for ($x = $column; $x < $column + $columns; $x++) {
+                    if (isset($occupied[$x . ':' . $y])) {
+                        return false;
+                    }
+                }
+            }
+            return true;
+        };
+        $placed = [];
+        $moved = false;
+        foreach ($ordered as $item) {
+            $row = max(0, (int) $item['row']);
+            while ($row > 0 && $isfree($item['column'], $row - 1, $item['columns'], $item['rows'])) {
+                $row--;
+            }
+            if ($row !== (int) $item['row']) {
+                $item['row'] = $row;
+                $moved = true;
+            }
+            for ($y = $item['row']; $y < $item['row'] + $item['rows']; $y++) {
+                for ($x = $item['column']; $x < $item['column'] + $item['columns']; $x++) {
+                    $occupied[$x . ':' . $y] = true;
+                }
+            }
+            $placed[$item['id']] = $item;
+        }
+        if (!$moved) {
+            return $layout;
+        }
+        return array_map(static fn(array $item): array => $placed[$item['id']], $layout);
     }
 
     /**

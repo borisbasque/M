@@ -11,6 +11,27 @@ import { jsxDEV } from "react/jsx-dev-runtime";
 import { Button, Tooltip } from "@moodlehq/design-system";
 import GridControls from "./GridControls";
 import { renderIcon } from "./Icon";
+const resizeGrip = /* @__PURE__ */ jsxDEV(
+  "svg",
+  {
+    className: "core-my-dashboard-icon core-my-dashboard-resize-grip",
+    viewBox: "0 0 10 10",
+    "aria-hidden": "true",
+    focusable: "false",
+    children: /* @__PURE__ */ jsxDEV("path", { d: "M9 1L1 9M9 5L5 9", stroke: "currentColor", strokeWidth: "1.5", strokeLinecap: "round", fill: "none" }, void 0, false, {
+      fileName: "public/my/js/esm/src/components/DashboardHandle.tsx",
+      lineNumber: 47,
+      columnNumber: 5
+    })
+  },
+  void 0,
+  false,
+  {
+    fileName: "public/my/js/esm/src/components/DashboardHandle.tsx",
+    lineNumber: 41,
+    columnNumber: 20
+  }
+);
 const DashboardHandle = /* @__PURE__ */ __name(({
   mode,
   label,
@@ -37,7 +58,7 @@ const DashboardHandle = /* @__PURE__ */ __name(({
     children: [
       active && showControls && /* @__PURE__ */ jsxDEV(GridControls, { mode, labels, icons, onDirection }, void 0, false, {
         fileName: "public/my/js/esm/src/components/DashboardHandle.tsx",
-        lineNumber: 60,
+        lineNumber: 72,
         columnNumber: 32
       }),
       /* @__PURE__ */ jsxDEV(Tooltip, { label, children: /* @__PURE__ */ jsxDEV(
@@ -49,7 +70,7 @@ const DashboardHandle = /* @__PURE__ */ __name(({
           "aria-label": label,
           "aria-describedby": instructionsId,
           "aria-pressed": active,
-          startIcon: renderIcon(mode === "move" ? icons.move : icons.resize),
+          startIcon: mode === "move" ? renderIcon(icons.move) : resizeGrip,
           onClick: (event) => {
             if (event.detail === 0 && !active) {
               onStart();
@@ -70,12 +91,12 @@ const DashboardHandle = /* @__PURE__ */ __name(({
         false,
         {
           fileName: "public/my/js/esm/src/components/DashboardHandle.tsx",
-          lineNumber: 64,
+          lineNumber: 76,
           columnNumber: 9
         }
       ) }, void 0, false, {
         fileName: "public/my/js/esm/src/components/DashboardHandle.tsx",
-        lineNumber: 63,
+        lineNumber: 75,
         columnNumber: 5
       })
     ]
@@ -84,7 +105,7 @@ const DashboardHandle = /* @__PURE__ */ __name(({
   true,
   {
     fileName: "public/my/js/esm/src/components/DashboardHandle.tsx",
-    lineNumber: 51,
+    lineNumber: 63,
     columnNumber: 29
   }
 ), "DashboardHandle");

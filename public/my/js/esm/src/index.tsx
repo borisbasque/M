@@ -20,6 +20,7 @@ import {isMoodleAjaxError} from '@moodle/lms/core/ajax';
 import {requireManyAsync} from '@moodle/lms/core/amd';
 import Pending from '@moodle/lms/core/pending';
 import DashboardTile from './components/DashboardTile';
+import DashboardEditBar from './components/DashboardEditBar';
 import ConfirmationDialog from './components/ConfirmationDialog';
 import Icon, {renderIcon} from './components/Icon';
 import GridCell from './components/GridCell';
@@ -32,7 +33,9 @@ import {
     fitToFreeSpace,
     columnsForWidth,
     disturbedCount,
+    emptyRegions,
     maxRow,
+    riseToFill,
     packLayout,
     packWithPinned,
     writeBack,
@@ -47,18 +50,6 @@ import {
 } from './repository';
 import {useDashboardLabels, type DashboardLabels} from './strings';
 import {addBlockFallbackUrl, openAddBlockModal} from './addBlockModal';
-
-interface DashboardScopeBannerProps {
-    siteDefault: boolean;
-    labels: DashboardLabels;
-}
-
-// Kept in this file rather than its own module: it's only ever used from Dashboard below, and
-// every ESM component here is a separate network request, so folding trivially-small, non-swizzled
-// pieces into their one caller cuts requests without changing what's independently themeable (see
-// swizzle.json - this was never a swizzle point of its own).
-export const DashboardScopeBanner = ({siteDefault, labels}: DashboardScopeBannerProps) =>
-    <p className="core-my-dashboard-scope">{siteDefault ? labels.scopesitedefault : labels.scopeown}</p>;
 
 interface DashboardErrorBoundaryProps {
     children: React.ReactNode;
@@ -111,71 +102,74 @@ interface Interaction {
     drag?: PointerDrag;
 }
 
-interface EditToolbarProps {
-    siteDefault: boolean;
-    labels: DashboardLabels;
-    addIcon: string;
-    onAdd: (trigger: HTMLElement) => void;
-    onReset: () => void;
-}
-
-// The edit-mode bar above the grid: the scope being edited on the left, the actions on the right.
-// The add button shows the short label; its accessible name says where the block will go, which
-// also tells it apart from the end-of-grid "Add a block" control for assistive technology.
-const EditToolbar = ({siteDefault, labels, addIcon, onAdd, onReset}: EditToolbarProps) => <div
-    className="core-my-dashboard-toolbar"
->
-    <DashboardScopeBanner siteDefault={siteDefault} labels={labels} />
-    <div className="core-my-dashboard-toolbar__actions">
-        {!siteDefault && <Button variant="secondary" label={labels.reset} onClick={onReset} />}
-        <Button
-            variant="primary"
-            label={labels.addblock}
-            aria-label={labels.addblocktop}
-            startIcon={renderIcon(addIcon)}
-            onClick={event => onAdd(event.currentTarget)}
-        />
-    </div>
-</div>;
-
-interface EmptyCellsProps {
+interface BoardCellsProps {
     rows: number;
     columnCount: number;
     layout: LayoutItem[];
+    interaction: Interaction | null;
     prospective?: LayoutItem;
     labels: DashboardLabels;
     addIcon: string;
     onActivate: (column: number, row: number) => void;
+    onPlace: (column: number, row: number) => void;
+    onPreview: (column: number, row: number) => void;
 }
 
 /**
- * The empty cells of the grid in edit mode: a focusable, labelled placeholder for every cell no
- * block covers, plus the (non-interactive) cells of the footprint an in-progress move or resize
- * would occupy on commit, so that it reads distinctly from merely-available space.
+ * The grid's empty space in edit mode, in one of two shapes.
+ *
+ * At rest, the empty cells are merged into regions (see emptyRegions), each one button that adds a
+ * block there. While a block is being moved or resized, every grid unit shows as an active cell so
+ * all the snap points are visible, with the footprint the block would take on commit drawn over
+ * them as one prospective cell. After a click or tap on a handle (origin 'mouseclick'), choosing
+ * an active cell previews and places the block there.
  */
-const EmptyCells = ({rows, columnCount, layout, prospective, labels, addIcon, onActivate}: EmptyCellsProps) => <>
-    {Array.from({length: rows}, (_, row) =>
-        Array.from({length: columnCount}, (__, column) => {
-            const isProspective = Boolean(prospective
-                && column >= prospective.column && column < prospective.column + prospective.columns
-                && row >= prospective.row && row < prospective.row + prospective.rows);
-            const isOccupied = layout.some(item =>
-                column >= item.column && column < item.column + item.columns
-                && row >= item.row && row < item.row + item.rows
-            );
-            return !isOccupied || isProspective ? <GridCell
-                key={`${column}:${row}`}
-                column={column}
-                row={row}
-                label={labels.emptycell}
-                addLabel={labels.addblock}
+const BoardCells = ({
+    rows,
+    columnCount,
+    layout,
+    interaction,
+    prospective,
+    labels,
+    addIcon,
+    onActivate,
+    onPlace,
+    onPreview,
+}: BoardCellsProps) => {
+    if (!interaction) {
+        return <>
+            {emptyRegions(layout, columnCount, rows).map(region => <GridCell
+                key={`${region.column}:${region.row}`}
+                column={region.column}
+                row={region.row}
+                columns={region.columns}
+                rows={region.rows}
+                label={labels.addblockhere}
+                addLabel={labels.addblockhere}
                 addIcon={addIcon}
-                prospective={isProspective}
                 onActivate={onActivate}
-            /> : null;
-        })
-    )}
-</>;
+            />)}
+        </>;
+    }
+    const placing = interaction.origin === 'mouseclick';
+    return <>
+        {Array.from({length: rows}, (_, row) => Array.from({length: columnCount}, (__, column) => <GridCell
+            key={`${column}:${row}`}
+            column={column}
+            row={row}
+            state="active"
+            onPlace={placing ? onPlace : undefined}
+            onPreview={placing ? onPreview : undefined}
+        />))}
+        {prospective && <GridCell
+            column={prospective.column}
+            row={prospective.row}
+            columns={prospective.columns}
+            rows={prospective.rows}
+            state="prospective"
+        />}
+    </>;
+};
 
 interface PointerDrag {
     x: number;
@@ -192,7 +186,17 @@ interface AddTarget {
     position?: 'start' | 'end';
 }
 
-type ConfirmAction = {type: 'reset'};
+type ConfirmAction = {type: 'reset'} | {
+    type: 'delete';
+    id: number;
+    title: string;
+    heading: string;
+    message: string;
+    confirmLabel: string;
+};
+
+// How many moves and resizes Undo can step back through.
+const UNDO_LIMIT = 20;
 
 // See the settling MutationObserver in the collected-JS effect below for what these guard.
 const DASHBOARD_SETTLE_QUIET_MS = 250;
@@ -235,6 +239,28 @@ const describeError = (caught: unknown): string => {
     }
     return String(caught);
 };
+
+/**
+ * How a tile takes part in the interaction in progress. The on-screen direction controls are for a
+ * block picked up by a click or a tap; the keyboard has its own arrow keys. Tiles glide from cell to
+ * cell rather than jumping, except a dragged tile, which already follows the pointer.
+ */
+const tileMotion = (interaction: Interaction | null, id: number) => ({
+    showControls: interaction?.id === id && interaction.origin === 'mouseclick',
+    shouldAnimatePosition: Boolean(interaction) && (interaction?.origin !== 'pointer' || interaction.id !== id),
+});
+
+/**
+ * How many rows the grid shows: enough for the layout, plus one spare row while a block is moved by
+ * pointer, click or tap, so it can be put below everything else. The arrow keys need none: moving
+ * down grows the grid by itself.
+ */
+const gridRows = (layout: LayoutItem[], interaction: Interaction | null): number =>
+    Math.max(1, maxRow(layout)) + (interaction?.mode === 'move' && interaction.origin !== 'keyboard' ? 1 : 0);
+
+/** Whether an element is laid out right to left, where the grid's first column is on the right. */
+const isRtl = (element: Element | null): boolean =>
+    Boolean(element) && getComputedStyle(element as Element).direction === 'rtl';
 
 const layoutChanged = (original: LayoutItem, draft: LayoutItem): boolean =>
     original.column !== draft.column || original.row !== draft.row ||
@@ -391,6 +417,9 @@ const Dashboard = ({
     const [error, setError] = useState('');
     const [confirmAction, setConfirmAction] = useState<ConfirmAction | null>(null);
     const [saving, setSaving] = useState(false);
+    // Layouts before each move or resize, newest last, for Undo. A reload (after adding, removing or
+    // resetting blocks) clears it, since an older layout may name blocks that no longer exist.
+    const [history, setHistory] = useState<LayoutItem[][]>([]);
     const gridRef = useRef<HTMLDivElement>(null);
     const pointerRef = useRef<{x: number; y: number; moved: boolean} | null>(null);
     const interactionRef = useRef<Interaction | null>(null);
@@ -420,6 +449,7 @@ const Dashboard = ({
             dataRef.current = response;
             setCanonical(response.layout);
             canonicalRef.current = response.layout;
+            setHistory([]);
             setError('');
             return response;
         } catch (caught) {
@@ -437,7 +467,15 @@ const Dashboard = ({
     useCollectedBlockJavascript(data, gridRef);
     const [columnCount, columnCountRef] = useResponsiveColumnCount(gridRef, Boolean(data && labels), data);
 
-    const displayLayout = useMemo(() => packLayout(canonical, columnCount), [canonical, columnCount]);
+    // Shown risen, in Edit mode and out of it: empty space above a block closes, including a gap left
+    // by a block this person can't see. Nothing is saved here; a drop, resize, add or remove saves the
+    // risen layout (see writeBack). Risen at full width first, so a narrower grid keeps that order,
+    // then again in case packing left a gap. A move in progress does not rise: packWithPinned()
+    // never moves a block up.
+    const displayLayout = useMemo(
+        () => riseToFill(packLayout(riseToFill(canonical), columnCount)),
+        [canonical, columnCount],
+    );
     displayLayoutRef.current = displayLayout;
     const previewLayout = useMemo(() => interaction
         ? packWithPinned(displayLayout, columnCount, interaction.draft, limits)
@@ -489,34 +527,54 @@ const Dashboard = ({
      * this; see the comment there.) A resize that would fall below the minimum tile size is
      * rejected (with an announcement) rather than clamped, so the keyboard controls never go
      * silently unresponsive at the limit; every other edge (the grid's right edge and its row
-     * ceiling) simply stops the nudge.
+     * ceiling) simply stops the nudge. Directions are visual, as the arrow keys and controls are:
+     * in a right-to-left grid, right is towards the first column. Each step is announced - where
+     * the block now is, or its new size - so a screen reader follows it as a sighted person does.
      */
-    const shift = useCallback((horizontal: number, vertical: number) => {
-        setInteraction(current => {
-            if (!current) {
-                return current;
+    const shift = useCallback((visualHorizontal: number, vertical: number) => {
+        const current = interactionRef.current;
+        if (!current) {
+            return;
+        }
+        const horizontal = isRtl(gridRef.current) ? -visualHorizontal : visualHorizontal;
+        const bounds = limitsRef.current;
+        let draft = {...current.draft};
+        if (current.mode === 'move') {
+            draft.column += horizontal;
+            draft.row += vertical;
+        } else {
+            const nextColumns = draft.columns + horizontal;
+            const nextRows = draft.rows + vertical;
+            if (nextColumns < bounds.mincolumns || nextRows < bounds.minrows) {
+                void announce('dashboardminimumsize', `${bounds.mincolumns} × ${bounds.minrows}`);
+                return;
             }
-            const bounds = limitsRef.current;
-            let draft = {...current.draft};
-            if (current.mode === 'move') {
-                draft.column += horizontal;
-                draft.row += vertical;
-            } else {
-                const nextColumns = draft.columns + horizontal;
-                const nextRows = draft.rows + vertical;
-                if (nextColumns < bounds.mincolumns || nextRows < bounds.minrows) {
-                    void announce('dashboardminimumsize', `${bounds.mincolumns} × ${bounds.minrows}`);
-                    return current;
-                }
-                draft.columns = nextColumns;
-                draft.rows = nextRows;
-            }
-            draft = clampToGrid(draft, columnCount, bounds);
-            const next = {...current, draft};
-            interactionRef.current = next;
-            return next;
-        });
+            draft.columns = nextColumns;
+            draft.rows = nextRows;
+        }
+        draft = clampToGrid(draft, columnCount, bounds);
+        if (!layoutChanged(current.draft, draft)) {
+            return;
+        }
+        const next = {...current, draft};
+        interactionRef.current = next;
+        setInteraction(next);
+        if (current.mode === 'move') {
+            void announce('gridcellposition', {row: draft.row + 1, column: draft.column + 1});
+        } else {
+            void announce('dashboardresizesize', {columns: draft.columns, rows: draft.rows});
+        }
     }, [announce, columnCount]);
+
+    // Keep a block moved or resized with the keyboard in view, step by step, as a pointer drag does
+    // by following the pointer. 'nearest' scrolls only when it has left the screen.
+    useEffect(() => {
+        if (interaction?.origin !== 'keyboard') {
+            return;
+        }
+        gridRef.current?.querySelector<HTMLElement>(`.core-my-dashboard-tile[data-block-id="${interaction.id}"]`)
+            ?.scrollIntoView?.({block: 'nearest', inline: 'nearest'});
+    }, [interaction?.origin, interaction?.id, interaction?.draft]);
 
     /**
      * Persist the in-progress interaction's draft rectangle as the new canonical layout.
@@ -549,6 +607,7 @@ const Dashboard = ({
         setSaving(true);
         try {
             await updateDashboard('save', siteDefault, next);
+            setHistory(previous => [...previous, currentCanonical].slice(-UNDO_LIMIT));
             setCanonical(next);
             canonicalRef.current = next;
             const item = derived.find(candidate => candidate.id === current.id)!;
@@ -568,6 +627,66 @@ const Dashboard = ({
         }
     }, [announce, siteDefault]);
 
+    /** Put back the layout from before the last move or resize, and save it. */
+    const undo = useCallback(async() => {
+        const previous = history[history.length - 1];
+        if (!previous) {
+            return;
+        }
+        setSaving(true);
+        try {
+            await updateDashboard('save', siteDefault, previous);
+            setCanonical(previous);
+            canonicalRef.current = previous;
+            setHistory(current => current.slice(0, -1));
+            await announce('dashboardundone');
+        } catch (caught) {
+            setError(describeError(caught));
+        } finally {
+            setSaving(false);
+        }
+    }, [announce, history, siteDefault]);
+
+    /**
+     * Ask before deleting a block, in the words core uses for it everywhere else ("Delete Timeline
+     * block?"). Deleting cannot be undone, so it is confirmed rather than offered for Undo.
+     */
+    const askToDelete = useCallback(async(id: number, title: string) => {
+        const [heading, message, confirmLabel] = await Promise.all([
+            getString('deletecheck', 'block', title),
+            getString('deleteblockcheck', 'block', title),
+            getString('delete', 'core'),
+        ]);
+        setConfirmAction({type: 'delete', id, title, heading, message, confirmLabel});
+    }, []);
+
+    /**
+     * Delete a block in place, without a page reload: remove it, reload the dashboard, and save it
+     * with the gap the block left closed (see riseToFill), as any other change is saved. Focus goes
+     * to the edit bar's Add block button, since the block that held it is gone.
+     */
+    const deleteBlock = useCallback(async(id: number, title: string) => {
+        setSaving(true);
+        try {
+            await updateDashboard('remove', siteDefault, [], '', id);
+            const response = await load();
+            if (response) {
+                const risen = riseToFill(response.layout);
+                if (risen !== response.layout) {
+                    await updateDashboard('save', siteDefault, risen);
+                    setCanonical(risen);
+                    canonicalRef.current = risen;
+                }
+            }
+            await announce('dashboardblockremoved', title);
+            document.querySelector<HTMLElement>('[data-region="dashboard-edit-bar"] [data-action="add-block"]')?.focus();
+        } catch (caught) {
+            setError(describeError(caught));
+        } finally {
+            setSaving(false);
+        }
+    }, [announce, load, siteDefault]);
+
     /** Abandon the in-progress interaction, discarding its draft rectangle unsaved. */
     const cancel = useCallback(() => {
         if (interaction) {
@@ -576,6 +695,39 @@ const Dashboard = ({
         interactionRef.current = null;
         setInteraction(null);
     }, [announce, interaction]);
+
+    /**
+     * Point the in-progress interaction at a grid cell, as when a block picked up by a click or a
+     * tap is shown over the cell under the pointer: a move puts the block's corner there, a resize
+     * stretches the block to reach it. Returns the interaction it set, or null when there is none.
+     */
+    const target = useCallback((column: number, row: number): Interaction | null => {
+        const current = interactionRef.current;
+        if (!current) {
+            return null;
+        }
+        const draft = clampToGrid(current.mode === 'move'
+            ? {...current.draft, column, row}
+            : {
+                ...current.draft,
+                columns: column - current.original.column + 1,
+                rows: row - current.original.row + 1,
+            }, columnCount, limitsRef.current);
+        if (!layoutChanged(current.draft, draft)) {
+            return current;
+        }
+        const next = {...current, draft};
+        interactionRef.current = next;
+        setInteraction(next);
+        return next;
+    }, [columnCount]);
+
+    /** Place a block picked up by a click or a tap in the chosen cell, and save. */
+    const place = useCallback((column: number, row: number) => {
+        if (target(column, row)) {
+            void commit();
+        }
+    }, [commit, target]);
 
     /**
      * Keyboard-driven move/resize: Space/Enter starts or commits an interaction, Escape cancels
@@ -854,21 +1006,23 @@ const Dashboard = ({
         return <DashboardPlaceholder error={error} loadingLabel={loadingLabel} initialLayout={initialLayout} />;
     }
 
-    const rows = Math.max(1, maxRow(previewLayout));
+    // One spare row while a block moves, so it can be put below everything else.
+    const rows = gridRows(previewLayout, interaction);
     const prospective = interaction && (layoutChanged(interaction.original, interaction.draft) ||
         (interaction.origin === 'pointer' && interaction.mode === 'resize' && interaction.drag?.shrinking))
         ? interaction.draft : undefined;
     const requestReset = () => setConfirmAction({type: 'reset'});
-    return <div className="core-my-dashboard-app" aria-busy={saving}>
+    const requestDelete = (id: number, title: string) => void askToDelete(id, title);
+    return <div
+        className={`core-my-dashboard-app${data.editing ? ' core-my-dashboard-app--editing' : ''}`}
+        aria-busy={saving}
+    >
         {error && <div className="alert alert-danger" role="alert">{error}</div>}
         <div className="visually-hidden" aria-live="polite" aria-atomic="true">{announcement}</div>
-        {data.editing && <EditToolbar
-            siteDefault={siteDefault}
-            labels={labels}
-            addIcon={data.icons.add}
-            onAdd={trigger => openAddBlock({position: 'start'}, trigger)}
-            onReset={requestReset}
-        />}
+        {data.editing && <p className="core-my-dashboard-hint">
+            <Icon markup={data.icons.move} className="core-my-dashboard-hint__icon" />
+            {labels.edithint}
+        </p>}
         <DashboardErrorBoundary
             resetLabel={labels.reset}
             onReset={!siteDefault && data.canedit ? requestReset : undefined}
@@ -882,14 +1036,17 @@ const Dashboard = ({
                 }}
                 data-columns={columnCount}
             >
-                {data.editing && <EmptyCells
+                {data.editing && <BoardCells
                     rows={rows}
                     columnCount={columnCount}
                     layout={previewLayout}
+                    interaction={interaction}
                     prospective={prospective}
                     labels={labels}
                     addIcon={data.icons.add}
                     onActivate={(targetColumn, targetRow) => openAddBlock({column: targetColumn, row: targetRow})}
+                    onPlace={place}
+                    onPreview={(targetColumn, targetRow) => void target(targetColumn, targetRow)}
                 />}
                 {previewLayout.map(item => {
                     const block = blocksById.get(item.id);
@@ -904,16 +1061,16 @@ const Dashboard = ({
                         icons={data.icons}
                         editing={data.editing}
                         activeMode={interaction?.id === item.id ? interaction.mode : undefined}
-                        showControls={interaction?.id === item.id && interaction.origin !== 'pointer'}
+                        {...tileMotion(interaction, item.id)}
                         drag={interaction?.id === item.id ? interaction.drag : undefined}
                         dragOrigin={interaction?.id === item.id ? interaction.original : undefined}
-                        shouldAnimatePosition={interaction?.origin === 'pointer' && interaction.id !== item.id}
                         isBumped={bumpedBlockIds.has(item.id)}
                         onStart={start}
                         onKeyDown={keyDown}
                         onPointerDown={pointerDown}
                         onDirection={shift}
                         onCommit={() => void commit()}
+                        onDelete={requestDelete}
                     />;
                 })}
             </div>
@@ -938,14 +1095,25 @@ const Dashboard = ({
                 <Icon markup={data.icons.add} className="py-2 me-2" />{labels.addblock}
             </a>
         </div>}
+        {data.editing && <DashboardEditBar
+            siteDefault={siteDefault}
+            canEditDefault={data.caneditdefault}
+            canUndo={history.length > 0 && !saving}
+            labels={labels}
+            icons={data.icons}
+            onReset={requestReset}
+            onUndo={() => void undo()}
+            onAdd={trigger => openAddBlock({position: 'start'}, trigger)}
+        />}
         {confirmAction && <ConfirmationDialog
-            title={labels.resetheading}
-            message={labels.confirmreset}
-            confirmLabel={labels.confirm}
+            title={confirmAction.type === 'delete' ? confirmAction.heading : labels.resetheading}
+            message={confirmAction.type === 'delete' ? confirmAction.message : labels.confirmreset}
+            confirmLabel={confirmAction.type === 'delete' ? confirmAction.confirmLabel : labels.confirm}
             cancelLabel={labels.cancel}
+            danger={confirmAction.type === 'delete'}
             onConfirm={() => {
                 setConfirmAction(null);
-                void reset();
+                void (confirmAction.type === 'delete' ? deleteBlock(confirmAction.id, confirmAction.title) : reset());
             }}
             onCancel={() => setConfirmAction(null)}
         />}

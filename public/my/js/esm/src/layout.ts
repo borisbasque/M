@@ -532,7 +532,9 @@ export const writeBack = (
         });
         packed = packByColumn(restored, limits.maxcolumns);
     }
-    return packed.map(item => ({
+    // Blocks rise into empty space above them once a change is made (see riseToFill), and that is
+    // what gets saved: packing never moves a block up, so this is a separate step.
+    return riseToFill(packed).map(item => ({
         id: item.id,
         column: item.column,
         row: item.row,
@@ -545,6 +547,82 @@ export const disturbedCount = (before: LayoutItem[], after: LayoutItem[], active
     const positions = new Map(before.map(item => [item.id, `${item.column}:${item.row}`]));
     return after.filter(item => item.id !== activeId
         && positions.get(item.id) !== `${item.column}:${item.row}`).length;
+};
+
+/**
+ * Raise every block as far as it can go, filling empty space above it.
+ *
+ * Vertical only, and only within the block's own column span: it keeps its column and width, and
+ * stops when a block already placed in that span, or the top of the grid, is in the way. Nothing
+ * moves sideways, so a right-to-left grid is unaffected. Blocks are placed from the top down, so
+ * one never rises through a block that started above it. Callers run this when a block is dropped,
+ * added or removed, and when drawing the dashboard, not during a move (see packWithPinned()).
+ *
+ * @param items Layout items, none overlapping.
+ * @return The risen layout, in the same order, or the same array when nothing moved.
+ */
+export const riseToFill = <T extends LayoutItem>(items: T[]): T[] => {
+    if (items.length === 0) {
+        return items;
+    }
+    const occupied = new Set<string>();
+    const placed = new Map<number, T>();
+    let moved = false;
+    [...items]
+        .sort((left, right) => left.row - right.row || left.column - right.column || left.id - right.id)
+        .forEach(item => {
+            let row = Math.max(0, item.row);
+            while (row > 0 && fits(occupied, item.column, row - 1, item.columns, item.rows)) {
+                row--;
+            }
+            const next = row === item.row ? item : {...item, row};
+            if (next !== item) {
+                moved = true;
+            }
+            occupy(occupied, next);
+            placed.set(item.id, next);
+        });
+    if (!moved) {
+        return items;
+    }
+    return items.map(item => placed.get(item.id) ?? item);
+};
+
+/**
+ * Group the grid's empty cells into rectangles, so that each run of empty space is one target in
+ * edit mode rather than one per cell.
+ *
+ * Scans in reading order: each empty cell not yet in a region starts one, which grows right while
+ * the cells are empty, then down while the whole width of the next row is.
+ *
+ * @param items The layout.
+ * @param columnCount The grid's column count.
+ * @param rowCount How many rows the grid shows.
+ * @return The regions, in reading order.
+ */
+export const emptyRegions = (items: LayoutItem[], columnCount: number, rowCount: number): GridRect[] => {
+    const taken = new Set<string>();
+    items.forEach(item => occupy(taken, item));
+    const regions: GridRect[] = [];
+    for (let row = 0; row < rowCount; row++) {
+        for (let column = 0; column < columnCount; column++) {
+            if (taken.has(`${column}:${row}`)) {
+                continue;
+            }
+            let columns = 1;
+            while (column + columns < columnCount && !taken.has(`${column + columns}:${row}`)) {
+                columns++;
+            }
+            let rows = 1;
+            while (row + rows < rowCount && fits(taken, column, row + rows, columns, 1)) {
+                rows++;
+            }
+            const region = {column, row, columns, rows};
+            occupy(taken, {id: -1, ...region});
+            regions.push(region);
+        }
+    }
+    return regions;
 };
 
 export const maxRow = (items: LayoutItem[]): number => items.reduce(

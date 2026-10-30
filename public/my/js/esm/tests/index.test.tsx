@@ -47,6 +47,11 @@ jest.mock('@moodlehq/design-system', () => {
         Link: ({label, ...props}: React.AnchorHTMLAttributes<HTMLAnchorElement> & {label?: string}) =>
             <a {...props}>{label}</a>,
         Tooltip: ({label: _label, children}: {label: string; children: React.ReactElement}) => children,
+        Dropdown: ({label, children}: {label: string; children?: React.ReactNode}) =>
+            <div><button type="button" aria-haspopup="menu">{label}</button><div role="menu">{children}</div></div>,
+        DropdownItemSelect: ({label, selected, ...props}:
+        React.ButtonHTMLAttributes<HTMLButtonElement> & {label: string; selected?: boolean}) =>
+            <button type="button" role="menuitemradio" aria-checked={Boolean(selected)} {...props}>{label}</button>,
     };
 }, {virtual: true});
 
@@ -105,11 +110,18 @@ const strings: Record<string, Record<string, string>> = {
         loading: 'Loading',
     },
     my: {
-        addblocktop: 'Add a block at the start of the dashboard',
+        dashboardaddblock: 'Add block',
+        dashboardediting: 'Editing',
+        dashboardedithint: 'Drag a block by its header to move it, or drag its corner to resize.',
+        dashboardreset: 'Reset to default',
+        dashboardscopedefaultshort: 'Default for all users',
+        dashboardscopeownshort: 'Your dashboard',
+        dashboardundo: 'Undo',
+        dashboardundone: 'Last change undone.',
         dashboardcancel: 'Cancel',
         confirmresetdashboard: 'Reset this dashboard?',
         dashboarddown: 'Down',
-        emptygridcell: 'Empty cell',
+        addblockhere: 'Add a block here',
         dashboardleft: 'Left',
         dashboardmovecontrols: 'Move block controls',
         dashboardmovehandleinstructions: 'Use the arrow keys to move',
@@ -160,6 +172,11 @@ const icons: DashboardIcons = {
     down: '<i class="icon fa fa-arrow-down fa-fw" aria-hidden="true"></i>',
     left: '<i class="icon fa fa-arrow-left fa-fw" aria-hidden="true"></i>',
     right: '<i class="icon fa fa-arrow-right fa-fw" aria-hidden="true"></i>',
+    edit: '<i class="icon fa fa-pen fa-fw" aria-hidden="true"></i>',
+    undo: '<i class="icon fa fa-rotate-left fa-fw" aria-hidden="true"></i>',
+    reset: '<i class="icon fa fa-arrow-rotate-left fa-fw" aria-hidden="true"></i>',
+    remove: '<i class="icon fa fa-minus fa-fw" aria-hidden="true"></i>',
+    menu: '<i class="icon fa fa-ellipsis-vertical fa-fw" aria-hidden="true"></i>',
 };
 
 
@@ -175,7 +192,7 @@ const baseLayout: LayoutItem[] = [
 const secondBlockOnly = [
     {
         id: 102, name: 'online_users', title: 'Second block', content: '<p>Second</p>',
-        footer: '', region: 'content', weight: 1, controls: '', visible: true,
+        footer: '', region: 'content', weight: 1, actions: [], visible: true,
     },
 ];
 
@@ -183,16 +200,17 @@ const buildData = (overrides: Partial<DashboardData> = {}): DashboardData => ({
     blocks: [
         {
             id: 101, name: 'html', title: 'First block', content: '<p>First</p>',
-            footer: '', region: 'content', weight: 0, controls: '', visible: true,
+            footer: '', region: 'content', weight: 0, actions: [], visible: true,
         },
         {
             id: 102, name: 'online_users', title: 'Second block', content: '<p>Second</p>',
-            footer: '', region: 'content', weight: 1, controls: '', visible: true,
+            footer: '', region: 'content', weight: 1, actions: [], visible: true,
         },
     ],
     layout: baseLayout,
     availableblocks: [{name: 'calendar_month', title: 'Calendar'}],
     canedit: true,
+    caneditdefault: false,
     editing: true,
     sitedefault: false,
     limits: DEFAULT_LIMITS,
@@ -245,9 +263,9 @@ describe('core_my Dashboard application', () => {
 
         render(<Dashboard />);
 
-        expect(await screen.findByRole('button', {name: 'Add a block at the start of the dashboard'})).toBeInTheDocument();
+        expect(await screen.findByRole('button', {name: 'Add block'})).toBeInTheDocument();
         expect(stringUtils.getRequestedStrings).toHaveBeenCalledWith(expect.arrayContaining([
-            expect.objectContaining({key: 'addblocktop', component: 'my'}),
+            expect.objectContaining({key: 'dashboardaddblock', component: 'my'}),
             expect.objectContaining({key: 'addblock', component: 'core'}),
         ]));
     });
@@ -290,6 +308,48 @@ describe('core_my Dashboard application', () => {
         expect(args.action).toBe('save');
         const moved = args.layout.find(item => item.id === 101);
         expect(moved).toMatchObject({column: 1, row: 0});
+    });
+
+    it('undoes the last move from the edit bar by saving the layout from before it', async() => {
+        const fetchOneSpy = mockDashboardApi({getResponses: [buildData()]});
+
+        render(<Dashboard />);
+
+        const undo = await screen.findByRole('button', {name: 'Undo'});
+        expect(undo).toBeDisabled();
+        const moveHandle = screen.getByRole('button', {name: 'Move First block block'});
+        fireEvent.keyDown(moveHandle, {key: ' '});
+        fireEvent.keyDown(moveHandle, {key: 'ArrowRight'});
+        await act(async() => {
+            fireEvent.keyDown(moveHandle, {key: ' '});
+        });
+        await waitFor(() => expect(screen.getByRole('button', {name: 'Undo'})).toBeEnabled());
+
+        await act(async() => {
+            fireEvent.click(screen.getByRole('button', {name: 'Undo'}));
+        });
+
+        const saves = () => fetchOneSpy.mock.calls.filter(([request]) =>
+            (request as {methodname: string}).methodname === 'core_my_update_dashboard');
+        await waitFor(() => expect(saves()).toHaveLength(2));
+        const restored = (saves()[1][0] as {args: {layout: LayoutItem[]}}).args.layout;
+        expect(restored.find(item => item.id === 101)).toMatchObject({column: 0, row: 0});
+        await waitFor(() => expect(screen.getByRole('button', {name: 'Undo'})).toBeDisabled());
+    });
+
+    it('moves with the arrow keys alone, announcing each step', async() => {
+        mockDashboardApi({getResponses: [buildData()]});
+
+        render(<Dashboard />);
+
+        const moveHandle = await screen.findByRole('button', {name: 'Move First block block'});
+        fireEvent.keyDown(moveHandle, {key: ' '});
+        // The on-screen direction controls are for a click or a tap, not the keyboard.
+        expect(screen.queryByRole('group', {name: 'Move block controls'})).not.toBeInTheDocument();
+        await act(async() => {
+            fireEvent.keyDown(moveHandle, {key: 'ArrowDown'});
+        });
+        await waitFor(() => expect(document.querySelector('[aria-live="polite"]')).toHaveTextContent('Row 2, column 1'));
     });
 
     it('discards a keyboard interaction on Escape without saving', async() => {
@@ -347,7 +407,8 @@ describe('core_my Dashboard application', () => {
         const args = (findSaveCall(fetchOneSpy)![0] as {args: {layout: LayoutItem[]}}).args;
         const moved = args.layout.find(item => item.id === 101)!;
         expect(moved.row + moved.rows).toBeLessThanOrEqual(4);
-        expect(moved.row).toBe(2);
+        // Nothing is above it in its columns, so it rises back to the top once dropped.
+        expect(moved.row).toBe(0);
     });
 
     it('enforces the server\'s grid limits: a keyboard resize cannot grow a block past the row ceiling', async() => {
@@ -390,6 +451,52 @@ describe('core_my Dashboard application', () => {
         });
 
         expect(screen.getByRole('group', {name: 'Move block controls'})).toBeInTheDocument();
+    });
+
+    it('merges empty space into regions at rest, and shows every cell once a block is picked up', async() => {
+        mockDashboardApi({getResponses: [buildData()]});
+
+        const {container} = render(<Dashboard />);
+        await waitFor(() => expect(container.querySelector('.core-my-dashboard-grid'))
+            .toHaveAttribute('data-columns', '6'));
+
+        // Two 2 x 2 blocks with a one-column gap and two columns free on the right: two regions.
+        expect(container.querySelectorAll('.core-my-grid-cell--available')).toHaveLength(2);
+        expect(container.querySelector('.core-my-grid-cell--active')).toBeNull();
+
+        const moveHandle = screen.getByRole('button', {name: 'Move First block block'});
+        await act(async() => {
+            fireEvent.pointerDown(moveHandle, {clientX: 0, clientY: 0});
+            fireEvent.pointerUp(window);
+        });
+
+        // Two rows plus the spare row a move adds, six columns each.
+        expect(container.querySelectorAll('.core-my-grid-cell--placing')).toHaveLength(18);
+        expect(container.querySelector('.core-my-grid-cell--available')).toBeNull();
+    });
+
+    it('places a block picked up by a click in the cell clicked next', async() => {
+        const fetchOneSpy = mockDashboardApi({getResponses: [buildData()]});
+
+        const {container} = render(<Dashboard />);
+        await waitFor(() => expect(container.querySelector('.core-my-grid-cell--available')).not.toBeNull());
+
+        const moveHandle = screen.getByRole('button', {name: 'Move First block block'});
+        await act(async() => {
+            fireEvent.pointerDown(moveHandle, {clientX: 0, clientY: 0});
+            fireEvent.pointerUp(window);
+        });
+        // Under the second block, so the first one has nothing to rise into once it is placed.
+        const target = container.querySelector<HTMLElement>(
+            '.core-my-grid-cell--placing[style*="grid-column: 4 /"][style*="grid-row: 3 /"]')!;
+        expect(target).not.toBeNull();
+        await act(async() => {
+            fireEvent.click(target);
+        });
+
+        await waitFor(() => expect(findSaveCall(fetchOneSpy)).toBeDefined());
+        const args = (findSaveCall(fetchOneSpy)![0] as {args: {layout: LayoutItem[]}}).args;
+        expect(args.layout.find(item => item.id === 101)).toMatchObject({column: 3, row: 2});
     });
 
     describe('adding a block through the standard "Add a block" modal', () => {
@@ -455,7 +562,7 @@ describe('core_my Dashboard application', () => {
 
         const newBlock = {
             id: 103, name: 'calendar_month', title: 'Calendar', content: '<p>Cal</p>',
-            footer: '', region: 'content', weight: 2, controls: '', visible: true,
+            footer: '', region: 'content', weight: 2, actions: [], visible: true,
         };
         const afterAdd = () => buildData({
             blocks: [...buildData().blocks, newBlock],
@@ -473,7 +580,7 @@ describe('core_my Dashboard application', () => {
         it('places a newly added block into the specific empty cell that was clicked', async() => {
             const newBlock = {
                 id: 103, name: 'calendar_month', title: 'Calendar', content: '<p>Cal</p>',
-                footer: '', region: 'content', weight: 2, controls: '', visible: true,
+                footer: '', region: 'content', weight: 2, actions: [], visible: true,
             };
             // The server appends the new block wherever it likes (here, far from where the user
             // clicked) - the client is expected to notice and immediately re-save it into the cell.
@@ -495,7 +602,7 @@ describe('core_my Dashboard application', () => {
             await waitFor(() => expect(container.querySelector('.core-my-dashboard-grid'))
                 .toHaveAttribute('data-columns', '6'));
 
-            const emptyCell = await screen.findByRole('button', {name: 'Empty cell, Row 1, column 3'});
+            const emptyCell = await screen.findByRole('button', {name: 'Add a block here, Row 1, column 3'});
             fireEvent.click(emptyCell);
             fireEvent.click(await screen.findByText('Calendar', {selector: 'a[data-blockname]'}));
 
@@ -524,7 +631,7 @@ describe('core_my Dashboard application', () => {
             });
 
             render(<Dashboard pagehash="abc123" />);
-            const trigger = await screen.findByRole('button', {name: 'Add a block at the start of the dashboard'});
+            const trigger = await screen.findByRole('button', {name: 'Add block'});
             fireEvent.click(trigger);
 
             await waitFor(() => expect(modal.show).toHaveBeenCalled());
@@ -573,7 +680,7 @@ describe('core_my Dashboard application', () => {
             const {forms} = mockCoreModules();
             const textBlock = {
                 id: 103, name: 'html', title: 'Notes', content: '<p>Things</p>',
-                footer: '', region: 'content', weight: 2, controls: '', visible: true,
+                footer: '', region: 'content', weight: 2, actions: [], visible: true,
             };
             const fetchOneSpy = mockDashboardApi({
                 getResponses: [
@@ -586,7 +693,7 @@ describe('core_my Dashboard application', () => {
             });
 
             render(<Dashboard pagehash="abc123" />);
-            fireEvent.click(await screen.findByRole('button', {name: 'Add a block at the start of the dashboard'}));
+            fireEvent.click(await screen.findByRole('button', {name: 'Add block'}));
             fireEvent.click(await screen.findByText('Text', {selector: 'a[data-blockname]'}));
 
             await waitFor(() => expect(forms).toHaveLength(1));
@@ -619,7 +726,7 @@ describe('core_my Dashboard application', () => {
             });
 
             render(<Dashboard />);
-            fireEvent.click(await screen.findByRole('button', {name: 'Add a block at the start of the dashboard'}));
+            fireEvent.click(await screen.findByRole('button', {name: 'Add block'}));
             fireEvent.click(await screen.findByText('Text', {selector: 'a[data-blockname]'}));
 
             await waitFor(() => expect(saveCalls(fetchOneSpy).length).toBeGreaterThan(0));
@@ -657,7 +764,7 @@ describe('core_my Dashboard application', () => {
 
             // Trigger a second load (adding a block reloads the dashboard) while the first load's
             // collected-JS promise is still unresolved: a slow first response overtaken by a second.
-            fireEvent.click(await screen.findByRole('button', {name: 'Add a block at the start of the dashboard'}));
+            fireEvent.click(await screen.findByRole('button', {name: 'Add block'}));
             fireEvent.click(await screen.findByText('Calendar', {selector: 'a[data-blockname]'}));
             await screen.findByRole('heading', {name: 'Calendar'});
 

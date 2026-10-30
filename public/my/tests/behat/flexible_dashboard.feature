@@ -25,7 +25,7 @@ Feature: Arrange dashboard blocks in a responsive grid
     And I press the down key
     And I press the enter key
     Then I should see "Item resized to"
-    When I click on "Add a block at the start of the dashboard" "button"
+    When I click on "Add block" "button"
     And I click on "Online users" "link" in the "Add a block" "dialogue"
     Then "Online users" "block" should exist
     When I open the action menu in "Online users" "block"
@@ -54,7 +54,7 @@ Feature: Arrange dashboard blocks in a responsive grid
     When I turn editing mode on
     And I change viewport size to "2600x1000"
     Then "[data-columns='6']" "css_element" should exist
-    And keyboard activation shows resize directional controls
+    And keyboard activation starts a resize without on-screen direction controls
     And the mouse resize preview follows the pointer before snapping to a grid cell
 
   @javascript
@@ -113,7 +113,7 @@ Feature: Arrange dashboard blocks in a responsive grid
   @javascript @accessibility
   Scenario: The add block modal and the confirmation dialog are accessible while open
     When I turn editing mode on
-    And I click on "Add a block at the start of the dashboard" "button"
+    And I click on "Add block" "button"
     Then "Add a block" "dialogue" should exist
     And the page should meet accessibility standards
     # The modal is core's own (core/modal_cancel); unlike a native dialog it does not take the rest
@@ -178,7 +178,7 @@ Feature: Arrange dashboard blocks in a responsive grid
     # A block with fields of its own, like Text, is added through its own form, from the standard
     # "Add a block" modal, exactly as on every other page - but with the where-this-block-appears
     # fields hidden, since the grid owns its position here; the same goes for Configure later.
-    When I click on "Add a block at the start of the dashboard" "button"
+    When I click on "Add block" "button"
     And I click on "Text..." "link" in the "Add a block" "dialogue"
     Then "Add Text block" "dialogue" should exist
     And "Default region" "field" should not exist in the "Add Text block" "dialogue"

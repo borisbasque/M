@@ -14,11 +14,69 @@
  */
 
 import React, {useEffect, useLayoutEffect, useMemo, useRef, useState} from 'react';
-import type {DashboardBlock, DashboardIcons} from '../repository';
+import {Button, Dropdown, DropdownItemAction} from '@moodlehq/design-system';
+import type {BlockAction, DashboardBlock, DashboardIcons} from '../repository';
 import {NARROW_BLOCK_WIDTH, type LayoutItem} from '../layout';
 import {useString, type DashboardLabels} from '../strings';
 import {htmlToText} from '../utils';
 import DashboardHandle from './DashboardHandle';
+import {renderIcon} from './Icon';
+
+/** An action's data-* attributes, which the handlers core attaches to the page read from the link. */
+const actionAttributes = (action: BlockAction): Record<string, string> => {
+    try {
+        return JSON.parse(action.attributes) as Record<string, string>;
+    } catch {
+        return {};
+    }
+};
+
+interface BlockActionsMenuProps {
+    label: string;
+    icon: string;
+    actions: BlockAction[];
+    onDelete: () => void;
+}
+
+/**
+ * A block's standard editing actions in the design system Dropdown. Each is the classic menu's
+ * link, with its data-* attributes, so core's page-wide handlers still open Configure's form; Delete
+ * goes through the dashboard's own confirmation and deletes in place.
+ */
+const BlockActionsMenu = ({label, icon, actions, onDelete}: BlockActionsMenuProps) => <Dropdown
+    className="core-my-dashboard-tile__menu"
+    label={label}
+    iconOnly
+    startIcon={renderIcon(icon)}
+    appearance="subtle"
+    placement="bottom-end"
+>
+    {actions.map(action => action.key === 'delete'
+        ? <DropdownItemAction
+            key={action.key}
+            label={action.label}
+            variant="danger"
+            startIcon={action.icon ? renderIcon(action.icon) : undefined}
+            onClick={onDelete}
+        />
+        : <DropdownItemAction
+            key={action.key}
+            href={action.url}
+            label={action.label}
+            variant={action.danger ? 'danger' : 'default'}
+            startIcon={action.icon ? renderIcon(action.icon) : undefined}
+            {...actionAttributes(action)}
+        />)}
+</Dropdown>;
+
+// How long a tile takes to ease into a new grid position, in milliseconds.
+const POSITION_ANIMATION_MS = 180;
+
+// Presses on these, inside the header, belong to the control itself rather than starting a drag.
+const HEADER_CONTROLS = 'button, a, input, select, textarea, label, [role="button"], [data-bs-toggle]';
+// How far a press on the header has to travel before it becomes a drag, in pixels: the same
+// threshold the dashboard uses to tell a click on a handle from a drag.
+const HEADER_DRAG_THRESHOLD = 4;
 
 interface PointerDrag {
     x: number;
@@ -44,6 +102,7 @@ interface DashboardTileProps {
     onPointerDown: (event: React.PointerEvent, id: number, mode: 'move' | 'resize') => void;
     onDirection: (horizontal: number, vertical: number) => void;
     onCommit: () => void;
+    onDelete: (id: number, title: string) => void;
 }
 
 const DashboardTile = ({
@@ -63,6 +122,7 @@ const DashboardTile = ({
     onPointerDown,
     onDirection,
     onCommit,
+    onDelete,
 }: DashboardTileProps) => {
     const tileRef = useRef<HTMLElement>(null);
     const contentRef = useRef<HTMLDivElement>(null);
@@ -78,9 +138,10 @@ const DashboardTile = ({
     const tileLabel = useString('dashboardtile', 'my', titleText);
     const moveLabel = useString('moveblock', 'block', titleText);
 
-    // The block's standard editing-controls menu, rendered by the server as the classic block
-    // header renders it. Memoised for the same reason as contentHtml below.
-    const controlsHtml = useMemo(() => (block.controls ? {__html: block.controls} : null), [block.controls]);
+    const actionsLabel = useString('actionsfor', 'core', titleText);
+    // Deleting is offered on the tile itself, as well as in the menu, whenever the person may delete
+    // the block; the button takes the menu item's own label ("Delete Timeline block").
+    const deleteAction = block.actions.find(action => action.key === 'delete');
 
     const displayItem = drag && dragOrigin ? dragOrigin : item;
 
@@ -133,7 +194,7 @@ const DashboardTile = ({
     useLayoutEffect(() => {
         const tile = tileRef.current;
         if (!tile) {
-            return;
+            return undefined;
         }
         positionAnimation.current?.cancel();
         const currentPosition = tile.getBoundingClientRect();
@@ -142,27 +203,68 @@ const DashboardTile = ({
 
         if (!shouldAnimatePosition || !priorPosition ||
             window.matchMedia?.('(prefers-reduced-motion: reduce)').matches || !tile.animate) {
-            return;
+            return undefined;
         }
 
         const horizontal = priorPosition.left - currentPosition.left;
         const vertical = priorPosition.top - currentPosition.top;
         if (!horizontal && !vertical) {
-            return;
+            return undefined;
         }
 
         // Use FLIP so CSS grid's discrete row/column placement eases visually.
-        positionAnimation.current = tile.animate([
+        const animation = tile.animate([
             {transform: `translate3d(${horizontal}px, ${vertical}px, 0)`},
             {transform: 'translate3d(0, 0, 0)'},
         ], {
-            duration: 180,
+            duration: POSITION_ANIMATION_MS,
             easing: 'cubic-bezier(.2, 0, 0, 1)',
         });
+        positionAnimation.current = animation;
+        // The animation only eases the tile into the place it already has. Some browsers can leave
+        // one waiting to start (pending) indefinitely, which would hold the tile at its old place
+        // while the drop preview shows the new one; once it should have finished, finish it.
+        const settle = window.setTimeout(() => {
+            if (animation.playState !== 'finished') {
+                animation.finish();
+            }
+        }, POSITION_ANIMATION_MS * 2);
+        return () => window.clearTimeout(settle);
     }, [item.column, item.columns, item.row, item.rows, shouldAnimatePosition]);
+
+    // The whole header is a drag target for pointers, so people can grab a block by its title. A
+    // press that then moves starts exactly the drag the move handle starts. A press that doesn't
+    // move does nothing - clicking a header should not pick the block up - and keyboard and
+    // assistive technology users keep the handle, which is the header's focusable control.
+    const headerPointerDown = (event: React.PointerEvent<HTMLElement>) => {
+        if (!editing || event.button !== 0 || (event.target as Element).closest(HEADER_CONTROLS)) {
+            return;
+        }
+        event.preventDefault();
+        const startX = event.clientX;
+        const startY = event.clientY;
+        const begin = {clientX: startX, clientY: startY, preventDefault: () => undefined} as unknown as React.PointerEvent;
+        const stop = () => {
+            window.removeEventListener('pointermove', move);
+            window.removeEventListener('pointerup', stop);
+            window.removeEventListener('pointercancel', stop);
+        };
+        const move = (moveEvent: PointerEvent) => {
+            if (Math.abs(moveEvent.clientX - startX) < HEADER_DRAG_THRESHOLD
+                && Math.abs(moveEvent.clientY - startY) < HEADER_DRAG_THRESHOLD) {
+                return;
+            }
+            stop();
+            onPointerDown(begin, block.id, 'move');
+        };
+        window.addEventListener('pointermove', move);
+        window.addEventListener('pointerup', stop);
+        window.addEventListener('pointercancel', stop);
+    };
 
     const classes = [
         'core-my-dashboard-tile',
+        editing ? 'core-my-dashboard-tile--editing' : '',
         // Hidden through the standard menu: still shown while editing, muted, with Show on offer.
         ...(block.visible ? [] : ['core-my-dashboard-tile--hidden']),
         activeMode ? 'core-my-dashboard-tile--active' : '',
@@ -190,7 +292,15 @@ const DashboardTile = ({
             <span id={moveInstructionsId} className="visually-hidden">{labels.moveinstructions}</span>
             <span id={resizeInstructionsId} className="visually-hidden">{labels.resizeinstructions}</span>
         </>}
-        <header className="core-my-dashboard-tile__header">
+        {/* First in the tile, as it is first to see: on the corner where the tile starts. */}
+        {editing && deleteAction && <Button
+            variant="secondary"
+            className="core-my-dashboard-tile__delete"
+            aria-label={deleteAction.label}
+            startIcon={renderIcon(icons.remove)}
+            onClick={() => onDelete(block.id, titleText)}
+        />}
+        <header className="core-my-dashboard-tile__header" onPointerDown={headerPointerDown}>
             {editing && <DashboardHandle
                 mode="move"
                 label={moveLabel}
@@ -208,11 +318,13 @@ const DashboardTile = ({
             {/* The title is the block's own, already-formatted HTML (as the classic block template
                 renders it), not text: rendering it as text would show entities literally. */}
             <h2 className="core-my-dashboard-tile__title" dangerouslySetInnerHTML={titleHtml} />
-            {editing && <div className="core-my-dashboard-tile__actions">
-                {/* Bootstrap's dropdown works through delegated events, so the injected menu
-                    opens as it does in a classic block header, and the core_block/edit click
-                    handler picks up its Configure item. */}
-                {controlsHtml && <div className="core-my-dashboard-tile__menu" dangerouslySetInnerHTML={controlsHtml} />}
+            {editing && block.actions.length > 0 && <div className="core-my-dashboard-tile__actions">
+                <BlockActionsMenu
+                    label={actionsLabel || block.actions[0].label}
+                    icon={icons.menu}
+                    actions={block.actions}
+                    onDelete={() => onDelete(block.id, titleText)}
+                />
             </div>}
         </header>
         <div

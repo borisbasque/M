@@ -295,7 +295,7 @@ const writeBack = /* @__PURE__ */ __name((canonical, derived, pinnedId, limits =
     });
     packed = packByColumn(restored, limits.maxcolumns);
   }
-  return packed.map((item) => ({
+  return riseToFill(packed).map((item) => ({
     id: item.id,
     column: item.column,
     row: item.row,
@@ -307,6 +307,54 @@ const disturbedCount = /* @__PURE__ */ __name((before, after, activeId) => {
   const positions = new Map(before.map((item) => [item.id, `${item.column}:${item.row}`]));
   return after.filter((item) => item.id !== activeId && positions.get(item.id) !== `${item.column}:${item.row}`).length;
 }, "disturbedCount");
+const riseToFill = /* @__PURE__ */ __name((items) => {
+  if (items.length === 0) {
+    return items;
+  }
+  const occupied = /* @__PURE__ */ new Set();
+  const placed = /* @__PURE__ */ new Map();
+  let moved = false;
+  [...items].sort((left, right) => left.row - right.row || left.column - right.column || left.id - right.id).forEach((item) => {
+    let row = Math.max(0, item.row);
+    while (row > 0 && fits(occupied, item.column, row - 1, item.columns, item.rows)) {
+      row--;
+    }
+    const next = row === item.row ? item : { ...item, row };
+    if (next !== item) {
+      moved = true;
+    }
+    occupy(occupied, next);
+    placed.set(item.id, next);
+  });
+  if (!moved) {
+    return items;
+  }
+  return items.map((item) => placed.get(item.id) ?? item);
+}, "riseToFill");
+const emptyRegions = /* @__PURE__ */ __name((items, columnCount, rowCount) => {
+  const taken = /* @__PURE__ */ new Set();
+  items.forEach((item) => occupy(taken, item));
+  const regions = [];
+  for (let row = 0; row < rowCount; row++) {
+    for (let column = 0; column < columnCount; column++) {
+      if (taken.has(`${column}:${row}`)) {
+        continue;
+      }
+      let columns = 1;
+      while (column + columns < columnCount && !taken.has(`${column + columns}:${row}`)) {
+        columns++;
+      }
+      let rows = 1;
+      while (row + rows < rowCount && fits(taken, column, row + rows, columns, 1)) {
+        rows++;
+      }
+      const region = { column, row, columns, rows };
+      occupy(taken, { id: -1, ...region });
+      regions.push(region);
+    }
+  }
+  return regions;
+}, "emptyRegions");
 const maxRow = /* @__PURE__ */ __name((items) => items.reduce(
   (maximum, item) => Math.max(maximum, item.row + item.rows),
   0
@@ -326,6 +374,7 @@ export {
   clampToGrid,
   columnsForWidth,
   disturbedCount,
+  emptyRegions,
   fitShift,
   fitToFreeSpace,
   maxRow,
@@ -333,6 +382,7 @@ export {
   packInOrder,
   packLayout,
   packWithPinned,
+  riseToFill,
   writeBack
 };
 //# sourceMappingURL=layout.dev.js.map

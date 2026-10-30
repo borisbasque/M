@@ -22,7 +22,7 @@ import DashboardTile from '../src/components/DashboardTile';
 import DashboardHandle from '../src/components/DashboardHandle';
 import DashboardLoading from '../src/components/DashboardLoading';
 import {renderIcon} from '../src/components/Icon';
-import {DashboardScopeBanner} from '../src/index';
+import DashboardEditBar from '../src/components/DashboardEditBar';
 import type {DashboardIcons} from '../src/repository';
 import type {DashboardLabels} from '../src/strings';
 import {htmlToText} from '../src/utils';
@@ -95,8 +95,9 @@ jest.mock('@moodlehq/design-system', () => {
         // trigger element is cloned with the menu's id and ARIA wiring and a click toggle, the menu
         // is a role="menu" named by the trigger, Escape closes it and returns focus to the trigger,
         // and an action item is a link with the caller's extra props (data-* attributes) spread on.
-        Dropdown: ({trigger, open, onOpenChange, className, children}: {
-            trigger: React.ReactElement;
+        Dropdown: ({trigger, label, open, onOpenChange, className, children}: {
+            trigger?: React.ReactElement;
+            label?: string;
             open?: boolean;
             onOpenChange?: (open: boolean) => void;
             className?: string;
@@ -124,7 +125,7 @@ jest.mock('@moodlehq/design-system', () => {
                 return () => document.removeEventListener('keydown', onKeyDown);
             });
             return <div className={className}>
-                {ReactActual.cloneElement(trigger, {
+                {ReactActual.cloneElement(trigger ?? <button type="button">{label}</button>, {
                     ref: triggerRef,
                     id,
                     'aria-haspopup': 'menu',
@@ -134,6 +135,9 @@ jest.mock('@moodlehq/design-system', () => {
                 {isOpen && <div role="menu" aria-labelledby={id}>{children}</div>}
             </div>;
         },
+        DropdownItemSelect: ({label, selected, ...props}:
+        React.ButtonHTMLAttributes<HTMLButtonElement> & {label: string; selected?: boolean}) =>
+            <button type="button" role="menuitemradio" aria-checked={Boolean(selected)} {...props}>{label}</button>,
         DropdownItemAction: ({label, href, ...props}: React.AnchorHTMLAttributes<HTMLAnchorElement> & {label: string}) =>
             <a role="menuitem" href={href} {...props}>{label}</a>,
     };
@@ -141,26 +145,32 @@ jest.mock('@moodlehq/design-system', () => {
 
 const labels: DashboardLabels = {
     addblock: 'Add a block',
-    addblocktop: 'Add a block at the start of the dashboard',
+    addblockshort: 'Add block',
+    editing: 'Editing',
+    edithint: 'Drag a block by its header to move it, or drag its corner to resize.',
     addblockbottom: 'Add a block at the end of the dashboard',
     cancel: 'Cancel',
     close: 'Close',
     confirm: 'Confirm',
     confirmreset: 'Reset this dashboard?',
     down: 'Down',
-    emptycell: 'Empty grid cell',
+    addblockhere: 'Add a block here',
     left: 'Left',
     loading: 'Loading',
     movecontrols: 'Move block controls',
     moveinstructions: 'Use the arrow keys to move',
     reset: 'Reset page to default',
+    resettodefault: 'Reset to default',
     resetheading: 'Reset dashboard',
     resize: 'Resize block',
     resizecontrols: 'Resize block controls',
     resizeinstructions: 'Use the arrow keys to resize',
     right: 'Right',
+    scopedefaultshort: 'Default for all users',
     scopeown: 'Editing your dashboard',
+    scopeownshort: 'Your dashboard',
     scopesitedefault: 'Editing the default dashboard for all users',
+    undo: 'Undo',
     up: 'Up',
 };
 
@@ -173,6 +183,11 @@ const icons: DashboardIcons = {
     down: '<i class="icon fa fa-arrow-down fa-fw" aria-hidden="true"></i>',
     left: '<i class="icon fa fa-arrow-left fa-fw" aria-hidden="true"></i>',
     right: '<i class="icon fa fa-arrow-right fa-fw" aria-hidden="true"></i>',
+    edit: '<i class="icon fa fa-pen fa-fw" aria-hidden="true"></i>',
+    undo: '<i class="icon fa fa-rotate-left fa-fw" aria-hidden="true"></i>',
+    reset: '<i class="icon fa fa-arrow-rotate-left fa-fw" aria-hidden="true"></i>',
+    remove: '<i class="icon fa fa-minus fa-fw" aria-hidden="true"></i>',
+    menu: '<i class="icon fa fa-ellipsis-vertical fa-fw" aria-hidden="true"></i>',
 };
 
 // The strings the components fetch themselves, with placeholders, as the language pack has them.
@@ -209,7 +224,7 @@ const tileBlock = (overrides: Partial<React.ComponentProps<typeof DashboardTile>
     footer: '',
     region: 'content',
     weight: 0,
-    controls: '',
+    actions: [],
     visible: true,
     ...overrides,
 });
@@ -271,11 +286,46 @@ describe('core_my grid components', () => {
             label="Empty grid cell"
             addLabel="Add a block"
             addIcon={icons.add}
-            prospective
+            state="prospective"
         />);
 
         expect(screen.queryByRole('button')).not.toBeInTheDocument();
         expect(container.firstChild).toHaveAttribute('aria-hidden', 'true');
+    });
+
+    it('spans a merged region across its columns and rows', async() => {
+        render(<GridCell
+            column={2}
+            row={4}
+            columns={2}
+            rows={3}
+            label="Add a block here"
+            addLabel="Add a block here"
+            addIcon={icons.add}
+        />);
+
+        const region = await screen.findByRole('button', {name: 'Add a block here, Row 5, column 3'});
+        expect(region).toHaveStyle({gridColumn: '3 / span 2', gridRow: '5 / span 3'});
+    });
+
+    it('shows an active cell to pointers only, and places a picked-up block in it on click', () => {
+        const place = jest.fn();
+        const preview = jest.fn();
+        const {container} = render(<GridCell column={1} row={2} state="active" onPlace={place} onPreview={preview} />);
+
+        const cell = container.firstChild as HTMLElement;
+        expect(cell).toHaveAttribute('aria-hidden', 'true');
+        expect(cell).toHaveClass('core-my-grid-cell--active', 'core-my-grid-cell--placing');
+        expect(screen.queryByRole('button')).not.toBeInTheDocument();
+        fireEvent.pointerEnter(cell);
+        expect(preview).toHaveBeenCalledWith(1, 2);
+        fireEvent.click(cell);
+        expect(place).toHaveBeenCalledWith(1, 2);
+    });
+
+    it('keeps an active cell inert while a pointer drag is in progress', () => {
+        const {container} = render(<GridCell column={0} row={0} state="active" />);
+        expect(container.firstChild).not.toHaveClass('core-my-grid-cell--placing');
     });
 
     it('builds bespoke controls from MDS buttons and relays direction', () => {
@@ -600,13 +650,51 @@ describe('core_my grid components', () => {
         expect(confirm).toHaveBeenCalled();
     });
 
-    it('names the scope being edited: the user\'s own dashboard or the site default', () => {
-        const own = render(<DashboardScopeBanner siteDefault={false} labels={labels} />);
-        expect(screen.getByText('Editing your dashboard')).toBeInTheDocument();
-        own.unmount();
+    describe('edit bar', () => {
+        const props = {
+            siteDefault: false,
+            canEditDefault: false,
+            canUndo: false,
+            labels,
+            icons,
+            onReset: jest.fn(),
+            onUndo: jest.fn(),
+            onAdd: jest.fn(),
+        };
 
-        render(<DashboardScopeBanner siteDefault labels={labels} />);
-        expect(screen.getByText('Editing the default dashboard for all users')).toBeInTheDocument();
+        it('names the scope as plain text for people who can only edit their own dashboard', () => {
+            render(<DashboardEditBar {...props} />);
+            expect(screen.getByText('Editing your dashboard')).toBeInTheDocument();
+            expect(screen.queryByRole('menu')).not.toBeInTheDocument();
+        });
+
+        it('offers both dashboards in a dropdown to people who can edit the default', () => {
+            render(<DashboardEditBar {...props} canEditDefault siteDefault />);
+            expect(screen.getByText('Editing')).toBeInTheDocument();
+            expect(screen.getByRole('button', {name: 'Default for all users'})).toHaveAttribute('aria-haspopup', 'menu');
+            fireEvent.click(screen.getByRole('button', {name: 'Default for all users'}));
+            expect(screen.getByRole('menuitemradio', {name: 'Default for all users'})).toHaveAttribute('aria-checked', 'true');
+            expect(screen.getByRole('menuitemradio', {name: 'Your dashboard'})).toHaveAttribute('aria-checked', 'false');
+        });
+
+        it('relays its actions, with Undo off until there is something to undo', () => {
+            const onUndo = jest.fn();
+            const onAdd = jest.fn();
+            const {rerender} = render(<DashboardEditBar {...props} onUndo={onUndo} onAdd={onAdd} />);
+            expect(screen.getByRole('button', {name: 'Undo'})).toBeDisabled();
+            rerender(<DashboardEditBar {...props} canUndo onUndo={onUndo} onAdd={onAdd} />);
+            fireEvent.click(screen.getByRole('button', {name: 'Undo'}));
+            fireEvent.click(screen.getByRole('button', {name: 'Add block'}));
+            expect(onUndo).toHaveBeenCalled();
+            expect(onAdd).toHaveBeenCalled();
+            // Edit mode is left with the page's own switch, not from the bar.
+            expect(screen.queryByRole('button', {name: 'Done'})).not.toBeInTheDocument();
+        });
+
+        it('leaves out Reset to default while editing the default itself', () => {
+            render(<DashboardEditBar {...props} canEditDefault siteDefault />);
+            expect(screen.queryByRole('button', {name: 'Reset to default'})).not.toBeInTheDocument();
+        });
     });
 
     it('wraps icon markup that is not a single <i> element inside an <i>, so the Button still accepts it', () => {

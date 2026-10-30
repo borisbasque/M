@@ -24,6 +24,17 @@
 import {fetchOne} from '@moodle/lms/core/ajax';
 import type {GridLimits, LayoutItem} from './layout';
 
+/** One of a block's standard editing actions (see core_my\\local\\dashboard::export_block_actions()). */
+export interface BlockAction {
+    key: string;
+    label: string;
+    url: string;
+    icon: string;
+    /** The action's data-* attributes, as a JSON object, for the handlers core attaches to the page. */
+    attributes: string;
+    danger: boolean;
+}
+
 export interface DashboardBlock {
     id: number;
     name: string;
@@ -32,7 +43,7 @@ export interface DashboardBlock {
     footer: string;
     region: string;
     weight: number;
-    controls: string;
+    actions: BlockAction[];
     visible: boolean;
 }
 
@@ -55,6 +66,11 @@ export interface DashboardIcons {
     down: string;
     left: string;
     right: string;
+    edit: string;
+    undo: string;
+    reset: string;
+    remove: string;
+    menu: string;
 }
 
 export interface DashboardData {
@@ -62,6 +78,7 @@ export interface DashboardData {
     layout: LayoutItem[];
     availableblocks: AvailableBlock[];
     canedit: boolean;
+    caneditdefault: boolean;
     editing: boolean;
     sitedefault: boolean;
     limits: GridLimits;

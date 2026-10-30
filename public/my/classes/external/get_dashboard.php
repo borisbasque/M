@@ -92,9 +92,16 @@ final class get_dashboard extends external_api {
                     PARAM_BOOL,
                     'Whether the block is shown. A hidden block is only returned while editing.',
                 ),
-                'controls' => new external_value(
-                    PARAM_RAW,
-                    'The block\'s standard editing-controls menu, rendered, or empty when not editing.',
+                'actions' => new external_multiple_structure(
+                    new external_single_structure([
+                        'key' => new external_value(PARAM_ALPHANUMEXT, 'What the action does: edit, hide, show, delete...'),
+                        'label' => new external_value(PARAM_TEXT, 'The action\'s label.'),
+                        'url' => new external_value(PARAM_URL, 'Where the action goes.'),
+                        'icon' => new external_value(PARAM_RAW, 'Rendered decorative icon.'),
+                        'attributes' => new external_value(PARAM_RAW, 'The action\'s data-* attributes, as a JSON object.'),
+                        'danger' => new external_value(PARAM_BOOL, 'Whether the action destroys something.'),
+                    ]),
+                    'The block\'s standard editing actions, without Move; none outside Edit mode.',
                 ),
             ])),
             'layout' => new external_multiple_structure(new external_single_structure([
@@ -113,6 +120,7 @@ final class get_dashboard extends external_api {
                 ),
             ]), 'Block types the user may add, as core/add_block_body takes them.'),
             'canedit' => new external_value(PARAM_BOOL, 'Whether the user may edit.'),
+            'caneditdefault' => new external_value(PARAM_BOOL, 'Whether the user may edit the default dashboard.'),
             'editing' => new external_value(PARAM_BOOL, 'Whether Edit mode is active.'),
             'sitedefault' => new external_value(PARAM_BOOL, 'Whether this is the site default.'),
             'limits' => new external_single_structure([
@@ -129,6 +137,11 @@ final class get_dashboard extends external_api {
                 'down' => new external_value(PARAM_RAW, 'Rendered down directional control icon.'),
                 'left' => new external_value(PARAM_RAW, 'Rendered left directional control icon.'),
                 'right' => new external_value(PARAM_RAW, 'Rendered right directional control icon.'),
+                'remove' => new external_value(PARAM_RAW, 'Rendered remove block icon.'),
+                'menu' => new external_value(PARAM_RAW, 'Rendered block actions menu icon.'),
+                'edit' => new external_value(PARAM_RAW, 'Rendered edit bar icon.'),
+                'undo' => new external_value(PARAM_RAW, 'Rendered undo icon.'),
+                'reset' => new external_value(PARAM_RAW, 'Rendered reset to default icon.'),
             ], 'Control icons, rendered through the theme icon system.'),
             'javascript' => new external_value(PARAM_RAW, 'Collected block JavaScript requirements.'),
         ]);

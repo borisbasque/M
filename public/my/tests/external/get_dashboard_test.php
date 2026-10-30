@@ -53,6 +53,7 @@ final class get_dashboard_test extends \advanced_testcase {
 
         $this->assertFalse($result['sitedefault']);
         $this->assertTrue($result['canedit']);
+        $this->assertTrue($result['caneditdefault']);
         $this->assertFalse($result['editing']);
         $this->assertArrayHasKey('blocks', $result);
         $this->assertArrayHasKey('layout', $result);
@@ -66,7 +67,7 @@ final class get_dashboard_test extends \advanced_testcase {
             'maxcolumns' => \core_my\local\dashboard::MAX_COLUMNS,
             'maxrows' => \core_my\local\dashboard::MAX_ROWS,
         ], $result['limits']);
-        foreach (['move', 'resize', 'add', 'up', 'down', 'left', 'right'] as $icon) {
+        foreach (['move', 'resize', 'add', 'up', 'down', 'left', 'right', 'edit', 'undo', 'reset', 'remove', 'menu'] as $icon) {
             $this->assertStringContainsString('<i ', $result['icons'][$icon], "The {$icon} icon must be rendered markup.");
             $this->assertStringContainsString('aria-hidden="true"', $result['icons'][$icon]);
         }
@@ -130,7 +131,7 @@ final class get_dashboard_test extends \advanced_testcase {
         $result = external_api::clean_returnvalue(get_dashboard::execute_returns(), $result);
 
         $myoverview = current(array_filter($result['blocks'], static fn($block) => $block['name'] === 'myoverview'));
-        $this->assertStringContainsString('action-menu', $myoverview['controls']);
+        $labels = array_column($myoverview['actions'], 'label');
         $expected = [
             'Configure Course overview block',
             'Hide Course overview block',
@@ -139,9 +140,16 @@ final class get_dashboard_test extends \advanced_testcase {
             'Delete Course overview block',
         ];
         foreach ($expected as $item) {
-            $this->assertStringContainsString($item, $myoverview['controls']);
+            $this->assertContains($item, $labels);
         }
-        $this->assertStringNotContainsString('Move Course overview block', $myoverview['controls']);
+        $this->assertNotContains('Move Course overview block', $labels);
+        $actions = array_column($myoverview['actions'], null, 'key');
+        // Delete keeps the attributes core/utility's confirmation reads, and is the one danger action.
+        $this->assertTrue($actions['delete']['danger']);
+        $this->assertSame('confirmation', json_decode($actions['delete']['attributes'], true)['data-modal']);
+        // Configure keeps the attributes core_block/edit opens its form from.
+        $this->assertSame('editblock', json_decode($actions['edit']['attributes'], true)['data-action']);
+        $this->assertFalse($actions['edit']['danger']);
 
         $USER->editing = 0;
         $PAGE = new \moodle_page();
@@ -149,7 +157,7 @@ final class get_dashboard_test extends \advanced_testcase {
         $result = get_dashboard::execute(false);
         $result = external_api::clean_returnvalue(get_dashboard::execute_returns(), $result);
         foreach ($result['blocks'] as $block) {
-            $this->assertSame('', $block['controls'], "The {$block['name']} block has a menu outside Edit mode.");
+            $this->assertSame([], $block['actions'], "The {$block['name']} block has actions outside Edit mode.");
         }
     }
 
@@ -279,6 +287,7 @@ final class get_dashboard_test extends \advanced_testcase {
         $result = external_api::clean_returnvalue(get_dashboard::execute_returns(), get_dashboard::execute(false));
 
         $this->assertFalse($result['canedit']);
+        $this->assertFalse($result['caneditdefault']);
         $this->assertFalse($DB->record_exists('my_pages', ['userid' => $user->id, 'private' => MY_PAGE_PRIVATE]));
     }
 

@@ -17,6 +17,7 @@ import {
     DEFAULT_LIMITS,
     columnsForWidth,
     disturbedCount,
+    emptyRegions,
     fitShift,
     fitToFreeSpace,
     maxRow,
@@ -24,6 +25,7 @@ import {
     packInOrder,
     packLayout,
     packWithPinned,
+    riseToFill,
     writeBack,
     type LayoutItem,
 } from '../src/layout';
@@ -279,12 +281,12 @@ describe('core_my responsive dashboard layout', () => {
 
             expect(byId(restored, 3)).toMatchObject({column: 1, row: 0, columns: 3, rows: 3});
             expect(byId(restored, 1)).toMatchObject({column: 1, row: 3, columns: 3, rows: 5});
-            // The side stack starts level with the second content block, not at the top, so
-            // that the order the user built in one column reads the same when shown in one
-            // column again: third, first, second, fourth.
-            expect(byId(restored, 2)).toMatchObject({column: 4, row: 3, columns: 1, rows: 5});
-            expect(byId(restored, 4)).toMatchObject({column: 4, row: 8, columns: 1, rows: 3});
-            expect(packLayout(restored, 1).map(item => item.id)).toEqual([3, 1, 2, 4]);
+            // The side stack rises back to the top (see riseToFill): blocks never sit below empty
+            // space at full width, even though that puts the second block before the first again
+            // when the dashboard is next shown in one column.
+            expect(byId(restored, 2)).toMatchObject({column: 4, row: 0, columns: 1, rows: 5});
+            expect(byId(restored, 4)).toMatchObject({column: 4, row: 5, columns: 1, rows: 3});
+            expect(packLayout(restored, 1).map(item => item.id)).toEqual([3, 2, 1, 4]);
         });
 
         it('keeps a width the user actually changed in a two-column view', () => {
@@ -319,8 +321,10 @@ describe('core_my responsive dashboard layout', () => {
             const restored = writeBack(dashboard, derived, 2, DEFAULT_LIMITS, 4);
 
             expect(byId(restored, 1)).toMatchObject({column: 1, row: 0, columns: 3});
-            expect(byId(restored, 2)).toMatchObject({column: 4, row: 8, columns: 1});
-            expect(byId(restored, 4)).toMatchObject({column: 4, row: 5, columns: 1});
+            // The other side block rises into the space the moved one left, and the moved one sits
+            // straight under it (see riseToFill).
+            expect(byId(restored, 4)).toMatchObject({column: 4, row: 0, columns: 1});
+            expect(byId(restored, 2)).toMatchObject({column: 4, row: 3, columns: 1});
             const byIdOrder = (left: LayoutItem, right: LayoutItem) => left.id - right.id;
             expect([...packLayout(restored, 4)].sort(byIdOrder).map(item => item.column))
                 .toEqual([...derived].sort(byIdOrder).map(item => item.column));
@@ -431,5 +435,68 @@ describe('clampToGrid', () => {
     it('is applied by packWithPinned, so a pinned item can never be placed past the row ceiling', () => {
         const packed = packWithPinned([], 6, {id: 1, column: 0, row: 500, columns: 2, rows: 4}, limits);
         expect(packed[0]).toMatchObject({row: 6, rows: 4});
+    });
+});
+
+describe('emptyRegions', () => {
+    // Timeline 4 x 4, Calendar 2 x 5 beside it, Recently accessed 2 x 3 under Timeline.
+    const board: LayoutItem[] = [
+        {id: 1, column: 0, row: 0, columns: 4, rows: 4},
+        {id: 2, column: 4, row: 0, columns: 2, rows: 5},
+        {id: 3, column: 0, row: 4, columns: 2, rows: 3},
+    ];
+
+    it('merges empty cells into rectangles in reading order', () => {
+        expect(emptyRegions(board, 6, 7)).toEqual([
+            {column: 2, row: 4, columns: 2, rows: 3},
+            {column: 4, row: 5, columns: 2, rows: 2},
+        ]);
+    });
+
+    it('grows down only while the whole width of the next row is empty', () => {
+        const items: LayoutItem[] = [{id: 1, column: 2, row: 1, columns: 1, rows: 1}];
+        expect(emptyRegions(items, 3, 2)).toEqual([
+            {column: 0, row: 0, columns: 3, rows: 1},
+            {column: 0, row: 1, columns: 2, rows: 1},
+        ]);
+    });
+
+    it('returns one region for an empty grid and none for a full one', () => {
+        expect(emptyRegions([], 6, 3)).toEqual([{column: 0, row: 0, columns: 6, rows: 3}]);
+        expect(emptyRegions([{id: 1, column: 0, row: 0, columns: 2, rows: 2}], 2, 2)).toEqual([]);
+    });
+});
+
+describe('riseToFill', () => {
+    it('raises each block within its own columns until a block or the top stops it', () => {
+        const items: LayoutItem[] = [
+            {id: 1, column: 0, row: 0, columns: 2, rows: 2},
+            {id: 2, column: 0, row: 5, columns: 2, rows: 2},
+            {id: 3, column: 3, row: 4, columns: 2, rows: 2},
+        ];
+        expect(riseToFill(items)).toEqual([
+            {id: 1, column: 0, row: 0, columns: 2, rows: 2},
+            {id: 2, column: 0, row: 2, columns: 2, rows: 2},
+            {id: 3, column: 3, row: 0, columns: 2, rows: 2},
+        ]);
+    });
+
+    it('never moves a block sideways, so a block wider than the gap above it stays put', () => {
+        const items: LayoutItem[] = [
+            {id: 1, column: 0, row: 0, columns: 2, rows: 2},
+            {id: 2, column: 1, row: 2, columns: 2, rows: 2},
+        ];
+        expect(riseToFill(items)).toBe(items);
+    });
+
+    it('is applied when a change is saved, closing the gap a move leaves above another block', () => {
+        const canonical: LayoutItem[] = [
+            {id: 1, column: 0, row: 0, columns: 2, rows: 2},
+            {id: 2, column: 0, row: 2, columns: 2, rows: 2},
+        ];
+        // Block 1 is moved to the right: block 2 rises into the space it left.
+        const derived = packWithPinned(canonical, 6, {id: 1, column: 3, row: 0, columns: 2, rows: 2}, DEFAULT_LIMITS);
+        const saved = writeBack(canonical, derived, 1);
+        expect(saved.find(item => item.id === 2)).toMatchObject({column: 0, row: 0});
     });
 });

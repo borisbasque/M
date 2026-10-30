@@ -122,7 +122,32 @@ final class dashboard_test extends \advanced_testcase {
         $expected = $result['layout'];
         usort($expected, static fn(array $left, array $right): int =>
             [$left['row'], $left['column'], $left['id']] <=> [$right['row'], $right['column'], $right['id']]);
-        $this->assertSame($expected, $skeleton);
+        // Drawn risen, as the application draws it.
+        $this->assertSame(dashboard::rise_to_fill($expected), $skeleton);
+    }
+
+    /**
+     * Blocks rise into empty space above them, within their own columns, exactly as riseToFill()
+     * in js/esm/src/layout.ts does (pinned by the Jest suite with the same cases).
+     */
+    public function test_rise_to_fill_matches_the_client(): void {
+        $layout = [
+            ['id' => 1, 'column' => 0, 'row' => 0, 'columns' => 2, 'rows' => 2],
+            ['id' => 2, 'column' => 0, 'row' => 5, 'columns' => 2, 'rows' => 2],
+            ['id' => 3, 'column' => 3, 'row' => 4, 'columns' => 2, 'rows' => 2],
+        ];
+        $this->assertSame([
+            ['id' => 1, 'column' => 0, 'row' => 0, 'columns' => 2, 'rows' => 2],
+            ['id' => 2, 'column' => 0, 'row' => 2, 'columns' => 2, 'rows' => 2],
+            ['id' => 3, 'column' => 3, 'row' => 0, 'columns' => 2, 'rows' => 2],
+        ], dashboard::rise_to_fill($layout));
+
+        // Nothing moves sideways: a block wider than the gap above it stays where it is.
+        $offset = [
+            ['id' => 1, 'column' => 0, 'row' => 0, 'columns' => 2, 'rows' => 2],
+            ['id' => 2, 'column' => 1, 'row' => 2, 'columns' => 2, 'rows' => 2],
+        ];
+        $this->assertSame($offset, dashboard::rise_to_fill($offset));
     }
 
     /**

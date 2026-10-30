@@ -167,11 +167,12 @@ class behat_my extends behat_base {
     }
 
     /**
-     * Assert that keyboard activation exposes the discrete resize controls.
+     * Assert that keyboard activation starts a resize with the arrow keys alone: the on-screen
+     * direction controls are for a block picked up by a click or a tap.
      *
-     * @Then keyboard activation shows resize directional controls
+     * @Then keyboard activation starts a resize without on-screen direction controls
      */
-    public function keyboard_activation_shows_resize_directional_controls(): void {
+    public function keyboard_activation_starts_a_resize_without_direction_controls(): void {
         $activated = $this->evaluate_script(<<<'JS'
             return (() => {
                 const handle = document.querySelector(
@@ -190,8 +191,13 @@ class behat_my extends behat_base {
         }
 
         usleep(100000);
-        $controls = $this->evaluate_script(<<<'JS'
-            return document.querySelectorAll('.core-my-grid-controls__direction').length;
+        $state = $this->evaluate_script(<<<'JS'
+            return {
+                pressed: document.querySelector(
+                    ".core-my-dashboard-tile[data-block='calendar_month'] .core-my-dashboard-handle--resize"
+                )?.getAttribute('aria-pressed'),
+                controls: document.querySelectorAll('.core-my-grid-controls__direction').length,
+            };
         JS);
         $this->evaluate_script(<<<'JS'
             document.querySelector(".core-my-dashboard-tile[data-block='calendar_month'] .core-my-dashboard-handle--resize")
@@ -199,8 +205,9 @@ class behat_my extends behat_base {
             return true;
         JS);
 
-        if ($controls !== 4) {
-            throw new \Exception('Keyboard activation did not show all resize directional controls.');
+        if ($state['pressed'] !== 'true' || $state['controls'] !== 0) {
+            throw new \Exception('Keyboard activation did not start a resize with the arrow keys alone: ' .
+                json_encode($state));
         }
     }
 

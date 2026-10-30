@@ -22,14 +22,18 @@
  * @license   http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
 
-$string['addblocktop'] = 'Add a block at the start of the dashboard';
+$string['addblockhere'] = 'Add a block here';
 $string['addpage'] = 'Add page';
 $string['alldashboardswerereset'] = 'All Dashboard pages have been reset to default.';
 $string['allprofileswerereset'] = 'All profile pages have been reset to default.';
 $string['confirmresetdashboard'] = 'Reset your dashboard to the site default? Your changes will be lost.';
+$string['dashboardaddblock'] = 'Add block';
 $string['dashboardblockadded'] = '{$a} block added.';
+$string['dashboardblockremoved'] = '{$a} block deleted.';
 $string['dashboardcancel'] = 'Cancel';
 $string['dashboarddown'] = 'Down';
+$string['dashboardedithint'] = 'Drag a block by its header to move it, or drag its corner to resize.';
+$string['dashboardediting'] = 'Editing';
 $string['dashboardleft'] = 'Left';
 $string['dashboardminimumsize'] = 'Minimum block size reached: {$a}.';
 $string['dashboardmovebegin'] = 'Started moving {$a}. Use the directional controls or arrow keys, then confirm or discard.';
@@ -37,20 +41,25 @@ $string['dashboardmovecommitted'] = 'Item moved to row {$a->row}, column {$a->co
 $string['dashboardmovecontrols'] = 'Move block controls';
 $string['dashboardmovehandleinstructions'] = 'Press Space or Enter to start moving. Use the arrow keys to move, then press Space or Enter to save, or Escape to cancel.';
 $string['dashboardoperationdiscarded'] = 'Operation discarded. The block returned to its original position and size.';
+$string['dashboardreset'] = 'Reset to default';
 $string['dashboardresetcomplete'] = 'Dashboard reset to the site default.';
 $string['dashboardresizebegin'] = 'Started resizing {$a}. Use the directional controls or arrow keys, then confirm or discard.';
 $string['dashboardresizecommitted'] = 'Item resized to {$a->columns} columns by {$a->rows} rows. {$a->disturbed} other blocks were repositioned. Resize committed.';
 $string['dashboardresizecontrols'] = 'Resize block controls';
 $string['dashboardresizehandleinstructions'] = 'Press Space or Enter to start resizing. Use the arrow keys to resize, then press Space or Enter to save, or Escape to cancel.';
+$string['dashboardresizesize'] = '{$a->columns} columns by {$a->rows} rows';
 $string['dashboardright'] = 'Right';
+$string['dashboardscopedefaultshort'] = 'Default for all users';
 $string['dashboardscopeown'] = 'Editing your dashboard';
+$string['dashboardscopeownshort'] = 'Your dashboard';
 $string['dashboardscopesitedefault'] = 'Editing the default dashboard for all users';
 $string['dashboardtile'] = '{$a} block';
+$string['dashboardundo'] = 'Undo';
+$string['dashboardundone'] = 'Last change undone.';
 $string['dashboardup'] = 'Up';
 $string['defaultpage'] = 'Default My Moodle page';
 $string['defaultprofilepage'] = 'Default profile page';
 $string['delpage'] = 'Delete page';
-$string['emptygridcell'] = 'Empty grid cell';
 $string['error:dashboardisdisabled'] = 'The Dashboard has been disabled by an administrator.';
 $string['error:mycoursesisdisabled'] = 'My courses has been disabled by an administrator.';
 $string['gridcellposition'] = 'Row {$a->row}, column {$a->column}';

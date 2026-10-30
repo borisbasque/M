@@ -252,6 +252,7 @@ class icon_system_fontawesome extends icon_system_font {
             'core:i/grades' => 'fa-clipboard-check',
             'core:i/grading' => 'fa-wand-magic-sparkles',
             'core:i/gradingnotifications' => 'fa-regular fa-bell',
+            'core:i/grip' => 'fa-grip-vertical',
             'core:i/group' => 'fa-users',
             'core:i/groupevent' => 'fa-users',
             'core:i/hide' => 'fa-regular fa-eye',

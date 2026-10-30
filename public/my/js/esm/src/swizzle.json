@@ -3,6 +3,10 @@
     "eject": "safe",
     "wrap": "safe"
   },
+  "components/DashboardEditBar": {
+    "eject": "safe",
+    "wrap": "safe"
+  },
   "components/DashboardHandle": {
     "eject": "safe",
     "wrap": "safe"

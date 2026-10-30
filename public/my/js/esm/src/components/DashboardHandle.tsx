@@ -35,6 +35,18 @@ interface DashboardHandleProps {
     onCommit: () => void;
 }
 
+// The resize handle sits in the tile's bottom corner and shows a corner grip (two diagonal lines),
+// as resizable panels usually do, rather than an icon from the theme: no icon in the set reads as
+// "drag this corner". It is decorative; the button's own label names it.
+const resizeGrip = <svg
+    className="core-my-dashboard-icon core-my-dashboard-resize-grip"
+    viewBox="0 0 10 10"
+    aria-hidden="true"
+    focusable="false"
+>
+    <path d="M9 1L1 9M9 5L5 9" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" fill="none" />
+</svg>;
+
 const DashboardHandle = ({
     mode,
     label,
@@ -68,7 +80,7 @@ const DashboardHandle = ({
             aria-label={label}
             aria-describedby={instructionsId}
             aria-pressed={active}
-            startIcon={renderIcon(mode === 'move' ? icons.move : icons.resize)}
+            startIcon={mode === 'move' ? renderIcon(icons.move) : resizeGrip}
             onClick={event => {
                 // Pointer activation starts on pointerdown so dragging works immediately.
                 // A zero-detail click covers assistive-technology activation.
