@@ -25,7 +25,7 @@ jest.mock('@moodlehq/design-system', () => {
     const ReactActual = require('react');
     return {
         Button: ReactActual.forwardRef((
-            {label, startIcon, size: _size, variant: _variant, className, ...props}:
+            {label, startIcon, size: _size, variant, className, ...props}:
             React.ButtonHTMLAttributes<HTMLButtonElement> & {
                 label?: string;
                 startIcon?: React.ReactElement;
@@ -37,6 +37,7 @@ jest.mock('@moodlehq/design-system', () => {
             ref={ref}
             type="button"
             className={className ?? ''}
+            data-variant={variant}
             {...props}
         >{startIcon}{label}</button>),
         CloseButton: ({size: _size, ...props}: React.ButtonHTMLAttributes<HTMLButtonElement> & {size?: string}) =>
@@ -49,6 +50,9 @@ jest.mock('@moodlehq/design-system', () => {
         Tooltip: ({label: _label, children}: {label: string; children: React.ReactElement}) => children,
         Dropdown: ({label, children}: {label: string; children?: React.ReactNode}) =>
             <div><button type="button" aria-haspopup="menu">{label}</button><div role="menu">{children}</div></div>,
+        DropdownItemAction: ({label, startIcon: _startIcon, variant: _variant, ...props}:
+        React.AnchorHTMLAttributes<HTMLAnchorElement> & {label: string; startIcon?: React.ReactElement; variant?: string}) =>
+            <a role="menuitem" {...props}>{label}</a>,
         DropdownItemSelect: ({label, selected, ...props}:
         React.ButtonHTMLAttributes<HTMLButtonElement> & {label: string; selected?: boolean}) =>
             <button type="button" role="menuitemradio" aria-checked={Boolean(selected)} {...props}>{label}</button>,
@@ -107,6 +111,8 @@ const strings: Record<string, Record<string, string>> = {
     core: {
         addblock: 'Add a block',
         confirm: 'Confirm',
+        'delete': 'Delete',
+        actionsfor: 'Actions for {$a}',
         loading: 'Loading',
     },
     my: {
@@ -143,10 +149,13 @@ const strings: Record<string, Record<string, string>> = {
         dashboardminimumsize: 'Minimum block size reached: {$a}.',
         dashboardoperationdiscarded: 'Operation discarded.',
         dashboardblockadded: '{$a} block added.',
+        dashboardblockremoved: '{$a} block deleted.',
     },
     block: {
         moveblock: 'Move {$a} block',
         deleteblock: 'Delete {$a} block',
+        deletecheck: 'Delete {$a} block?',
+        deleteblockcheck: 'This will delete the block {$a}.',
     },
 };
 
@@ -335,6 +344,71 @@ describe('core_my Dashboard application', () => {
         const restored = (saves()[1][0] as {args: {layout: LayoutItem[]}}).args.layout;
         expect(restored.find(item => item.id === 101)).toMatchObject({column: 0, row: 0});
         await waitFor(() => expect(screen.getByRole('button', {name: 'Undo'})).toBeDisabled());
+    });
+
+    it('deletes a block in place after a danger confirmation, closing the gap it leaves', async() => {
+        const deleteAction = {
+            key: 'delete',
+            label: 'Delete First block block',
+            url: 'https://example.com/delete',
+            icon: '',
+            attributes: '{}',
+            danger: true,
+        };
+        const [first, second] = buildData().blocks;
+        const before = buildData({
+            blocks: [{...first, actions: [deleteAction]}, second],
+            layout: [
+                {id: 101, column: 0, row: 0, columns: 2, rows: 2},
+                {id: 102, column: 0, row: 2, columns: 2, rows: 2},
+            ],
+        });
+        // The server returns the layout as it was, with the gap the deleted block left.
+        const after = buildData({blocks: [second], layout: [{id: 102, column: 0, row: 2, columns: 2, rows: 2}]});
+        const fetchOneSpy = mockDashboardApi({getResponses: [before, after]});
+
+        render(<Dashboard />);
+
+        fireEvent.click(await screen.findByRole('button', {name: 'Delete First block block'}));
+        const dialog = await screen.findByRole('dialog', {name: 'Delete First block block?'});
+        expect(dialog).toHaveAccessibleDescription('This will delete the block First block.');
+        const confirm = within(dialog).getByRole('button', {name: 'Delete'});
+        expect(confirm).toHaveAttribute('data-variant', 'danger');
+        expect(within(dialog).getByRole('button', {name: 'Cancel'})).toHaveAttribute('data-variant', 'outline-secondary');
+
+        await act(async() => {
+            fireEvent.click(confirm);
+        });
+
+        const updates = () => fetchOneSpy.mock.calls
+            .map(([request]) => request as {methodname: string; args: {action: string; blockid: number; layout: LayoutItem[]}})
+            .filter(request => request.methodname === 'core_my_update_dashboard');
+        await waitFor(() => expect(updates()).toHaveLength(2));
+        expect(updates()[0].args).toMatchObject({action: 'remove', blockid: 101});
+        expect(updates()[1].args.action).toBe('save');
+        expect(updates()[1].args.layout).toEqual([{id: 102, column: 0, row: 0, columns: 2, rows: 2}]);
+        await waitFor(() => expect(document.querySelector('[aria-live="polite"]'))
+            .toHaveTextContent('First block block deleted.'));
+        expect(screen.queryByText('First block')).not.toBeInTheDocument();
+        expect(screen.getByRole('button', {name: 'Add block'})).toHaveFocus();
+    });
+
+    it('keeps the block when the deletion is cancelled', async() => {
+        const deleteAction = {
+            key: 'delete', label: 'Delete First block block', url: '', icon: '', attributes: '{}', danger: true,
+        };
+        const [first, second] = buildData().blocks;
+        const fetchOneSpy = mockDashboardApi({getResponses: [buildData({blocks: [{...first, actions: [deleteAction]}, second]})]});
+
+        render(<Dashboard />);
+
+        fireEvent.click(await screen.findByRole('button', {name: 'Delete First block block'}));
+        const dialog = await screen.findByRole('dialog', {name: 'Delete First block block?'});
+        fireEvent.click(within(dialog).getByRole('button', {name: 'Cancel'}));
+
+        expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+        expect(screen.getByText('First block')).toBeInTheDocument();
+        expect(findSaveCall(fetchOneSpy)).toBeUndefined();
     });
 
     it('moves with the arrow keys alone, announcing each step', async() => {

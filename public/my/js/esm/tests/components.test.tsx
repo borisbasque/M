@@ -200,6 +200,9 @@ const strings: Record<string, Record<string, string>> = {
         moveblock: 'Move {$a} block',
         deleteblock: 'Delete {$a} block',
     },
+    core: {
+        actionsfor: 'Actions for {$a}',
+    },
 };
 
 beforeEach(() => {
@@ -235,7 +238,25 @@ const tileHandlers = () => ({
     onPointerDown: jest.fn(),
     onDirection: jest.fn(),
     onCommit: jest.fn(),
+    onDelete: jest.fn(),
 });
+
+// A block's standard editing actions, as core_my\\local\\dashboard::export_block_actions() sends them.
+const blockActions = [{
+    key: 'edit',
+    label: 'Configure Useful links block',
+    url: 'https://example.com/edit',
+    icon: '<i class="icon fa fa-gear fa-fw" aria-hidden="true"></i>',
+    attributes: JSON.stringify({'data-action': 'editblock', 'data-blockid': '14', 'data-blockform': 'block_html_edit_form'}),
+    danger: false,
+}, {
+    key: 'delete',
+    label: 'Delete Useful links block',
+    url: 'https://example.com/delete',
+    icon: '<i class="icon fa fa-trash fa-fw" aria-hidden="true"></i>',
+    attributes: JSON.stringify({'data-modal': 'confirmation'}),
+    danger: true,
+}];
 
 describe('core_my grid components', () => {
     it('exposes an available cell as a positioned button named by its grid position', async() => {
@@ -595,11 +616,8 @@ describe('core_my grid components', () => {
         expect(container.querySelector('.core-my-dashboard-tile')).toHaveClass('core-my-dashboard-tile--hidden');
     });
 
-    it('injects the block\'s standard controls menu in edit mode', async() => {
-        const controls = '<div class="action-menu"><a href="#" class="dropdown-toggle" data-bs-toggle="dropdown" '
-            + 'aria-label="Actions menu"></a><div class="dropdown-menu"><a class="dropdown-item" href="https://example.com/edit" '
-            + 'data-action="editblock" data-blockid="14">Configure Useful links block</a></div></div>';
-        const withoutControls = render(<DashboardTile
+    it('offers no block menu or delete button without actions or outside Edit mode', async() => {
+        const withoutActions = render(<DashboardTile
             block={tileBlock({id: 13, content: ''})}
             item={{id: 13, column: 0, row: 0, columns: 2, rows: 2}}
             labels={labels}
@@ -608,24 +626,70 @@ describe('core_my grid components', () => {
             showControls={false}
             {...tileHandlers()}
         />);
+        await withoutActions.findByRole('button', {name: 'Move Useful links block'});
+        expect(withoutActions.container.querySelector('.core-my-dashboard-tile__menu')).not.toBeInTheDocument();
+        expect(withoutActions.container.querySelector('.core-my-dashboard-tile__delete')).not.toBeInTheDocument();
+        withoutActions.unmount();
 
-        await withoutControls.findByRole('button', {name: 'Move Useful links block'});
-        expect(withoutControls.container.querySelector('.core-my-dashboard-tile__menu')).not.toBeInTheDocument();
-        withoutControls.unmount();
+        const viewing = render(<DashboardTile
+            block={tileBlock({id: 14, content: '', actions: blockActions})}
+            item={{id: 14, column: 0, row: 0, columns: 2, rows: 2}}
+            labels={labels}
+            icons={icons}
+            editing={false}
+            showControls={false}
+            {...tileHandlers()}
+        />);
+        expect(viewing.container.querySelector('.core-my-dashboard-tile__menu')).not.toBeInTheDocument();
+        expect(viewing.container.querySelector('.core-my-dashboard-tile__delete')).not.toBeInTheDocument();
+    });
 
-        const {container} = render(<DashboardTile
-            block={tileBlock({id: 14, content: '', controls})}
+    it('lists the block\'s actions in the design system Dropdown, keeping core\'s attributes on each link', async() => {
+        const handlers = tileHandlers();
+        render(<DashboardTile
+            block={tileBlock({id: 14, content: '', actions: blockActions})}
             item={{id: 14, column: 0, row: 0, columns: 2, rows: 2}}
             labels={labels}
             icons={icons}
             editing
             showControls={false}
-            {...tileHandlers()}
+            {...handlers}
         />);
 
-        await screen.findByRole('button', {name: 'Move Useful links block'});
-        const menu = container.querySelector('.core-my-dashboard-tile__actions .core-my-dashboard-tile__menu');
-        expect(menu?.querySelector('.action-menu [data-action="editblock"]')).toHaveTextContent('Configure Useful links block');
+        fireEvent.click(await screen.findByRole('button', {name: 'Actions for Useful links'}));
+
+        // Configure stays the classic link, with the data-* attributes core_block/edit opens its form from.
+        const configure = await screen.findByRole('menuitem', {name: 'Configure Useful links block'});
+        expect(configure).toHaveAttribute('href', 'https://example.com/edit');
+        expect(configure).toHaveAttribute('data-action', 'editblock');
+        expect(configure).toHaveAttribute('data-blockid', '14');
+        expect(configure).toHaveAttribute('data-blockform', 'block_html_edit_form');
+
+        // Delete goes through the dashboard's own confirmation rather than core's link.
+        const remove = screen.getByRole('menuitem', {name: 'Delete Useful links block'});
+        expect(remove).not.toHaveAttribute('href');
+        expect(remove).not.toHaveAttribute('data-modal');
+        fireEvent.click(remove);
+        expect(handlers.onDelete).toHaveBeenCalledWith(14, 'Useful links');
+    });
+
+    it('offers Delete on the tile itself, named as the menu names it', async() => {
+        const handlers = tileHandlers();
+        render(<DashboardTile
+            block={tileBlock({id: 14, content: '', actions: blockActions})}
+            item={{id: 14, column: 0, row: 0, columns: 2, rows: 2}}
+            labels={labels}
+            icons={icons}
+            editing
+            showControls={false}
+            {...handlers}
+        />);
+
+        const remove = await screen.findByRole('button', {name: 'Delete Useful links block'});
+        expect(remove).toHaveClass('core-my-dashboard-tile__delete');
+        expect(remove.querySelector('.fa-minus')).toBeInTheDocument();
+        fireEvent.click(remove);
+        expect(handlers.onDelete).toHaveBeenCalledWith(14, 'Useful links');
     });
 
     it('uses a native modal shell, named by its heading, with MDS confirmation controls', () => {
