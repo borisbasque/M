@@ -1,14 +1,596 @@
-/* Hide the first dropdown-divider if no filter option element is listed before it.
-   This can happen for some subset configurations of the block_myoverview course filter. */
-.block_myoverview button#groupingdropdown + .dropdown-menu li:first-of-type.dropdown-divider:first-of-type {
-    display: none;
-}
-.block_myoverview .whitebutton .btn-secondary {
-    background: white;
-    border-color: var(--bs-primary);
-    color: var(--bs-primary);
+/*
+ * Course overview block styles.
+ *
+ * All CSS is inlined here rather than pulled in with @import: Moodle's CSS
+ * optimiser aggregates a plugin's styles.css into the theme stylesheet and strips
+ * @import rules, so an @import chain never loads.
+ * Design-system tokens (--mds-*) and most component CSS come from Boost natively
+ * (MDL-88891); the favourite/close buttons only need their icon glyphs supplied
+ * locally (see the Font Awesome overrides below) because the DS vendoring script
+ * does not copy the components' SVG assets.
+ *
+ * Every selector is scoped under .block-myoverview (the React app root): plugin
+ * styles are aggregated into the theme stylesheet and would otherwise apply
+ * site-wide to anything reusing these class names.
+ *
+ * Physical left/right properties are avoided in favour of logical (inline)
+ * properties so the layout mirrors correctly in RTL languages: Boost has no
+ * RTL flipping layer for plugin CSS.
+ */
+
+/*
+ * Course overview React block styles (MDL-88965).
+ *
+ * Colour, spacing, and typography values are aliased from @moodlehq/design-system
+ * tokens (tokens/css/index.css) so this component stays in sync with DS updates
+ * automatically. The --co-* custom properties below are thin aliases; no raw hex
+ * values are defined here. Buttons reuse Bootstrap classes emitted by the
+ * design-system Button component.
+ */
+
+.block-myoverview {
+    /*
+     * The layout responds to the block's own width (not the viewport) so it is usable in
+     * the narrow block drawer. Width tiers are applied as courseoverview-min-<bp> classes by a
+     * ResizeObserver in app.tsx and the rules below are mobile-first (base = narrowest
+     * layout, each courseoverview-min-<bp> widens it). CSS @container queries would be cleaner but
+     * Moodle's plugin-CSS pipeline strips @container/container declarations.
+     */
+
+    /* --- Colour aliases → MDS semantic tokens --- */
+    --co-primary: var(--mds-bg-interactive-primary-default);
+    --co-link: var(--mds-text-link-primary-default);
+    --co-text: var(--mds-text-default);
+    --co-subtle: var(--mds-text-subtle);
+    --co-muted: var(--mds-text-muted);
+    --co-surface: var(--mds-bg-surface-default);
+    --co-surface-subtle: var(--mds-bg-surface-subtle);
+    --co-surface-strong: var(--mds-bg-surface-strong);
+    --co-border: var(--mds-border-default);
+    --co-border-subtle: var(--mds-border-subtle);
+    --co-border-interactive: var(--mds-color-gray-500);
+    --co-danger: var(--mds-text-danger);
+
+    /* --- Spacing aliases → MDS spacing scale --- */
+    --co-sp-xxs: var(--mds-spacing-xxs); /* 0.25rem / 4px  */
+    --co-sp-xs: var(--mds-spacing-xs);  /* 0.5rem  / 8px  */
+    --co-sp-sm: var(--mds-spacing-sm);  /* 0.75rem / 12px */
+    --co-sp-md: var(--mds-spacing-md);  /* 1rem    / 16px */
+    --co-sp-lg: var(--mds-spacing-lg);  /* 1.25rem / 20px */
+    --co-sp-xl: var(--mds-spacing-xl);  /* 2rem    / 32px */
+
+    /* --- Radius aliases → MDS border-radius tokens --- */
+    --co-r-xs: var(--mds-border-radius-xs);   /* 0.25rem / 4px  */
+    --co-r-sm: var(--mds-border-radius-sm);   /* 0.375rem / 6px */
+    --co-r-md: var(--mds-border-radius-md);   /* 0.5rem  / 8px  */
+    --co-r-xl: var(--mds-border-radius-xl);   /* 1rem    / 16px */
+    --co-r-pill: var(--mds-border-radius-pill);
+
+    /* Image block height per Figma (4902:13914): 160px. Not 7rem — that is the legacy */
+    /* Bootstrap .card-img-top rule for the old course listing, a different component.   */
+    --co-image-h: 160px;
+
+    font-family: var(--mds-font-family-base, "Noto Sans"), system-ui, sans-serif;
+    color: var(--co-text);
 }
 
+.block-myoverview *,
+.block-myoverview *::before,
+.block-myoverview *::after {
+    box-sizing: border-box;
+}
+
+/* --- Toolbar --- */
+.block-myoverview .courseoverview-toolbar {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: var(--co-sp-sm); /* Figma (15:2790): 12px between search, tools and actions */
+    margin-bottom: var(--co-sp-md);
+}
+
+.block-myoverview .courseoverview-toolbar__group {
+    display: flex;
+    align-items: center;
+    gap: var(--co-sp-xs);
+}
+
+/* The educator action buttons sit at the end of the same row as search, filter, sort and view
+   (Figma: Flexible dashboard redesign, 15:2790 / 71:16242) once the block is wide enough
+   (courseoverview-min-992). Narrower, they drop onto their own row below and wrap when they do
+   not all fit. */
+.block-myoverview .courseoverview-toolbar__group--actions {
+    width: 100%;
+    flex-wrap: wrap;
+}
+
+.block-myoverview.courseoverview-min-992 .courseoverview-toolbar__group--actions {
+    width: auto;
+    flex-wrap: nowrap;
+    margin-inline-start: auto;
+}
+
+/* Vertical divider between Manage and the primary Request / Create links (Figma 71:16363). */
+.block-myoverview .courseoverview-toolbar__divider {
+    flex: 0 0 auto;
+    width: var(--mds-stroke-weight-sm, 1px);
+    height: 24px;
+    background: var(--co-border);
+}
+
+/* Search expands to fill available space between actions and tools; full-width on its own
+   row in the narrow base layout. */
+.block-myoverview .courseoverview-toolbar__group--search {
+    flex: 1;
+    width: 100%;
+}
+
+.block-myoverview.courseoverview-min-480 .courseoverview-toolbar__group--search {
+    width: auto;
+}
+
+/* Mobile-first: the tools row (filter + sort + view) takes its own line so the filter can grow to
+   fill it. From courseoverview-min-480 it shares the search row and the filter takes a fixed width. */
+.block-myoverview .courseoverview-toolbar__group--tools {
+    width: 100%;
+}
+
+.block-myoverview.courseoverview-min-480 .courseoverview-toolbar__group--tools {
+    width: auto;
+}
+
+/* --- Search --- */
+/* The design system SearchInput fills the search group so it is the widest control on the row
+   (Figma: search flexes while the filter keeps a fixed width). */
+.block-myoverview .courseoverview-search {
+    width: 100%;
+    min-width: 120px; /* Lets the field shrink in the narrow block drawer without overflowing. */
+}
+
+/* Figma (72:15636): the search field is 28px tall, the same height as the md buttons and
+   dropdowns beside it, rather than the 40px default input. */
+/* MDS Input has no small size; its wrapper is fixed at 42px via `.mds-input[class]`. */
+.block-myoverview .courseoverview-search.mds-input[class] .mds-input-field-wrapper {
+    height: 28px;
+}
+
+.block-myoverview .courseoverview-search .mds-input-field[class] {
+    height: 100%;
+    padding-block: 0;
+}
+
+/* --- Dropdowns --- */
+/* The filter dropdown owns the toolbar's flexible width: it grows to fill the tools row on narrow
+   layouts (min-width:0 lets it shrink in the block drawer) and holds a fixed 200px (Figma) once it
+   shares the search row from courseoverview-min-480. The width lives on the tooltip wrapper, the
+   direct flex child of the tools row, and the dropdown inside fills it. */
+.block-myoverview .courseoverview-dropdown--labelled {
+    flex: 1 1 auto;
+    min-width: 0;
+}
+
+.block-myoverview.courseoverview-min-480 .courseoverview-dropdown--labelled {
+    flex: 0 0 200px;
+    min-width: 200px;
+}
+
+.block-myoverview .courseoverview-dropdown--labelled .courseoverview-dropdown {
+    width: 100%;
+}
+
+/* The labelled trigger fills its wrapper like a select: the selection at the start, the chevron
+   at the end, truncating rather than overflowing when squeezed. */
+.block-myoverview .courseoverview-dropdown__trigger--labelled {
+    width: 100%;
+    min-width: 0;
+    justify-content: space-between;
+    overflow: hidden;
+    white-space: nowrap;
+}
+
+.block-myoverview .courseoverview-toolbar__group--actions .btn {
+    white-space: nowrap;
+}
+
+.block-myoverview .courseoverview-card__title:focus-visible {
+    outline: 2px solid var(--co-primary);
+    outline-offset: 2px;
+}
+
+/* --- Course list layouts --- */
+.block-myoverview .courseoverview-list--card {
+    display: grid;
+    grid-template-columns: 1fr; /* Mobile viewport / narrow block drawer: single column. */
+    gap: var(--co-sp-md);
+}
+
+/* Tablet and desktop viewports show three columns — but only when the block's own container is
+   wide enough (courseoverview-min-480), so the narrow block drawer (which never reaches that width tier) stays
+   single-column and looks unchanged. Combining the viewport @media with the container-width class
+   keeps the drawer usable while giving the main page its full three-column layout. */
+@media (min-width: 768px) {
+    .block-myoverview.courseoverview-min-480 .courseoverview-list--card {
+        grid-template-columns: repeat(3, 1fr);
+    }
+}
+
+.block-myoverview .courseoverview-list--list,
+.block-myoverview .courseoverview-list--summary {
+    display: flex;
+    flex-direction: column;
+    gap: var(--co-sp-sm);
+}
+
+/* --- Course card (shared) --- */
+.block-myoverview .courseoverview-card {
+    position: relative;
+    background: var(--co-surface);
+    border: 1px solid var(--co-border);
+    border-radius: var(--co-r-md);
+    padding: var(--co-sp-md);
+}
+
+.block-myoverview .courseoverview-card:hover {
+    box-shadow: 0 4px 12px color-mix(in srgb, var(--mds-color-gray-900) 10%, transparent); /* No MDS shadow token yet. */
+}
+
+.block-myoverview .courseoverview-card__body {
+    display: flex;
+    flex-direction: column;
+    gap: var(--co-sp-xs); /* Figma (4902:13914): --spacing/xs = 8px between body children */
+    min-width: 0;
+}
+
+.block-myoverview .courseoverview-card__text {
+    display: flex;
+    flex-direction: column;
+    gap: var(--co-sp-xxs); /* Figma: 4px between title and category. */
+    min-width: 0;
+}
+
+.block-myoverview .courseoverview-card__title {
+    color: var(--co-link);
+    font-size: var(--mds-font-size-paragraph-default); /* 1rem / 16px */
+    font-weight: 500;
+    line-height: 1.2;
+    text-decoration: none;
+    word-break: break-word;
+}
+
+.block-myoverview .courseoverview-card__title:hover {
+    text-decoration: underline;
+}
+
+/* Stretched link makes the whole card clickable (MDL-88971). */
+.block-myoverview .courseoverview-card__title.stretched-link::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    z-index: 1;
+}
+
+
+.block-myoverview .courseoverview-card__category {
+    font-size: var(--mds-font-size-paragraph-small); /* 0.875rem / 14px */
+    line-height: 17.4px;
+    color: var(--co-muted);
+}
+
+.block-myoverview .courseoverview-card__summary {
+    margin: 0;
+    font-size: var(--mds-font-size-paragraph-small); /* 0.875rem / 14px */
+    color: var(--co-subtle);
+}
+
+
+/* --- Image block (MDL-88967) --- */
+.block-myoverview .courseoverview-card__media {
+    position: relative;
+}
+
+.block-myoverview .courseoverview-image {
+    height: var(--co-image-h);
+    border-radius: var(--co-r-sm);
+    overflow: hidden;
+    background: var(--co-surface-strong);
+}
+
+/* Checkerboard fallback when no image is set. */
+.block-myoverview .courseoverview-image--empty {
+    background-image:
+        linear-gradient(45deg, var(--mds-color-gray-100) 25%, transparent 25%),
+        linear-gradient(-45deg, var(--mds-color-gray-100) 25%, transparent 25%),
+        linear-gradient(45deg, transparent 75%, var(--mds-color-gray-100) 75%),
+        linear-gradient(-45deg, transparent 75%, var(--mds-color-gray-100) 75%);
+    background-size: 20px 20px;
+    background-position: 0 0, 0 10px, 10px -10px, -10px 0;
+}
+
+.block-myoverview .courseoverview-image__img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    display: block;
+}
+
+/* --- Card controls (star + ellipsis), anchored at the card's top inline-end corner
+   (MDL-88968/88969) --- */
+.block-myoverview .courseoverview-controls {
+    position: absolute;
+    top: var(--co-sp-xs);
+    inset-inline-end: var(--co-sp-xs);
+    z-index: 2;
+    display: flex;
+    gap: var(--co-sp-xs);
+}
+
+/* --- Card overlay controls ---
+   Figma (Flexible dashboard redesign, 15:3121): the DS FavouriteButton keeps its circular
+   surface footprint, while the card menu is the plain MDS subtle icon-only trigger (no fill,
+   md radius, subtle icon colour). Both are 28px. */
+.block-myoverview .courseoverview-controls .courseoverview-menu .mds-dropdown-trigger {
+    width: 28px;
+    height: 28px;
+    padding: 0;
+    border-radius: var(--mds-border-radius-md);
+    color: var(--co-subtle);
+}
+
+.block-myoverview .courseoverview-controls .mds-favourite-button {
+    width: 28px;
+    height: 28px;
+    border-radius: var(--mds-border-radius-pill); /* MDS pill = circular at 28px */
+}
+
+/* --- Card view layout (image on top, body below) ---
+   The 1fr body row makes the body fill the card, so the progress bar's
+   margin-top: auto (below) can anchor it to the card bottom. */
+.block-myoverview .courseoverview-card--card {
+    display: grid;
+    grid-template-areas: "media" "body";
+    grid-template-rows: auto 1fr;
+    gap: var(--co-sp-sm); /* Figma (15:2806): --mds-spacing-sm = 12px between image and body */
+}
+
+.block-myoverview .courseoverview-card--card .courseoverview-card__media {
+    grid-area: media;
+}
+
+.block-myoverview .courseoverview-card--card .courseoverview-card__body {
+    grid-area: body;
+}
+
+/* Card view text (Figma 15:3130): title in Paragraph/Base (regular weight, dark navy),
+   category in Paragraph/Small, both kept to one line and truncated with an ellipsis. */
+.block-myoverview .courseoverview-card--card .courseoverview-card__title {
+    display: block;
+    color: var(--mds-text-feedback-primary);
+    font-weight: var(--mds-font-weight-regular);
+    line-height: var(--mds-line-height-paragraph-default);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.block-myoverview .courseoverview-card--card .courseoverview-card__category {
+    line-height: var(--mds-line-height-paragraph-small);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+/* --- List & summary view layout (image at the inline start, body after) --- */
+.block-myoverview .courseoverview-card--list,
+.block-myoverview .courseoverview-card--summary {
+    display: grid;
+    grid-template-areas: "media body";
+    gap: var(--co-sp-lg); /* Figma: --spacing/lg = 20px between image and body */
+    align-items: start;
+}
+
+/* Mobile-first: narrow image columns by default (scaled for the drawer/narrow container),
+   widening to the Figma sizes once the container is wide enough (courseoverview-min-576). */
+.block-myoverview .courseoverview-card--list {
+    grid-template-columns: 72px 1fr; /* scaled from 120px at 60% */
+}
+
+.block-myoverview .courseoverview-card--summary {
+    grid-template-columns: 56px 1fr; /* scaled from 93px at 60% */
+}
+
+.block-myoverview.courseoverview-min-576 .courseoverview-card--list {
+    grid-template-columns: 120px 1fr; /* Figma (4866:65954): 7.5rem image column */
+}
+
+.block-myoverview.courseoverview-min-576 .courseoverview-card--summary {
+    grid-template-columns: 93px 1fr; /* Figma (4866:66077): 5.8125rem image column */
+}
+
+.block-myoverview .courseoverview-card--list .courseoverview-card__media,
+.block-myoverview .courseoverview-card--summary .courseoverview-card__media {
+    grid-area: media;
+    /* Static positioning so .courseoverview-controls (position:absolute) escapes to
+       .courseoverview-card (position:relative) and anchors at the card's top inline-end
+       corner instead of the image column's. */
+    position: static;
+}
+
+.block-myoverview .courseoverview-card--list .courseoverview-card__body,
+.block-myoverview .courseoverview-card--summary .courseoverview-card__body {
+    grid-area: body;
+    /* Reserve space at the inline end for the controls that float over the card. */
+    padding-inline-end: 72px;
+}
+
+.block-myoverview .courseoverview-card--summary .courseoverview-card__body {
+    gap: var(--co-sp-md); /* Figma (4866:66077): 16px between text group and description */
+}
+
+.block-myoverview .courseoverview-card--list .courseoverview-image {
+    height: 64px; /* scaled from 80px at 80% */
+}
+
+.block-myoverview.courseoverview-min-576 .courseoverview-card--list .courseoverview-image {
+    height: 80px; /* Figma (4866:65954): 5rem */
+}
+
+.block-myoverview .courseoverview-card--summary .courseoverview-image {
+    /* aspect-ratio enforces 1:1 at any column width — prevents empty placeholder
+       from stretching to body height when no course image is present. */
+    height: auto;
+    aspect-ratio: 1 / 1;
+}
+
+/* --- Progress (MDL-88970) ---
+   DS ProgressBar owns internal layout; this just constrains the wrapper width
+   inside the card body so the track doesn't stretch beyond the text column. */
+.block-myoverview .courseoverview-progress {
+    width: 100%;
+}
+
+/* Card view: anchor the progress bar to the card bottom (the body fills the
+   card via the 1fr row above), so bars align across a row of cards whose
+   titles wrap to different line counts. */
+.block-myoverview .courseoverview-card--card .courseoverview-progress {
+    margin-top: auto;
+}
+
+/* --- Pagination (MDL-88977, prev/next model) ---
+   The buttons are DS Buttons; this wrapper only lays them out. */
+.block-myoverview .courseoverview-pagination {
+    display: flex;
+    justify-content: center;
+    gap: var(--co-sp-xs);
+    margin-top: var(--co-sp-lg);
+}
+
+/* --- Empty / no-results states --- */
+.block-myoverview .courseoverview-empty {
+    text-align: center;
+    padding: var(--co-sp-xl) var(--co-sp-md);
+    color: var(--co-muted);
+}
+
+.block-myoverview .courseoverview-empty__illustration {
+    margin-bottom: var(--co-sp-md);
+}
+
+.block-myoverview .courseoverview-empty__illustration img {
+    width: 94px;
+    height: auto;
+}
+
+.block-myoverview .courseoverview-empty__text {
+    margin: 0 auto;
+    max-width: 36rem;
+    font-size: var(--mds-font-size-paragraph-default); /* 1rem / 16px */
+}
+
+/* --- Rich zero-state (server-built) additions --- */
+.block-myoverview .courseoverview-empty__title {
+    margin: 0 0 var(--co-sp-xs);
+    font-size: var(--mds-font-size-paragraph-default); /* 1rem / 16px */
+    font-weight: 500;
+    color: var(--co-subtle);
+}
+
+/* Underline links inside the zero-state intro so they are distinguishable from the
+   surrounding muted text without relying on colour (axe link-in-text-block). */
+.block-myoverview .courseoverview-empty__text a {
+    text-decoration: underline;
+}
+
+.block-myoverview .courseoverview-empty__actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--co-sp-xs);
+    justify-content: center;
+    margin-top: var(--co-sp-md);
+}
+
+/* --- Async loading / error region (new client-side states, MDL-88965) --- */
+.block-myoverview .block-myoverview__loading {
+    height: 3px;
+    margin: var(--co-sp-md) 0;
+    background: linear-gradient(90deg, var(--co-surface-strong) 0%, var(--co-primary) 50%, var(--co-surface-strong) 100%);
+    background-size: 200% 100%;
+    animation: block-myoverview-loading 1.2s ease-in-out infinite;
+    border-radius: var(--co-r-pill);
+}
+
+@keyframes block-myoverview-loading {
+    0% {
+        background-position: 200% 0;
+    }
+    100% {
+        background-position: -200% 0;
+    }
+}
+
+.block-myoverview .block-myoverview__error {
+    margin: var(--co-sp-md) 0;
+}
+
+/* Respect the user's motion preference: the loading bar becomes a static gradient
+   (WCAG 2.3.3). */
+@media (prefers-reduced-motion: reduce) {
+    .block-myoverview .block-myoverview__loading {
+        animation: none;
+    }
+}
+
+/*
+ * DS favourite-button and close-button icon glyphs.
+ *
+ * Boost compiles both design-system components natively (MDL-88891), but the
+ * upstream vendoring script does not copy their SVG icon assets, so the DS
+ * mask-image/background-image URLs fail and the icons render invisible. Rather
+ * than duplicating those SVGs as plugin pix files (no new
+ * icons re-expressing concepts core already has), the icon is drawn as a Font
+ * Awesome glyph in ::before — the same shipped FA6 set the block's other icons
+ * use — inheriting currentColor so every DS state (hover/selected/disabled)
+ * and dark themes colour it correctly. All other component styling comes from
+ * Boost's native DS CSS.
+ */
+
+.block_myoverview .mds-favourite-button__icon {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background-color: transparent;
+    mask-image: none;
+    -webkit-mask-image: none;
+    font-family: "Font Awesome 6 Free";
+    font-weight: 400; /* Regular face: outline star. */
+    font-size: var(--mds-icons-xs);
+    line-height: 1;
+}
+
+.block_myoverview .mds-favourite-button__icon::before {
+    content: "\f005"; /* fa-star */
+}
+
+.block_myoverview .mds-favourite-button--selected .mds-favourite-button__icon {
+    font-weight: 900; /* Solid face: filled star. */
+}
+
+.block_myoverview .mds-close-button.btn-close {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    background-image: none;
+    font-family: "Font Awesome 6 Free";
+    font-weight: 900;
+    font-size: var(--mds-icons-sm);
+    line-height: 1;
+    color: currentcolor;
+}
+
+.block_myoverview .mds-close-button.btn-close::before {
+    content: "\f00d"; /* fa-xmark */
+}
+
+/* Hide block edit controls on the My Courses page (same as before). */
 .page-mycourses .block_myoverview .block-controls {
     display: none;
 }

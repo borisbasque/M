@@ -27,32 +27,26 @@ Feature: The my overview block allows users to favourite their courses
 
   Scenario: Favourite a course on a course card
     Given I am on the "My courses" page logged in as "student1"
-    When I click on ".coursemenubtn" "css_element" in the "//div[contains(@class, 'course-card') and contains(.,'Course 2')]" "xpath_element"
-    And I click on "Star this course" "link" in the "//div[contains(@class, 'course-card') and contains(.,'Course 2')]" "xpath_element"
+    When I click on "Star for Course 2" "button" in the "Course overview" "block"
     And I reload the page
-    Then "//div[contains(@class, 'course-card') and contains(.,'Course 2')]//span[@data-region='is-favourite' and @aria-hidden='false']" "xpath_element" should exist
-    And "//div[contains(@class, 'course-card') and contains(.,'Course 2')]//span[@data-region='is-favourite' and @aria-hidden='true']" "xpath_element" should not exist
-    And "//div[contains(@class, 'course-card') and contains(.,'Course 1')]//span[@data-region='is-favourite' and @aria-hidden='true']" "xpath_element" should exist
-    And "//div[contains(@class, 'course-card') and contains(.,'Course 3')]//span[@data-region='is-favourite' and @aria-hidden='true']" "xpath_element" should exist
+    Then "//article[contains(concat(' ', normalize-space(@class), ' '), ' courseoverview-card ') and contains(.,'Course 2')]//button[@aria-pressed='true']" "xpath_element" should exist
+    And "//article[contains(concat(' ', normalize-space(@class), ' '), ' courseoverview-card ') and contains(.,'Course 1')]//button[@aria-pressed='false']" "xpath_element" should exist
+    And "//article[contains(concat(' ', normalize-space(@class), ' '), ' courseoverview-card ') and contains(.,'Course 3')]//button[@aria-pressed='false']" "xpath_element" should exist
 
   Scenario: Star a course and switch display to list
     Given I am on the "My courses" page logged in as "student1"
-    When I click on ".coursemenubtn" "css_element" in the "//div[contains(@class, 'course-card') and contains(.,'Course 5')]" "xpath_element"
-    And I click on "Star this course" "link" in the "//div[contains(@class, 'course-card') and contains(.,'Course 5')]" "xpath_element"
-    And I click on "Display drop-down menu" "button" in the "Course overview" "block"
-    And I click on "List" "link" in the "Course overview" "block"
-    Then "//li[contains(concat(' ', normalize-space(@class), ' '), 'list-group-item') and contains(.,'Course 5')]//span[@data-region='is-favourite' and @aria-hidden='false']" "xpath_element" should exist
-    And "//li[contains(concat(' ', normalize-space(@class), ' '), 'list-group-item') and contains(.,'Course 5')]//span[@data-region='is-favourite' and @aria-hidden='true']" "xpath_element" should not exist
-    And "//li[contains(concat(' ', normalize-space(@class), ' '), 'list-group-item') and contains(.,'Course 1')]//span[@data-region='is-favourite' and @aria-hidden='true']" "xpath_element" should exist
-    And "//li[contains(concat(' ', normalize-space(@class), ' '), 'list-group-item') and contains(.,'Course 3')]//span[@data-region='is-favourite' and @aria-hidden='true']" "xpath_element" should exist
+    When I click on "Star for Course 5" "button" in the "Course overview" "block"
+    And I click on "View:" "button" in the "Course overview" "block"
+    And I click on "List" "button" in the "Course overview" "block"
+    Then "//article[contains(concat(' ', normalize-space(@class), ' '), ' courseoverview-card ') and contains(.,'Course 5')]//button[@aria-pressed='true']" "xpath_element" should exist
+    And "//article[contains(concat(' ', normalize-space(@class), ' '), ' courseoverview-card ') and contains(.,'Course 1')]//button[@aria-pressed='false']" "xpath_element" should exist
+    And "//article[contains(concat(' ', normalize-space(@class), ' '), ' courseoverview-card ') and contains(.,'Course 3')]//button[@aria-pressed='false']" "xpath_element" should exist
 
   Scenario: Star a course and switch display to summary
     Given I am on the "My courses" page logged in as "student1"
-    When I click on ".coursemenubtn" "css_element" in the "//div[contains(@class, 'course-card') and contains(.,'Course 5')]" "xpath_element"
-    And I click on "Star this course" "link" in the "//div[contains(@class, 'course-card') and contains(.,'Course 5')]" "xpath_element"
-    And I click on "Display drop-down menu" "button" in the "Course overview" "block"
-    And I click on "Summary" "link" in the "Course overview" "block"
-    Then "//div[contains(concat(' ', normalize-space(@class), ' '), 'course-summaryitem') and contains(.,'Course 5')]//span[@data-region='is-favourite' and @aria-hidden='false']" "xpath_element" should exist
-    And "//div[contains(concat(' ', normalize-space(@class), ' '), 'course-summaryitem') and contains(.,'Course 5')]//span[@data-region='is-favourite' and @aria-hidden='true']" "xpath_element" should not exist
-    And "//div[contains(concat(' ', normalize-space(@class), ' '), 'course-summaryitem') and contains(.,'Course 1')]//span[@data-region='is-favourite' and @aria-hidden='true']" "xpath_element" should exist
-    And "//div[contains(concat(' ', normalize-space(@class), ' '), 'course-summaryitem') and contains(.,'Course 3')]//span[@data-region='is-favourite' and @aria-hidden='true']" "xpath_element" should exist
+    When I click on "Star for Course 5" "button" in the "Course overview" "block"
+    And I click on "View:" "button" in the "Course overview" "block"
+    And I click on "Summary" "button" in the "Course overview" "block"
+    Then "//article[contains(concat(' ', normalize-space(@class), ' '), ' courseoverview-card ') and contains(.,'Course 5')]//button[@aria-pressed='true']" "xpath_element" should exist
+    And "//article[contains(concat(' ', normalize-space(@class), ' '), ' courseoverview-card ') and contains(.,'Course 1')]//button[@aria-pressed='false']" "xpath_element" should exist
+    And "//article[contains(concat(' ', normalize-space(@class), ' '), ' courseoverview-card ') and contains(.,'Course 3')]//button[@aria-pressed='false']" "xpath_element" should exist

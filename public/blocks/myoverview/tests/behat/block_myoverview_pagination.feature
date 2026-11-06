@@ -38,13 +38,11 @@ Feature: My overview block pagination
   Scenario: The pagination controls should be hidden if I am not enrolled in any courses
     When I am on the "My courses" page logged in as "student1"
     Then I should see "You're not enrolled in any courses." in the "Course overview" "block"
-    And I should not see "Show" in the "Course overview" "block"
-    And ".block_myoverview .dropdown-menu.show" "css_element" should not be visible
-    And ".block_myoverview [data-control='next']" "css_element" should not be visible
-    And ".block_myoverview [data-control='previous']" "css_element" should not be visible
+    And "Next page" "button" should not exist in the "Course overview" "block"
+    And "Previous page" "button" should not exist in the "Course overview" "block"
     And I log out
 
-  Scenario: The pagination controls should be hidden if I am enrolled in 12 courses or less
+  Scenario: The pagination controls should be hidden if I am enrolled in 9 courses or less
     Given the following "course enrolments" exist:
       | user | course | role |
       | student1 | C1 | student |
@@ -56,59 +54,21 @@ Feature: My overview block pagination
       | student1 | C7 | student |
       | student1 | C8 | student |
       | student1 | C9 | student |
-      | student1 | C10 | student |
-      | student1 | C11 | student |
-      | student1 | C12 | student |
     When I am on the "My courses" page logged in as "student1"
-    Then I should not see "Show" in the "Course overview" "block"
-    And ".block_myoverview .dropdown-menu.show" "css_element" should not be visible
-    And ".block_myoverview [data-control='next']" "css_element" should not be visible
-    And ".block_myoverview [data-control='previous']" "css_element" should not be visible
-    And I log out
-
-  Scenario: The default pagination should be 12 courses
-    Given the following "course enrolments" exist:
-      | user | course | role |
-      | student1 | C1 | student |
-      | student1 | C2 | student |
-      | student1 | C3 | student |
-      | student1 | C4 | student |
-      | student1 | C5 | student |
-      | student1 | C6 | student |
-      | student1 | C7 | student |
-      | student1 | C8 | student |
-      | student1 | C9 | student |
-      | student1 | C10 | student |
-      | student1 | C11 | student |
-      | student1 | C12 | student |
-      | student1 | C13 | student |
-    When I am on the "My courses" page logged in as "student1"
-    Then I should see "12" in the ".block_myoverview [data-action='limit-toggle']" "css_element"
-    And I log out
-
-  Scenario: I should only see pagination limit options less than total number of enrolled courses
-    Given the following "course enrolments" exist:
-      | user | course | role |
-      | student1 | C1 | student |
-      | student1 | C2 | student |
-      | student1 | C3 | student |
-      | student1 | C4 | student |
-      | student1 | C5 | student |
-      | student1 | C6 | student |
-      | student1 | C7 | student |
-      | student1 | C8 | student |
-      | student1 | C9 | student |
-      | student1 | C10 | student |
-      | student1 | C11 | student |
-      | student1 | C12 | student |
-      | student1 | C13 | student |
-    And I am on the "My courses" page logged in as "student1"
-    When I click on "[data-action='limit-toggle']" "css_element" in the "Course overview" "block"
-    Then I should see "All" in the ".dropdown-menu.show" "css_element"
-    And I should see "12" in the ".dropdown-menu.show" "css_element"
-    And ".block_myoverview [data-control='next']" "css_element" should be visible
-    And ".block_myoverview [data-control='previous']" "css_element" should be visible
-    But I should not see "24" in the ".block_myoverview .dropdown-menu.show" "css_element"
+    Then I should see "Course 01" in the "Course overview" "block"
+    # The container-width tier class must be applied (the ResizeObserver drives the
+    # multi-column card grid); its absence means the layout is stuck single-column.
+    And ".block-myoverview.courseoverview-min-480" "css_element" should exist
+    # Assert the LIVE computed layout, including reflow on a real window resize:
+    # this exercises the ResizeObserver end-to-end (a detached observer freezes
+    # the width tiers, which selector assertions alone cannot detect).
+    And the course overview card grid should render "3" columns
+    And I change window size to "mobile"
+    And the course overview card grid should render "1" column
+    And I change window size to "medium"
+    And the course overview card grid should render "3" columns
+    And "Next page" "button" should not exist in the "Course overview" "block"
+    And "Previous page" "button" should not exist in the "Course overview" "block"
     And I log out
 
   Scenario: Previous page button should be disabled when on the first page of courses
@@ -128,7 +88,9 @@ Feature: My overview block pagination
       | student1 | C12 | student |
       | student1 | C13 | student |
     When I am on the "My courses" page logged in as "student1"
-    Then the "class" attribute of ".block_myoverview [data-control='previous']" "css_element" should contain "disabled"
+    And I wait until "Previous page" "button" exists
+    Then the "Previous page" "button" should be disabled
+    And the "Next page" "button" should be enabled
     And I log out
 
   Scenario: Next page button should be disabled when on the last page of courses
@@ -148,9 +110,10 @@ Feature: My overview block pagination
       | student1 | C12 | student |
       | student1 | C13 | student |
     When I am on the "My courses" page logged in as "student1"
-    And I wait until ".block_myoverview [data-control='next']" "css_element" exists
-    And I click on "[data-control='next']" "css_element" in the "Course overview" "block"
-    Then the "class" attribute of ".block_myoverview [data-control='next']" "css_element" should contain "disabled"
+    And I wait until "Next page" "button" exists
+    And I click on "Next page" "button" in the "Course overview" "block"
+    Then the "Next page" "button" should be disabled
+    And the "Previous page" "button" should be enabled
     And I log out
 
   Scenario: Next and previous page buttons should both be enabled when not on last or first page of courses
@@ -182,12 +145,40 @@ Feature: My overview block pagination
       | student1 | C24 | student |
       | student1 | C25 | student |
     When I am on the "My courses" page logged in as "student1"
-    And I wait until ".block_myoverview [data-control='next']" "css_element" exists
-    And I click on "[data-control='next']" "css_element" in the "Course overview" "block"
-    Then the "class" attribute of ".block_myoverview [data-control='next']" "css_element" should not contain "disabled"
-    And the "class" attribute of ".block_myoverview [data-control='previous']" "css_element" should not contain "disabled"
-    And I should see "Course 13" in the "Course overview" "block"
-    And I should see "Course 24" in the "Course overview" "block"
-    But I should not see "Course 12" in the "Course overview" "block"
+    And I wait until "Next page" "button" exists
+    And I click on "Next page" "button" in the "Course overview" "block"
+    Then the "Next page" "button" should be enabled
+    And the "Previous page" "button" should be enabled
+    And I should see "Course 10" in the "Course overview" "block"
+    And I should see "Course 18" in the "Course overview" "block"
+    But I should not see "Course 09" in the "Course overview" "block"
     And I should not see "Course 25" in the "Course overview" "block"
+    And I log out
+
+  Scenario: Pagination appears with a stored last-accessed sort preference
+    # The last-accessed sort joins the user_lastaccess table (a different query shape
+    # from the default title sort every other scenario uses), so pin that the paged
+    # fetches and the previous/next controls work under it too.
+    Given the following "course enrolments" exist:
+      | user | course | role |
+      | student1 | C1 | student |
+      | student1 | C2 | student |
+      | student1 | C3 | student |
+      | student1 | C4 | student |
+      | student1 | C5 | student |
+      | student1 | C6 | student |
+      | student1 | C7 | student |
+      | student1 | C8 | student |
+      | student1 | C9 | student |
+      | student1 | C10 | student |
+      | student1 | C11 | student |
+      | student1 | C12 | student |
+    And the following "user preferences" exist:
+      | user     | preference                                | value        |
+      | student1 | block_myoverview_user_sort_preference     | lastaccessed |
+    When I am on the "My courses" page logged in as "student1"
+    And I wait until "Next page" "button" exists
+    Then the "Next page" "button" should be enabled
+    And I click on "Next page" "button" in the "Course overview" "block"
+    And the "Next page" "button" should be disabled
     And I log out

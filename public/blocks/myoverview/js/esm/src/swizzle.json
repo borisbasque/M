@@ -1,0 +1,58 @@
+{
+  "app": {
+    "eject": "prohibited",
+    "wrap": "risky"
+  },
+  "components/CourseControls": {
+    "eject": "prohibited",
+    "wrap": "safe"
+  },
+  "components/CourseImage": {
+    "eject": "safe",
+    "wrap": "safe"
+  },
+  "components/CourseItem": {
+    "eject": "safe",
+    "wrap": "safe"
+  },
+  "components/CourseList": {
+    "eject": "safe",
+    "wrap": "safe"
+  },
+  "components/Dropdown": {
+    "eject": "safe",
+    "wrap": "safe"
+  },
+  "components/EllipsisMenu": {
+    "eject": "prohibited",
+    "wrap": "safe"
+  },
+  "components/EmptyState": {
+    "eject": "prohibited",
+    "wrap": "safe"
+  },
+  "components/Icon": {
+    "eject": "safe",
+    "wrap": "safe"
+  },
+  "components/Pagination": {
+    "eject": "prohibited",
+    "wrap": "safe"
+  },
+  "components/ProgressIndicator": {
+    "eject": "prohibited",
+    "wrap": "safe"
+  },
+  "components/SearchInput": {
+    "eject": "prohibited",
+    "wrap": "safe"
+  },
+  "components/StarButton": {
+    "eject": "prohibited",
+    "wrap": "safe"
+  },
+  "components/Toolbar": {
+    "eject": "prohibited",
+    "wrap": "safe"
+  }
+}
