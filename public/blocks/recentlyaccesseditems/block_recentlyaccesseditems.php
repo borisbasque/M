@@ -62,4 +62,9 @@ class block_recentlyaccesseditems extends block_base {
     public function applicable_formats() {
         return array('my' => true);
     }
+
+    #[\Override]
+    public function get_icon(): ?\core\output\pix_icon {
+        return new \core\output\pix_icon('i/emojicategoryrecent', '', 'core');
+    }
 }

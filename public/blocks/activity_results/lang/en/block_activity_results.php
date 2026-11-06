@@ -59,6 +59,7 @@ $string['error_emptyactivityrecord'] = 'Error: the selected activity does not ex
 $string['error_nogroupsexist'] = 'Error: the block is set to display grades in group mode, but there are no groups defined.';
 $string['error_unsupportedgradetype'] = 'Error: the activity selected uses a grading method that is not supported by this block.';
 $string['notyetgraded'] = 'Not yet graded';
+$string['plugindescription'] = 'Shows the highest or lowest grades from an activity.';
 $string['pluginname'] = 'Activity results';
 $string['unknown'] = 'Unknown scale';
 $string['worstgrade'] = 'The lowest grade:';

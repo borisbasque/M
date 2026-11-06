@@ -64,6 +64,7 @@ $string['managefeeds'] = 'Manage RSS feeds';
 $string['nofeeds'] = 'There are not yet any RSS feeds. Choose \'Add new RSS feed\'.';
 $string['numentries'] = 'Entries per feed';
 $string['pickfeed'] = 'Pick a RSS feed';
+$string['plugindescription'] = 'Shows the latest items from RSS feeds that you choose.';
 $string['pluginname'] = 'RSS feeds';
 $string['privacy:metadata:block_rss_client:description'] = 'The description of the RSS feed.';
 $string['privacy:metadata:block_rss_client:preferredtitle'] = 'The preferred (custom) title of the RSS feed.';

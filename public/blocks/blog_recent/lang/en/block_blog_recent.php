@@ -26,6 +26,7 @@
 $string['blog_recent:addinstance'] = 'Add a new recent blog entries block';
 $string['norecentblogentries'] = 'No recent entries';
 $string['numentriestodisplay'] = 'Number of recent entries to display';
+$string['plugindescription'] = 'Shows the most recent blog entries.';
 $string['pluginname'] = 'Recent blog entries';
 $string['recentinterval'] = 'Interval of time considered "recent"';
 $string['privacy:metadata'] = 'The Recent blog entries block only shows data stored in other locations.';

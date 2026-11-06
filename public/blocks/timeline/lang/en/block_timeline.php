@@ -32,6 +32,7 @@ $string['ariaviewselectoroption'] = '{$a} sort option';
 $string['duedate'] = 'Due date';
 $string['moreactivities'] = 'Show more activities';
 $string['morecourses'] = 'Show more courses';
+$string['plugindescription'] = 'Shows your upcoming activity deadlines, by date or by course.';
 $string['timeline:myaddinstance'] = 'Add a new timeline block to Dashboard';
 $string['nocoursesinprogress'] = 'No in-progress courses';
 $string['noevents'] = 'No activities require action';

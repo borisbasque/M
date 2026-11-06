@@ -24,5 +24,6 @@
 
 $string['feedback'] = 'Feedback';
 $string['feedback:addinstance'] = 'Add a new feedback block';
+$string['plugindescription'] = 'Links to the feedback activities in the course.';
 $string['pluginname'] = 'Feedback';
 $string['privacy:metadata'] = 'The Feedback block only shows data stored in other locations.';

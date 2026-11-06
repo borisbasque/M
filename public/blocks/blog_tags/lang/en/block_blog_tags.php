@@ -23,6 +23,7 @@
  */
 
 $string['blog_tags:addinstance'] = 'Add a new blog tags block';
+$string['plugindescription'] = 'Shows a cloud of the tags used on blog entries.';
 $string['pluginname'] = 'Blog tags';
 $string['configtitle'] = 'Blog tags block title';
 $string['privacy:metadata'] = 'The Blog tags block only shows data stored in other locations.';

@@ -30,5 +30,6 @@ $string['course_list:addinstance'] = 'Add a new courses block';
 $string['course_list:myaddinstance'] = 'Add a new courses block to Dashboard';
 $string['hideallcourseslink'] = 'Hide \'All courses\' link';
 $string['owncourses'] = 'Admin user sees own courses';
+$string['plugindescription'] = 'Lists the courses you are enrolled in.';
 $string['pluginname'] = 'Courses';
 $string['privacy:metadata'] = 'The Courses block only shows data about courses and does not store any data itself.';

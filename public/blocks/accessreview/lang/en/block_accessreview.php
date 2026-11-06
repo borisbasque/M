@@ -33,6 +33,7 @@ $string['errordisplay'] = 'Display errors in this format';
 $string['errorssummary'] = 'Accessibility review';
 $string['frown'] = 'Errors found, sorry!';
 $string['nodata'] = 'No accessibility results data was found.';
+$string['plugindescription'] = 'Shows accessibility errors found in your course content.';
 $string['pluginname'] = 'Accessibility review';
 $string['privacy:metadata:preference:block_accessreviewtogglestate'] = 'The user\'s preference for hiding or showing the course accessibility highlighting.';
 $string['privacy:togglestateoff'] = 'The current preference for the course accessibility highlighting is off.';

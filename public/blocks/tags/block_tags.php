@@ -137,4 +137,9 @@ class block_tags extends block_base {
 
         return $CFG->usetags;
     }
+
+    #[\Override]
+    public function get_icon(): ?\core\output\pix_icon {
+        return new \core\output\pix_icon('t/tags', '', 'core');
+    }
 }

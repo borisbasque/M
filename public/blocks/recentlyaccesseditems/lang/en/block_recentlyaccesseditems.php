@@ -22,6 +22,7 @@
  */
 $string['moreitems'] = 'Show more items';
 $string['noitems'] = 'No recent items';
+$string['plugindescription'] = 'Shows the activities and resources you opened most recently.';
 $string['pluginname'] = 'Recently accessed items';
 $string['privacy:metadata:cmid'] = 'The ID of the activity or resource';
 $string['privacy:metadata:courseid'] = 'Course the item belongs to';

@@ -113,4 +113,9 @@ class block_badges extends block_base {
 
         return $CFG->enablebadges;
     }
+
+    #[\Override]
+    public function get_icon(): ?\core\output\pix_icon {
+        return new \core\output\pix_icon('i/badge', '', 'core');
+    }
 }

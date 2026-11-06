@@ -43,6 +43,7 @@ $string['nonprofitactivism'] = 'Nonprofits & Activism';
 $string['numberofvideos'] = 'Number of videos';
 $string['peopleblogs'] = 'People & Blogs';
 $string['petsanimals'] = 'Pets & Animals';
+$string['plugindescription'] = 'Shows YouTube videos related to a tag.';
 $string['pluginname'] = 'YouTube';
 $string['requesterror'] = 'Data could not be obtained from the server. Contact your administrator if the problem persists.';
 $string['scienceandtech'] = 'Science & Tech';

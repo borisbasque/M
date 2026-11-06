@@ -23,6 +23,7 @@
  */
 
 $string['advancedsearch'] = 'Advanced search';
+$string['plugindescription'] = 'Adds a box for searching the forums in the course.';
 $string['pluginname'] = 'Search forums';
 $string['search_forums:addinstance'] = 'Add a new search forums block';
 $string['privacy:metadata'] = 'The Search forums block only shows data stored in other locations.';

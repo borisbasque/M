@@ -24,5 +24,6 @@
 
 $string['admin_bookmarks:addinstance'] = 'Add a new admin bookmarks block';
 $string['admin_bookmarks:myaddinstance'] = 'Add a new admin bookmarks block to Dashboard';
+$string['plugindescription'] = 'Lists the administration pages you have bookmarked.';
 $string['pluginname'] = 'Admin bookmarks';
 $string['privacy:metadata'] = 'The Admin bookmarks block only shows data stored in other locations.';

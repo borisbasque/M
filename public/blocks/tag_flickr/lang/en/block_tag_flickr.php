@@ -33,6 +33,7 @@ $string['includerelatedtags'] = 'Include related tags in query';
 $string['interestingness-asc'] = 'Interestingness ASC';
 $string['interestingness-desc'] = 'Interestingness DESC';
 $string['numberofphotos'] = 'Number of photos';
+$string['plugindescription'] = 'Shows Flickr photos related to a tag.';
 $string['pluginname'] = 'Flickr';
 $string['relevance'] = 'Relevance';
 $string['sortby'] = 'Sort by';

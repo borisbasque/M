@@ -24,6 +24,7 @@
  */
 
 $string['configtitle'] = 'Title';
+$string['plugindescription'] = 'Adds activities and resources to the site home page.';
 $string['pluginname'] = 'Additional activities';
 $string['privacy:metadata'] = 'The Additional activities block only shows data stored in other locations.';
 $string['site_main_menu:addinstance'] = 'Add a new Additional activities block';

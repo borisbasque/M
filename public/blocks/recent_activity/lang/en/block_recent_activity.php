@@ -24,6 +24,7 @@
  */
 
 $string['cleanuptask'] = 'Cleanup task for recent activity block';
+$string['plugindescription'] = 'Lists what has changed in the course since your last visit.';
 $string['pluginname'] = 'Recent activity';
 $string['privacy:metadata'] = 'The recent activity block contains a cache of data stored elsewhere in Moodle.';
 $string['privacy:metadata:block_recent_activity'] = 'Temporary log of recent teacher activity. Removed after two days';

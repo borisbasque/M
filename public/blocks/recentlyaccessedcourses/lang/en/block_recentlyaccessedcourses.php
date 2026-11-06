@@ -22,6 +22,7 @@
  */
 $string['displaycategories'] = 'Display categories';
 $string['displaycategories_help'] = 'Display the course category on the recently accessed courses block items.';
+$string['plugindescription'] = 'Shows the courses you visited most recently.';
 $string['pluginname'] = 'Recently accessed courses';
 $string['privacy:metadata'] = 'The Recently accessed courses block does not store any personal data.';
 $string['recentlyaccessedcourses:myaddinstance'] = 'Add a new recently accessed courses block to Dashboard';

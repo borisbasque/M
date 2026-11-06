@@ -23,6 +23,7 @@
  * @author     Yuliya Bozhko <yuliya.bozhko@totaralms.com>
  */
 
+$string['plugindescription'] = 'Shows the badges you have earned most recently.';
 $string['pluginname'] = 'Latest badges';
 $string['numbadgestodisplay'] = 'Number of latest badges to display';
 $string['nothingtodisplay'] = 'You have no badges to display';

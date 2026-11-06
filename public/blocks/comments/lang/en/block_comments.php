@@ -25,5 +25,6 @@
 
 $string['comments:myaddinstance'] = 'Add a new comments block to Dashboard';
 $string['comments:addinstance'] = 'Add a new comments block';
+$string['plugindescription'] = 'Lets you add comments to the page the block is on.';
 $string['pluginname'] = 'Comments';
 $string['privacy:metadata:core_comment'] = 'A record of comments added.';

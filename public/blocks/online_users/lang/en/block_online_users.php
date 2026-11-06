@@ -36,6 +36,7 @@ $string['online_users:viewlist'] = 'View list of online users';
 $string['online_status:hide'] = 'Hide my online status from other users';
 $string['online_status:show'] = 'Show my online status to other users';
 $string['periodnminutes'] = 'last {$a} minutes';
+$string['plugindescription'] = 'Lists the people who have been on the site recently.';
 $string['pluginname'] = 'Online users';
 $string['timetosee'] = 'Remove after inactivity (minutes)';
 $string['privacy:metadata:preference:uservisibility'] = 'Online status visible to other users in the Online users block.';

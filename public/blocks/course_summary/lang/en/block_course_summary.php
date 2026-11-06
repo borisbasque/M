@@ -25,5 +25,6 @@
 
 $string['coursesummary'] = 'Course summary';
 $string['course_summary:addinstance'] = 'Add a new course/site summary block';
+$string['plugindescription'] = 'Shows the summary of the course.';
 $string['pluginname'] = 'Course/site summary';
 $string['privacy:metadata'] = 'The Course/site summary block only shows information about courses and does not store data itself.';

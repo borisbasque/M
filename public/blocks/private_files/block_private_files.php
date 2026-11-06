@@ -74,4 +74,9 @@ class block_private_files extends block_base {
         }
         return $this->content;
     }
+
+    #[\Override]
+    public function get_icon(): ?\core\output\pix_icon {
+        return new \core\output\pix_icon('i/folder', '', 'core');
+    }
 }

@@ -92,4 +92,9 @@ class block_comments extends block_base {
 
         return $CFG->usecomments;
     }
+
+    #[\Override]
+    public function get_icon(): ?\core\output\pix_icon {
+        return new \core\output\pix_icon('t/messages', '', 'core');
+    }
 }
