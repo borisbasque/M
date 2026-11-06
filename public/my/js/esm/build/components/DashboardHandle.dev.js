@@ -15,14 +15,27 @@ const resizeGrip = /* @__PURE__ */ jsxDEV(
   "svg",
   {
     className: "core-my-dashboard-icon core-my-dashboard-resize-grip",
-    viewBox: "0 0 10 10",
+    viewBox: "0 0 12 12",
     "aria-hidden": "true",
     focusable: "false",
-    children: /* @__PURE__ */ jsxDEV("path", { d: "M9 1L1 9M9 5L5 9", stroke: "currentColor", strokeWidth: "1.5", strokeLinecap: "round", fill: "none" }, void 0, false, {
-      fileName: "public/my/js/esm/src/components/DashboardHandle.tsx",
-      lineNumber: 47,
-      columnNumber: 5
-    })
+    children: /* @__PURE__ */ jsxDEV(
+      "path",
+      {
+        d: "M10.8 1.2L1.2 10.8M10.8 6L6 10.8",
+        stroke: "currentColor",
+        strokeWidth: "1.75",
+        strokeLinecap: "round",
+        strokeLinejoin: "round",
+        fill: "none"
+      },
+      void 0,
+      false,
+      {
+        fileName: "public/my/js/esm/src/components/DashboardHandle.tsx",
+        lineNumber: 47,
+        columnNumber: 5
+      }
+    )
   },
   void 0,
   false,
@@ -50,6 +63,7 @@ const DashboardHandle = /* @__PURE__ */ __name(({
   {
     className: `core-my-dashboard-handle-wrapper core-my-dashboard-handle-wrapper--${mode}${active ? " active" : ""}`,
     onBlur: (event) => {
+      delete event.target.dataset.pointerFocus;
       const nextTarget = event.relatedTarget;
       if (active && (!(nextTarget instanceof Node) || !event.currentTarget.contains(nextTarget))) {
         onCommit();
@@ -58,7 +72,7 @@ const DashboardHandle = /* @__PURE__ */ __name(({
     children: [
       active && showControls && /* @__PURE__ */ jsxDEV(GridControls, { mode, labels, icons, onDirection }, void 0, false, {
         fileName: "public/my/js/esm/src/components/DashboardHandle.tsx",
-        lineNumber: 72,
+        lineNumber: 81,
         columnNumber: 32
       }),
       /* @__PURE__ */ jsxDEV(Tooltip, { label, children: /* @__PURE__ */ jsxDEV(
@@ -76,14 +90,18 @@ const DashboardHandle = /* @__PURE__ */ __name(({
               onStart();
             }
           },
-          onKeyDown,
+          onKeyDown: (event) => {
+            delete event.currentTarget.dataset.pointerFocus;
+            onKeyDown(event);
+          },
           onPointerDown: (event) => {
             if (active) {
               event.preventDefault();
               onCommit();
               return;
             }
-            event.currentTarget.focus();
+            event.currentTarget.dataset.pointerFocus = "true";
+            event.currentTarget.focus({ focusVisible: false });
             onPointerDown(event);
           }
         },
@@ -91,12 +109,12 @@ const DashboardHandle = /* @__PURE__ */ __name(({
         false,
         {
           fileName: "public/my/js/esm/src/components/DashboardHandle.tsx",
-          lineNumber: 76,
+          lineNumber: 85,
           columnNumber: 9
         }
       ) }, void 0, false, {
         fileName: "public/my/js/esm/src/components/DashboardHandle.tsx",
-        lineNumber: 75,
+        lineNumber: 84,
         columnNumber: 5
       })
     ]
@@ -105,7 +123,7 @@ const DashboardHandle = /* @__PURE__ */ __name(({
   true,
   {
     fileName: "public/my/js/esm/src/components/DashboardHandle.tsx",
-    lineNumber: 63,
+    lineNumber: 70,
     columnNumber: 29
   }
 ), "DashboardHandle");

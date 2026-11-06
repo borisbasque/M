@@ -204,12 +204,15 @@ final class dashboard {
                     continue;
                 }
                 $instance = $instances[$content->blockinstanceid];
+                [$blockcontent, $blockfooter] = $instance->instance->visible
+                    ? [(string) $content->content, (string) $content->footer]
+                    : self::get_hidden_block_content($instance, $OUTPUT);
                 $blocks[] = [
                     'id' => (int) $content->blockinstanceid,
                     'name' => $instance->instance->blockname,
                     'title' => (string) $content->title,
-                    'content' => (string) $content->content,
-                    'footer' => (string) $content->footer,
+                    'content' => $blockcontent,
+                    'footer' => $blockfooter,
                     'region' => $region,
                     'weight' => (int) $instance->instance->weight,
                     'visible' => (bool) $instance->instance->visible,
@@ -224,16 +227,37 @@ final class dashboard {
         // name, title and blockform as core_block_fetch_addable_blocks returns, so that a block type
         // which shows its configuration form when added (block_html, for one) is added through that
         // form here too, exactly as it is on every other page.
+        // Each comes with its description and icon (block_base::get_description() and get_icon()),
+        // for the add blocks modal. Blocks that allow only one instance and are already on the
+        // dashboard are listed too, flagged as added, so the modal can say why they can't be added
+        // rather than leave people looking for them.
         $available = [];
         if ($editing) {
-            foreach ($PAGE->blocks->get_addable_blocks() as $block) {
-                $formclass = \block_manager::get_block_edit_form_class($block->name);
+            $addable = $PAGE->blocks->get_addable_blocks();
+            foreach (blocks_get_record() as $record) {
+                $added = !isset($addable[$record->name]);
+                if ($added && !self::is_added_single_instance($record)) {
+                    continue;
+                }
+                $instance = block_instance($record->name);
+                if (!$instance) {
+                    continue;
+                }
+                $formclass = \block_manager::get_block_edit_form_class($record->name);
+                $icon = $instance->get_icon();
+                $title = get_string('pluginname', 'block_' . $record->name);
                 $available[] = [
-                    'name' => $block->name,
-                    'title' => get_string('pluginname', 'block_' . $block->name),
-                    'blockform' => $formclass::display_form_when_adding() ? $formclass : null,
+                    'name' => $record->name,
+                    'title' => $title,
+                    'blockform' => !$added && $formclass::display_form_when_adding() ? $formclass : null,
+                    // A block that declares nothing still gets a line, so every card in the modal matches.
+                    'description' => $instance->get_description() ?? get_string('dashboardblockdescription', 'my', $title),
+                    'icon' => $icon ? $OUTPUT->render($icon) : '',
+                    'added' => $added,
                 ];
             }
+            \core_collator::asort_array_of_arrays_by_key($available, 'title');
+            $available = array_values($available);
         }
         $minimum = self::get_minimum_size();
 
@@ -268,12 +292,57 @@ final class dashboard {
                 'right' => $OUTPUT->pix_icon('t/right', ''),
                 'remove' => $OUTPUT->pix_icon('t/less', ''),
                 'menu' => $OUTPUT->pix_icon('i/menu', ''),
+                'hidden' => $OUTPUT->pix_icon('t/show', ''),
+                'added' => $OUTPUT->pix_icon('i/checked', ''),
+                'external' => $OUTPUT->pix_icon('i/externallink', ''),
                 'edit' => $OUTPUT->pix_icon('i/edit', ''),
                 'undo' => $OUTPUT->pix_icon('e/undo', ''),
                 'reset' => $OUTPUT->pix_icon('t/reset', ''),
             ],
             'javascript' => $PAGE->requires->get_end_code(),
         ];
+    }
+
+    /**
+     * A hidden block's content and footer, for its tile while editing.
+     *
+     * Core leaves a hidden block's content out (block_base::get_content_for_output() only fills it
+     * in for a visible block), so a classic page shows just its title. On the dashboard the tile
+     * keeps showing what the block holds, so people can see what they hid and what Show brings back.
+     * Hidden blocks are only loaded while editing, so this is never shown to anyone the block is
+     * hidden from. The block is rendered through core's own method, as if visible, for that call only.
+     *
+     * @param \block_base $block The hidden block.
+     * @param \renderer_base $output The renderer.
+     * @return array Its rendered content and footer.
+     */
+    private static function get_hidden_block_content(\block_base $block, \renderer_base $output): array {
+        $visible = $block->instance->visible;
+        $block->instance->visible = 1;
+        try {
+            $contents = $block->get_content_for_output($output);
+        } finally {
+            $block->instance->visible = $visible;
+        }
+        return [(string) $contents->content, (string) $contents->footer];
+    }
+
+    /**
+     * Whether a block type is missing from the addable blocks only because it allows one instance
+     * per page and is already on this one.
+     *
+     * @param \stdClass $record The block type, from the block table.
+     * @return bool
+     */
+    private static function is_added_single_instance(\stdClass $record): bool {
+        global $PAGE;
+
+        $block = block_instance($record->name);
+        return $block && $record->visible
+            && !$block->instance_allow_multiple()
+            && $PAGE->blocks->is_block_present($record->name)
+            && blocks_name_allowed_in_format($record->name, $PAGE->pagetype)
+            && $block->user_can_addto($PAGE);
     }
 
     /**
@@ -292,6 +361,10 @@ final class dashboard {
      */
     private static function export_block_actions(array $controls): array {
         global $OUTPUT;
+
+        // Core's two eyes show the block's state (open while it is visible). In this menu the icon
+        // shows what the action does: the slashed eye hides the block, the open eye shows it.
+        $visibilityicons = ['hide' => 't/show', 'show' => 't/hide'];
 
         $actions = [];
         foreach ($controls as $control) {
@@ -319,7 +392,9 @@ final class dashboard {
                 'label' => (string) $control->text,
                 'url' => $control->url instanceof \moodle_url ? $control->url->out(false) : (string) $control->url,
                 // Decorative: the label names the action.
-                'icon' => $control->icon ? $OUTPUT->pix_icon($control->icon->pix, '', $control->icon->component) : '',
+                'icon' => $control->icon
+                    ? $OUTPUT->pix_icon($visibilityicons[$key] ?? $control->icon->pix, '', $control->icon->component)
+                    : '',
                 'attributes' => json_encode((object) $attributes),
                 'danger' => $key === 'delete',
             ];

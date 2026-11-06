@@ -35,20 +35,27 @@ import {getString, getStrings, type StringParams} from '@moodle/lms/core/stringU
 export interface DashboardLabels {
     addblock: string;
     addblockhere: string;
+    addblocks: string;
     addblockshort: string;
     cancel: string;
+    clearsearch: string;
+    close: string;
     confirm: string;
     confirmreset: string;
     down: string;
-    editing: string;
     edithint: string;
+    editing: string;
+    hiddenfromstudents: string;
     left: string;
     loading: string;
     movecontrols: string;
     moveinstructions: string;
+    marketplace: string;
+    noblocksfound: string;
+    onpage: string;
     reset: string;
-    resettodefault: string;
     resetheading: string;
+    resettodefault: string;
     resize: string;
     resizecontrols: string;
     resizeinstructions: string;
@@ -56,6 +63,7 @@ export interface DashboardLabels {
     scopedefaultshort: string;
     scopeown: string;
     scopeownshort: string;
+    searchblocks: string;
     scopesitedefault: string;
     undo: string;
     up: string;
@@ -64,20 +72,27 @@ export interface DashboardLabels {
 const LABEL_STRINGS: Record<keyof DashboardLabels, {key: string; component: string}> = {
     addblock: {key: 'addblock', component: 'core'},
     addblockhere: {key: 'addblockhere', component: 'my'},
+    addblocks: {key: 'dashboardaddblocks', component: 'my'},
     addblockshort: {key: 'dashboardaddblock', component: 'my'},
     cancel: {key: 'dashboardcancel', component: 'my'},
+    clearsearch: {key: 'clearsearch', component: 'core'},
+    close: {key: 'closebuttontitle', component: 'core'},
     confirm: {key: 'confirm', component: 'core'},
     confirmreset: {key: 'confirmresetdashboard', component: 'my'},
     down: {key: 'dashboarddown', component: 'my'},
-    editing: {key: 'dashboardediting', component: 'my'},
     edithint: {key: 'dashboardedithint', component: 'my'},
+    editing: {key: 'dashboardediting', component: 'my'},
+    hiddenfromstudents: {key: 'hiddenfromstudents', component: 'core'},
     left: {key: 'dashboardleft', component: 'my'},
     loading: {key: 'loading', component: 'core'},
     movecontrols: {key: 'dashboardmovecontrols', component: 'my'},
     moveinstructions: {key: 'dashboardmovehandleinstructions', component: 'my'},
+    marketplace: {key: 'dashboardmarketplace', component: 'my'},
+    noblocksfound: {key: 'dashboardnoblocksfound', component: 'my'},
+    onpage: {key: 'dashboardblockonpage', component: 'my'},
     reset: {key: 'resetpage', component: 'my'},
-    resettodefault: {key: 'dashboardreset', component: 'my'},
     resetheading: {key: 'resetdashboardheading', component: 'my'},
+    resettodefault: {key: 'dashboardreset', component: 'my'},
     resize: {key: 'resizeblock', component: 'my'},
     resizecontrols: {key: 'dashboardresizecontrols', component: 'my'},
     resizeinstructions: {key: 'dashboardresizehandleinstructions', component: 'my'},
@@ -85,6 +100,7 @@ const LABEL_STRINGS: Record<keyof DashboardLabels, {key: string; component: stri
     scopedefaultshort: {key: 'dashboardscopedefaultshort', component: 'my'},
     scopeown: {key: 'dashboardscopeown', component: 'my'},
     scopeownshort: {key: 'dashboardscopeownshort', component: 'my'},
+    searchblocks: {key: 'dashboardsearchblocks', component: 'my'},
     scopesitedefault: {key: 'dashboardscopesitedefault', component: 'my'},
     undo: {key: 'dashboardundo', component: 'my'},
     up: {key: 'dashboardup', component: 'my'},

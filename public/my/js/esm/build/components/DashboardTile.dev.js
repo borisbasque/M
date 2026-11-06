@@ -9,7 +9,7 @@ import { Fragment, jsxDEV } from "react/jsx-dev-runtime";
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
-import { Button, Dropdown, DropdownItemAction } from "@moodlehq/design-system";
+import { Badge, Button, Dropdown, DropdownItemAction } from "@moodlehq/design-system";
 import { NARROW_BLOCK_WIDTH } from "../layout";
 import { useString } from "../strings";
 import { htmlToText } from "../utils";
@@ -22,7 +22,7 @@ const actionAttributes = /* @__PURE__ */ __name((action) => {
     return {};
   }
 }, "actionAttributes");
-const BlockActionsMenu = /* @__PURE__ */ __name(({ label, icon, actions, onDelete }) => /* @__PURE__ */ jsxDEV(
+const BlockActionsMenu = /* @__PURE__ */ __name(({ label, icon, actions }) => /* @__PURE__ */ jsxDEV(
   Dropdown,
   {
     className: "core-my-dashboard-tile__menu",
@@ -31,22 +31,7 @@ const BlockActionsMenu = /* @__PURE__ */ __name(({ label, icon, actions, onDelet
     startIcon: renderIcon(icon),
     appearance: "subtle",
     placement: "bottom-end",
-    children: actions.map((action) => action.key === "delete" ? /* @__PURE__ */ jsxDEV(
-      DropdownItemAction,
-      {
-        label: action.label,
-        variant: "danger",
-        startIcon: action.icon ? renderIcon(action.icon) : void 0,
-        onClick: onDelete
-      },
-      action.key,
-      false,
-      {
-        fileName: "public/my/js/esm/src/components/DashboardTile.tsx",
-        lineNumber: 55,
-        columnNumber: 11
-      }
-    ) : /* @__PURE__ */ jsxDEV(
+    children: actions.map((action) => /* @__PURE__ */ jsxDEV(
       DropdownItemAction,
       {
         href: action.url,
@@ -59,8 +44,8 @@ const BlockActionsMenu = /* @__PURE__ */ __name(({ label, icon, actions, onDelet
       false,
       {
         fileName: "public/my/js/esm/src/components/DashboardTile.tsx",
-        lineNumber: 62,
-        columnNumber: 11
+        lineNumber: 53,
+        columnNumber: 28
       }
     ))
   },
@@ -68,13 +53,183 @@ const BlockActionsMenu = /* @__PURE__ */ __name(({ label, icon, actions, onDelet
   false,
   {
     fileName: "public/my/js/esm/src/components/DashboardTile.tsx",
-    lineNumber: 46,
-    columnNumber: 87
+    lineNumber: 45,
+    columnNumber: 77
   }
 ), "BlockActionsMenu");
+const TileActions = /* @__PURE__ */ __name(({ block, icons, menuLabel, onDelete }) => {
+  const deleteAction = block.actions.find((action) => action.key === "delete");
+  const menuActions = block.actions.filter((action) => action.key !== "delete");
+  if (!block.actions.length) {
+    return null;
+  }
+  return /* @__PURE__ */ jsxDEV("div", { className: "core-my-dashboard-tile__actions", children: [
+    deleteAction && /* @__PURE__ */ jsxDEV(
+      Button,
+      {
+        variant: "secondary",
+        size: "lg",
+        className: "core-my-dashboard-tile__delete",
+        "aria-label": deleteAction.label,
+        startIcon: renderIcon(icons.remove),
+        onClick: onDelete
+      },
+      void 0,
+      false,
+      {
+        fileName: "public/my/js/esm/src/components/DashboardTile.tsx",
+        lineNumber: 82,
+        columnNumber: 26
+      }
+    ),
+    menuActions.length > 0 && /* @__PURE__ */ jsxDEV(
+      BlockActionsMenu,
+      {
+        label: menuLabel || menuActions[0].label,
+        icon: icons.menu,
+        actions: menuActions
+      },
+      void 0,
+      false,
+      {
+        fileName: "public/my/js/esm/src/components/DashboardTile.tsx",
+        lineNumber: 90,
+        columnNumber: 36
+      }
+    )
+  ] }, void 0, true, {
+    fileName: "public/my/js/esm/src/components/DashboardTile.tsx",
+    lineNumber: 81,
+    columnNumber: 12
+  });
+}, "TileActions");
 const POSITION_ANIMATION_MS = 180;
+const LANDING_ANIMATION_MS = 280;
 const HEADER_CONTROLS = 'button, a, input, select, textarea, label, [role="button"], [data-bs-toggle]';
 const HEADER_DRAG_THRESHOLD = 4;
+const outlinePath = /* @__PURE__ */ __name((w, h, r) => {
+  const radius = Math.max(0, Math.min(r, w / 2, h / 2));
+  const inset = radius * (1 - Math.SQRT1_2);
+  const arc = /* @__PURE__ */ __name((x, y) => `A ${radius} ${radius} 0 0 1 ${x} ${y}`, "arc");
+  return [
+    `M ${inset} ${inset} ${arc(radius, 0)}`,
+    `H ${w - radius} ${arc(w, radius)}`,
+    `V ${h - radius} ${arc(w - radius, h)}`,
+    `H ${radius} ${arc(0, h - radius)}`,
+    `V ${radius} ${arc(inset, inset)}`
+  ].join(" ");
+}, "outlinePath");
+const OutlineSvg = /* @__PURE__ */ __name(({ onEnd }) => {
+  const svgRef = useRef(null);
+  useLayoutEffect(() => {
+    const svg = svgRef.current;
+    const tile = svg?.parentElement;
+    if (!svg || !tile) {
+      return;
+    }
+    const style = window.getComputedStyle(tile);
+    const shift = style.transform && style.transform !== "none" ? new DOMMatrixReadOnly(style.transform) : null;
+    const box = tile.getBoundingClientRect();
+    const left = box.left - (shift?.e ?? 0);
+    const top = box.top - (shift?.f ?? 0);
+    const ratio = window.devicePixelRatio || 1;
+    const snap = /* @__PURE__ */ __name((value) => Math.round(value * ratio) / ratio, "snap");
+    const width = snap(left + box.width) - snap(left);
+    const height = snap(top + box.height) - snap(top);
+    const border = parseFloat(style.borderTopWidth) || 0;
+    const innerWidth = width - 2 * border;
+    const innerHeight = height - 2 * border;
+    svg.style.width = `${innerWidth}px`;
+    svg.style.height = `${innerHeight}px`;
+    svg.style.transform = `translate(${snap(left) - left}px, ${snap(top) - top}px)`;
+    const d = outlinePath(innerWidth, innerHeight, (parseFloat(style.borderTopLeftRadius) || 0) - border);
+    svg.querySelectorAll("path").forEach((path) => path.setAttribute("d", d));
+  }, []);
+  return /* @__PURE__ */ jsxDEV(
+    "svg",
+    {
+      ref: svgRef,
+      className: "core-my-dashboard-tile__drop-outline",
+      "aria-hidden": "true",
+      focusable: "false",
+      onAnimationEnd: (event) => {
+        if (event.animationName === "core-my-dashboard-drop-spin-2") {
+          onEnd?.();
+        }
+      },
+      children: [
+        /* @__PURE__ */ jsxDEV("path", { className: "core-my-dashboard-tile__drop-outline-path", pathLength: 1 }, void 0, false, {
+          fileName: "public/my/js/esm/src/components/DashboardTile.tsx",
+          lineNumber: 217,
+          columnNumber: 9
+        }),
+        /* @__PURE__ */ jsxDEV("path", { className: "core-my-dashboard-tile__drop-outline-path", pathLength: 1 }, void 0, false, {
+          fileName: "public/my/js/esm/src/components/DashboardTile.tsx",
+          lineNumber: 218,
+          columnNumber: 9
+        })
+      ]
+    },
+    void 0,
+    true,
+    {
+      fileName: "public/my/js/esm/src/components/DashboardTile.tsx",
+      lineNumber: 205,
+      columnNumber: 12
+    }
+  );
+}, "OutlineSvg");
+const DropOutline = /* @__PURE__ */ __name(({ dropKey, waiting, onEnd }) => dropKey === void 0 || waiting ? null : /* @__PURE__ */ jsxDEV(OutlineSvg, { onEnd }, dropKey, false, {
+  fileName: "public/my/js/esm/src/components/DashboardTile.tsx",
+  lineNumber: 224,
+  columnNumber: 48
+}), "DropOutline");
+const useLanding = /* @__PURE__ */ __name((tileRef, positionAnimation, drag, activeMode) => {
+  const pointerMoving = Boolean(drag) && activeMode === "move";
+  const dragRect = useRef(null);
+  const [landing, setLanding] = useState(false);
+  useLayoutEffect(() => {
+    const tile = tileRef.current;
+    if (!tile) {
+      return void 0;
+    }
+    if (pointerMoving) {
+      dragRect.current = tile.getBoundingClientRect();
+      return void 0;
+    }
+    const from = dragRect.current;
+    dragRect.current = null;
+    if (!from || window.matchMedia?.("(prefers-reduced-motion: reduce)").matches || !tile.animate) {
+      return void 0;
+    }
+    const to = tile.getBoundingClientRect();
+    const horizontal = from.left - to.left;
+    const vertical = from.top - to.top;
+    if (!horizontal && !vertical) {
+      return void 0;
+    }
+    positionAnimation.current?.cancel();
+    const animation = tile.animate([
+      { transform: `translate3d(${horizontal}px, ${vertical}px, 0)` },
+      { transform: "translate3d(0, 0, 0)" }
+    ], {
+      duration: LANDING_ANIMATION_MS,
+      easing: "cubic-bezier(.2, 0, 0, 1)"
+    });
+    positionAnimation.current = animation;
+    setLanding(true);
+    const land = /* @__PURE__ */ __name(() => setLanding(false), "land");
+    animation.addEventListener("finish", land);
+    animation.addEventListener("cancel", land);
+    const settle = window.setTimeout(() => {
+      if (animation.playState !== "finished") {
+        animation.finish();
+      }
+    }, LANDING_ANIMATION_MS * 2);
+    return () => window.clearTimeout(settle);
+  }, [positionAnimation, tileRef, pointerMoving, drag?.x, drag?.y]);
+  return landing ? "core-my-dashboard-tile--landing" : void 0;
+}, "useLanding");
 const DashboardTile = /* @__PURE__ */ __name(({
   block,
   item,
@@ -87,6 +242,8 @@ const DashboardTile = /* @__PURE__ */ __name(({
   dragOrigin,
   shouldAnimatePosition = false,
   isBumped = false,
+  justDropped,
+  onDropEnd,
   onStart,
   onKeyDown,
   onPointerDown,
@@ -105,7 +262,6 @@ const DashboardTile = /* @__PURE__ */ __name(({
   const tileLabel = useString("dashboardtile", "my", titleText);
   const moveLabel = useString("moveblock", "block", titleText);
   const actionsLabel = useString("actionsfor", "core", titleText);
-  const deleteAction = block.actions.find((action) => action.key === "delete");
   const displayItem = drag && dragOrigin ? dragOrigin : item;
   const titleHtml = useMemo(() => ({ __html: block.title }), [block.title]);
   const contentHtml = useMemo(() => ({
@@ -167,6 +323,7 @@ const DashboardTile = /* @__PURE__ */ __name(({
     }, POSITION_ANIMATION_MS * 2);
     return () => window.clearTimeout(settle);
   }, [item.column, item.columns, item.row, item.rows, shouldAnimatePosition]);
+  const landingClass = useLanding(tileRef, positionAnimation, drag, activeMode);
   const headerPointerDown = /* @__PURE__ */ __name((event) => {
     if (!editing || event.button !== 0 || event.target.closest(HEADER_CONTROLS)) {
       return;
@@ -193,12 +350,13 @@ const DashboardTile = /* @__PURE__ */ __name(({
   }, "headerPointerDown");
   const classes = [
     "core-my-dashboard-tile",
-    editing ? "core-my-dashboard-tile--editing" : "",
+    editing && "core-my-dashboard-tile--editing",
     // Hidden through the standard menu: still shown while editing, muted, with Show on offer.
-    ...block.visible ? [] : ["core-my-dashboard-tile--hidden"],
-    activeMode ? "core-my-dashboard-tile--active" : "",
-    drag ? "core-my-dashboard-tile--pointer-dragging" : "",
-    isBumped ? "core-my-dashboard-tile--bumped" : ""
+    !block.visible && "core-my-dashboard-tile--hidden",
+    activeMode && "core-my-dashboard-tile--active",
+    landingClass,
+    drag && "core-my-dashboard-tile--pointer-dragging",
+    isBumped && "core-my-dashboard-tile--bumped"
   ].filter(Boolean).join(" ");
   return /* @__PURE__ */ jsxDEV(
     "section",
@@ -221,36 +379,19 @@ const DashboardTile = /* @__PURE__ */ __name(({
         editing && /* @__PURE__ */ jsxDEV(Fragment, { children: [
           /* @__PURE__ */ jsxDEV("span", { id: moveInstructionsId, className: "visually-hidden", children: labels.moveinstructions }, void 0, false, {
             fileName: "public/my/js/esm/src/components/DashboardTile.tsx",
-            lineNumber: 292,
+            lineNumber: 472,
             columnNumber: 13
           }),
           /* @__PURE__ */ jsxDEV("span", { id: resizeInstructionsId, className: "visually-hidden", children: labels.resizeinstructions }, void 0, false, {
             fileName: "public/my/js/esm/src/components/DashboardTile.tsx",
-            lineNumber: 293,
+            lineNumber: 473,
             columnNumber: 13
           })
         ] }, void 0, true, {
           fileName: "public/my/js/esm/src/components/DashboardTile.tsx",
-          lineNumber: 291,
+          lineNumber: 471,
           columnNumber: 21
         }),
-        editing && deleteAction && /* @__PURE__ */ jsxDEV(
-          Button,
-          {
-            variant: "secondary",
-            className: "core-my-dashboard-tile__delete",
-            "aria-label": deleteAction.label,
-            startIcon: renderIcon(icons.remove),
-            onClick: () => onDelete(block.id, titleText)
-          },
-          void 0,
-          false,
-          {
-            fileName: "public/my/js/esm/src/components/DashboardTile.tsx",
-            lineNumber: 296,
-            columnNumber: 37
-          }
-        ),
         /* @__PURE__ */ jsxDEV("header", { className: "core-my-dashboard-tile__header", onPointerDown: headerPointerDown, children: [
           editing && /* @__PURE__ */ jsxDEV(
             DashboardHandle,
@@ -272,38 +413,52 @@ const DashboardTile = /* @__PURE__ */ __name(({
             false,
             {
               fileName: "public/my/js/esm/src/components/DashboardTile.tsx",
-              lineNumber: 304,
+              lineNumber: 476,
               columnNumber: 25
             }
           ),
           /* @__PURE__ */ jsxDEV("h2", { className: "core-my-dashboard-tile__title", dangerouslySetInnerHTML: titleHtml }, void 0, false, {
             fileName: "public/my/js/esm/src/components/DashboardTile.tsx",
-            lineNumber: 320,
+            lineNumber: 492,
             columnNumber: 13
           }),
-          editing && block.actions.length > 0 && /* @__PURE__ */ jsxDEV("div", { className: "core-my-dashboard-tile__actions", children: /* @__PURE__ */ jsxDEV(
-            BlockActionsMenu,
+          !block.visible && /* @__PURE__ */ jsxDEV(
+            Badge,
             {
-              label: actionsLabel || block.actions[0].label,
-              icon: icons.menu,
-              actions: block.actions,
+              className: "core-my-dashboard-tile__badge",
+              label: labels.hiddenfromstudents,
+              variant: "secondary",
+              subtle: true,
+              pill: true,
+              startIcon: renderIcon(icons.hidden)
+            },
+            void 0,
+            false,
+            {
+              fileName: "public/my/js/esm/src/components/DashboardTile.tsx",
+              lineNumber: 494,
+              columnNumber: 32
+            }
+          ),
+          editing && /* @__PURE__ */ jsxDEV(
+            TileActions,
+            {
+              block,
+              icons,
+              menuLabel: actionsLabel,
               onDelete: () => onDelete(block.id, titleText)
             },
             void 0,
             false,
             {
               fileName: "public/my/js/esm/src/components/DashboardTile.tsx",
-              lineNumber: 322,
-              columnNumber: 17
+              lineNumber: 502,
+              columnNumber: 25
             }
-          ) }, void 0, false, {
-            fileName: "public/my/js/esm/src/components/DashboardTile.tsx",
-            lineNumber: 321,
-            columnNumber: 53
-          })
+          )
         ] }, void 0, true, {
           fileName: "public/my/js/esm/src/components/DashboardTile.tsx",
-          lineNumber: 303,
+          lineNumber: 475,
           columnNumber: 9
         }),
         /* @__PURE__ */ jsxDEV(
@@ -317,10 +472,15 @@ const DashboardTile = /* @__PURE__ */ __name(({
           false,
           {
             fileName: "public/my/js/esm/src/components/DashboardTile.tsx",
-            lineNumber: 330,
+            lineNumber: 509,
             columnNumber: 9
           }
         ),
+        /* @__PURE__ */ jsxDEV(DropOutline, { dropKey: justDropped, waiting: Boolean(landingClass), onEnd: onDropEnd }, void 0, false, {
+          fileName: "public/my/js/esm/src/components/DashboardTile.tsx",
+          lineNumber: 514,
+          columnNumber: 9
+        }),
         editing && /* @__PURE__ */ jsxDEV("footer", { className: "core-my-dashboard-tile__dashboard-footer", children: /* @__PURE__ */ jsxDEV(
           DashboardHandle,
           {
@@ -341,12 +501,12 @@ const DashboardTile = /* @__PURE__ */ __name(({
           false,
           {
             fileName: "public/my/js/esm/src/components/DashboardTile.tsx",
-            lineNumber: 336,
+            lineNumber: 516,
             columnNumber: 13
           }
         ) }, void 0, false, {
           fileName: "public/my/js/esm/src/components/DashboardTile.tsx",
-          lineNumber: 335,
+          lineNumber: 515,
           columnNumber: 21
         })
       ]
@@ -355,13 +515,15 @@ const DashboardTile = /* @__PURE__ */ __name(({
     true,
     {
       fileName: "public/my/js/esm/src/components/DashboardTile.tsx",
-      lineNumber: 275,
+      lineNumber: 455,
       columnNumber: 12
     }
   );
 }, "DashboardTile");
 var DashboardTile_default = DashboardTile;
 export {
-  DashboardTile_default as default
+  LANDING_ANIMATION_MS,
+  DashboardTile_default as default,
+  outlinePath
 };
 //# sourceMappingURL=DashboardTile.dev.js.map

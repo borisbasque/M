@@ -450,6 +450,23 @@ export const packWithPinned = (
 };
 
 /**
+ * Where everything ends up once `pinned` is dropped where it is: packed around it (packWithPinned),
+ * then risen into the empty space above (riseToFill), as a drop is saved (see writeBack). A block
+ * pinned with empty space above it rises too, so this, not the pinned rectangle, is where it lands.
+ *
+ * @param items The on-screen layout, at `columnCount` columns.
+ * @param columnCount The current responsive column count.
+ * @param pinned The block being moved or resized, at its draft rectangle.
+ * @param limits The grid's bounds.
+ */
+export const settleWithPinned = (
+    items: LayoutItem[],
+    columnCount: number,
+    pinned: LayoutItem,
+    limits: GridLimits = DEFAULT_LIMITS,
+): LayoutItem[] => riseToFill(packWithPinned(items, columnCount, pinned, limits));
+
+/**
  * Turn a `derived` layout - produced by packLayout()/packWithPinned() at the current, possibly
  * narrowed, responsive column count - back into a canonical layout safe to persist at the full
  * MAX_COLUMNS width the server always stores.

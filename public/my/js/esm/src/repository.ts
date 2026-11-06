@@ -52,6 +52,12 @@ export interface AvailableBlock {
     title: string;
     /** The class of the form shown when adding this block type, or null when it has none. */
     blockform?: string | null;
+    /** What the block does, in a sentence, or empty. */
+    description?: string;
+    /** The block's icon, rendered, or empty. */
+    icon?: string;
+    /** Whether it allows one instance and is already on the dashboard. */
+    added?: boolean;
 }
 
 /**
@@ -71,6 +77,9 @@ export interface DashboardIcons {
     reset: string;
     remove: string;
     menu: string;
+    hidden: string;
+    added: string;
+    external: string;
 }
 
 export interface DashboardData {

@@ -16,8 +16,9 @@
  * - active: one grid unit while a block is being moved or resized, so every snap point shows.
  *   After a click or tap on a handle, choosing one places the block there; keyboard users have the
  *   arrow keys instead, so it is hidden from assistive technology.
- * - prospective: where the block will land, hatched as well as tinted so it never relies on
- *   colour alone.
+ * - prospective: where the block will land, one cell per grid unit it covers, at full size in the
+ *   preview's tint. While a block moves, it is the active cells themselves that become the preview
+ *   (previewDistance 0), and the others shrink back from it (previewDistance above 0).
  *
  * @module     core_my/components/GridCell
  * @copyright  2026 Matt Porritt <matt.porritt@moodle.com>
@@ -39,9 +40,15 @@ interface GridCellProps {
     label?: string;
     addLabel?: string;
     addIcon?: string;
-    onActivate?: (column: number, row: number) => void;
+    /** Leave the row and column out of the accessible name (for a cell that is not on the grid). */
+    hidePosition?: boolean;
+    /**
+     * For an active cell while the drop preview shows: 0 under the footprint, otherwise how many
+     * cells away from it, which my.scss uses to stagger the cell's change.
+     */
+    previewDistance?: number;
+    onActivate?: (column: number, row: number, trigger: HTMLElement) => void;
     onPlace?: (column: number, row: number) => void;
-    onPreview?: (column: number, row: number) => void;
 }
 
 const GridCell = ({
@@ -53,9 +60,10 @@ const GridCell = ({
     label = '',
     addLabel = '',
     addIcon = '',
+    hidePosition = false,
+    previewDistance,
     onActivate,
     onPlace,
-    onPreview,
 }: GridCellProps) => {
     // The position is formatted by Moodle's own string handling (row and column are one-based for
     // people), fetched here rather than substituted into a template by hand.
@@ -69,14 +77,19 @@ const GridCell = ({
     }
     if (state === 'active') {
         const placing = Boolean(onPlace);
+        const previewing = previewDistance !== undefined;
         return <div
-            className={`core-my-grid-cell core-my-grid-cell--active${placing ? ' core-my-grid-cell--placing' : ''}`}
-            style={style}
+            className={[
+                'core-my-grid-cell core-my-grid-cell--active',
+                placing && 'core-my-grid-cell--placing',
+                previewDistance === 0 && 'core-my-grid-cell--prospective',
+                previewing && previewDistance > 0 && 'core-my-grid-cell--receded',
+            ].filter(Boolean).join(' ')}
+            style={previewing ? {...style, '--core-my-preview-distance': previewDistance} as React.CSSProperties : style}
             aria-hidden="true"
             // Keep focus on the handle that picked the block up: it commits on blur, and the click
             // below is what should place the block.
             onMouseDown={placing ? event => event.preventDefault() : undefined}
-            onPointerEnter={placing ? () => onPreview?.(column, row) : undefined}
             onClick={placing ? () => onPlace?.(column, row) : undefined}
         />;
     }
@@ -84,8 +97,8 @@ const GridCell = ({
         type="button"
         className="core-my-grid-cell core-my-grid-cell--available"
         style={style}
-        aria-label={position ? `${label}, ${position}` : label}
-        onClick={() => onActivate?.(column, row)}
+        aria-label={position && !hidePosition ? `${label}, ${position}` : label}
+        onClick={event => onActivate?.(column, row, event.currentTarget)}
     >
         <span className="core-my-grid-cell__label" aria-hidden="true">
             <Icon markup={addIcon} className="core-my-grid-cell__icon" />

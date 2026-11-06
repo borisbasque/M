@@ -6,7 +6,9 @@
 // (at your option) any later version.
 
 /**
- * Replaceable directional controls built with the Moodle Design System Button.
+ * Replaceable directional controls built with the Moodle Design System Button: secondary, large,
+ * icon-only, the same Button as the tile's Delete (minus) button, so its fill, hover, pressed state and
+ * keyboard-only focus ring all come from the design system.
  *
  * @module     core_my/components/GridControls
  * @copyright  2026 Matt Porritt <matt.porritt@moodle.com>
@@ -14,7 +16,7 @@
  */
 
 import React from 'react';
-import {Button, Tooltip} from '@moodlehq/design-system';
+import {Button} from '@moodlehq/design-system';
 import type {DashboardIcons} from '../repository';
 import type {DashboardLabels} from '../strings';
 import {renderIcon} from './Icon';
@@ -40,21 +42,20 @@ const GridControls = ({mode, labels, icons, onDirection}: GridControlsProps) => 
 >
     {directions.map(direction => {
         const label = labels[direction.name];
-        return <Tooltip key={direction.name} label={label}>
-            <Button
-                size="sm"
-                variant="secondary"
-                className={`core-my-grid-controls__direction core-my-grid-controls__direction--${direction.name}`}
-                aria-label={label}
-                tabIndex={-1}
-                startIcon={renderIcon(icons[direction.name])}
-                onPointerDown={event => {
-                    event.preventDefault();
-                    event.stopPropagation();
-                }}
-                onClick={() => onDirection(direction.horizontal, direction.vertical)}
-            />
-        </Tooltip>;
+        return <Button
+            key={direction.name}
+            size="lg"
+            variant="secondary"
+            className={`core-my-grid-controls__direction core-my-grid-controls__direction--${direction.name}`}
+            aria-label={label}
+            tabIndex={-1}
+            startIcon={renderIcon(icons[direction.name])}
+            onPointerDown={event => {
+                event.preventDefault();
+                event.stopPropagation();
+            }}
+            onClick={() => onDirection(direction.horizontal, direction.vertical)}
+        />;
     })}
 </div>;
 

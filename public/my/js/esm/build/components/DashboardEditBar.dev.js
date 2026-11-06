@@ -102,6 +102,11 @@ const DashboardEditBar = /* @__PURE__ */ __name(({
       lineNumber: 54,
       columnNumber: 9
     }),
+    /* @__PURE__ */ jsxDEV("span", { className: "core-my-dashboard-toolbar__divider", "aria-hidden": "true" }, void 0, false, {
+      fileName: "public/my/js/esm/src/components/DashboardEditBar.tsx",
+      lineNumber: 75,
+      columnNumber: 9
+    }),
     /* @__PURE__ */ jsxDEV("div", { className: "core-my-dashboard-toolbar__actions", children: [
       !siteDefault && /* @__PURE__ */ jsxDEV(
         Button,
@@ -116,7 +121,7 @@ const DashboardEditBar = /* @__PURE__ */ __name(({
         false,
         {
           fileName: "public/my/js/esm/src/components/DashboardEditBar.tsx",
-          lineNumber: 76,
+          lineNumber: 77,
           columnNumber: 30
         }
       ),
@@ -134,13 +139,13 @@ const DashboardEditBar = /* @__PURE__ */ __name(({
         false,
         {
           fileName: "public/my/js/esm/src/components/DashboardEditBar.tsx",
-          lineNumber: 83,
+          lineNumber: 84,
           columnNumber: 13
         }
       ),
       /* @__PURE__ */ jsxDEV("span", { className: "core-my-dashboard-toolbar__divider", "aria-hidden": "true" }, void 0, false, {
         fileName: "public/my/js/esm/src/components/DashboardEditBar.tsx",
-        lineNumber: 91,
+        lineNumber: 92,
         columnNumber: 13
       }),
       /* @__PURE__ */ jsxDEV(
@@ -157,13 +162,13 @@ const DashboardEditBar = /* @__PURE__ */ __name(({
         false,
         {
           fileName: "public/my/js/esm/src/components/DashboardEditBar.tsx",
-          lineNumber: 92,
+          lineNumber: 93,
           columnNumber: 13
         }
       )
     ] }, void 0, true, {
       fileName: "public/my/js/esm/src/components/DashboardEditBar.tsx",
-      lineNumber: 75,
+      lineNumber: 76,
       columnNumber: 9
     })
   ] }, void 0, true, {

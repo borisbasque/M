@@ -12,13 +12,13 @@
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
 
-import {fireEvent, render, screen, waitFor} from '@testing-library/react';
+import {createEvent, fireEvent, render, screen, waitFor} from '@testing-library/react';
 import type React from 'react';
 import * as stringUtils from '@moodle/lms/core/stringUtils';
 import GridCell from '../src/components/GridCell';
 import GridControls from '../src/components/GridControls';
 import ConfirmationDialog from '../src/components/ConfirmationDialog';
-import DashboardTile from '../src/components/DashboardTile';
+import DashboardTile, {outlinePath} from '../src/components/DashboardTile';
 import DashboardHandle from '../src/components/DashboardHandle';
 import DashboardLoading from '../src/components/DashboardLoading';
 import {renderIcon} from '../src/components/Icon';
@@ -80,8 +80,19 @@ jest.mock('@moodlehq/design-system', () => {
             ref={ref}
             type="button"
             className={`mds-btn--size-${size} ${className ?? ''}`}
+            data-variant={_variant}
             {...props}
         >{startIcon}{label}</button>),
+        Alert: ({message, isActionable, actionLabel, onAction, className}: {
+            message: string;
+            isActionable?: boolean;
+            actionLabel?: string;
+            onAction?: () => void;
+            className?: string;
+        }) => <div className={className}>
+            <span role="alert">{message}</span>
+            {isActionable && <button type="button" onClick={onAction}>{actionLabel}</button>}
+        </div>,
         CloseButton: ({size: _size, ...props}: React.ButtonHTMLAttributes<HTMLButtonElement> & {size?: string}) =>
             <button type="button" {...props} />,
         Badge: ({label, variant: _variant, subtle: _subtle, pill: _pill, ...props}:
@@ -145,7 +156,14 @@ jest.mock('@moodlehq/design-system', () => {
 
 const labels: DashboardLabels = {
     addblock: 'Add a block',
+    addblocks: 'Add blocks',
+    marketplace: 'Discover more blocks on Moodle Marketplace',
+    noblocksfound: 'No blocks match your search.',
+    searchblocks: 'Search blocks',
+    clearsearch: 'Clear search input',
     addblockshort: 'Add block',
+    hiddenfromstudents: 'Hidden from students',
+    onpage: 'Added',
     editing: 'Editing',
     edithint: 'Drag a block by its header to move it, or drag its corner to resize.',
     addblockbottom: 'Add a block at the end of the dashboard',
@@ -188,6 +206,9 @@ const icons: DashboardIcons = {
     reset: '<i class="icon fa fa-arrow-rotate-left fa-fw" aria-hidden="true"></i>',
     remove: '<i class="icon fa fa-minus fa-fw" aria-hidden="true"></i>',
     menu: '<i class="icon fa fa-ellipsis-vertical fa-fw" aria-hidden="true"></i>',
+    hidden: '<i class="icon fa fa-eye-slash fa-fw" aria-hidden="true"></i>',
+    added: '<i class="icon fa fa-check fa-fw" aria-hidden="true"></i>',
+    external: '<i class="icon fa fa-arrow-up-right-from-square fa-fw" aria-hidden="true"></i>',
 };
 
 // The strings the components fetch themselves, with placeholders, as the language pack has them.
@@ -275,7 +296,7 @@ describe('core_my grid components', () => {
         expect(cell).toHaveFocus();
 
         fireEvent.click(cell);
-        expect(activate).toHaveBeenCalledWith(2, 3);
+        expect(activate).toHaveBeenCalledWith(2, 3, cell);
     });
 
     it('shows the server-rendered plus icon and an "add a block" cue without changing the accessible name',
@@ -331,15 +352,15 @@ describe('core_my grid components', () => {
 
     it('shows an active cell to pointers only, and places a picked-up block in it on click', () => {
         const place = jest.fn();
-        const preview = jest.fn();
-        const {container} = render(<GridCell column={1} row={2} state="active" onPlace={place} onPreview={preview} />);
+        const {container} = render(<GridCell column={1} row={2} state="active" onPlace={place} />);
 
         const cell = container.firstChild as HTMLElement;
         expect(cell).toHaveAttribute('aria-hidden', 'true');
         expect(cell).toHaveClass('core-my-grid-cell--active', 'core-my-grid-cell--placing');
         expect(screen.queryByRole('button')).not.toBeInTheDocument();
+        // Passing over it does nothing; only the click places.
         fireEvent.pointerEnter(cell);
-        expect(preview).toHaveBeenCalledWith(1, 2);
+        expect(place).not.toHaveBeenCalled();
         fireEvent.click(cell);
         expect(place).toHaveBeenCalledWith(1, 2);
     });
@@ -366,7 +387,11 @@ describe('core_my grid components', () => {
             ['Right', 1, 0],
             ['Down', 0, 1],
         ].forEach(([name, horizontal, vertical]) => {
-            fireEvent.click(screen.getByRole('button', {name: String(name)}));
+            const button = screen.getByRole('button', {name: String(name)});
+            // The same MDS Button as the tile's Delete: secondary, lg, icon-only.
+            expect(button).toHaveClass('mds-btn--size-lg');
+            expect(button).toHaveAttribute('data-variant', 'secondary');
+            fireEvent.click(button);
             expect(direction).toHaveBeenLastCalledWith(horizontal, vertical);
         });
     });
@@ -561,6 +586,86 @@ describe('core_my grid components', () => {
         expect(container.querySelector('.core-my-dashboard-tile')).toHaveAttribute('data-blockregion');
     });
 
+    it('plays the drop outline on a tile that has just landed, and lets go of it when it ends', () => {
+        const onDropEnd = jest.fn();
+        const props = {
+            block: tileBlock({id: 9, title: 'Calendar'}),
+            item: {id: 9, column: 0, row: 0, columns: 2, rows: 2},
+            labels,
+            icons,
+            editing: true,
+            showControls: false,
+            onDropEnd,
+            ...tileHandlers(),
+        };
+        const {container, rerender} = render(<DashboardTile {...props} />);
+        expect(container.querySelector('.core-my-dashboard-tile__drop-outline')).toBeNull();
+
+        rerender(<DashboardTile {...props} justDropped={1} />);
+        const outline = container.querySelector('.core-my-dashboard-tile__drop-outline')!;
+        expect(outline).toHaveAttribute('aria-hidden', 'true');
+        // Two pieces, each the whole outline from the top-left corner, clockwise (along the top
+        // first); each shows half of it (my.scss), and they spin round it from there.
+        const pieces = [...outline.querySelectorAll('.core-my-dashboard-tile__drop-outline-path')];
+        expect(pieces).toHaveLength(2);
+        pieces.forEach(piece => {
+            expect(piece).toHaveAttribute('pathLength', '1');
+            expect(piece.getAttribute('d')).toBe(outlinePath(2000, 800, 0));
+        });
+        expect(outlinePath(2000, 800, 0)).toBe(
+            'M 0 0 A 0 0 0 0 1 0 0 H 2000 A 0 0 0 0 1 2000 0 V 800 A 0 0 0 0 1 2000 800 '
+            + 'H 0 A 0 0 0 0 1 0 800 V 0 A 0 0 0 0 1 0 0'
+        );
+        // With rounded corners it starts and ends at the middle of the top-left arc, every arc clockwise.
+        const rounded = outlinePath(200, 100, 8).split(' ');
+        const inset = 8 * (1 - Math.SQRT1_2);
+        expect(rounded.slice(1, 3).map(Number)).toEqual([inset, inset]);
+        expect(rounded.slice(-2).map(Number)).toEqual([inset, inset]);
+        expect(rounded.filter(part => part === 'A')).toHaveLength(5);
+        expect(outlinePath(200, 100, 8)).not.toMatch(/A 8 8 0 0 0/);
+        // No lasting "just moved" state on the tile itself.
+        expect(container.querySelector('.core-my-dashboard-tile')!.className).not.toMatch(/just/);
+
+        // The jsdom environment has no AnimationEvent, so the animation's name is set on the event by hand.
+        const animationEnd = (animationName: string) => {
+            const event = createEvent.animationEnd(outline);
+            Object.defineProperty(event, 'animationName', {value: animationName});
+            fireEvent(outline, event);
+        };
+        animationEnd('some-other-animation');
+        // The faster piece ending is not the end of the spin; the slower one's is.
+        animationEnd('core-my-dashboard-drop-spin-1');
+        expect(onDropEnd).not.toHaveBeenCalled();
+        animationEnd('core-my-dashboard-drop-spin-2');
+        expect(onDropEnd).toHaveBeenCalledTimes(1);
+    });
+
+    it('marks a handle focused by a pointer so it shows no focus ring, until the keyboard is used', () => {
+        render(<DashboardHandle
+            mode="move"
+            label="Move"
+            labels={labels}
+            icons={icons}
+            instructionsId="move-instructions"
+            active={false}
+            showControls={false}
+            onStart={jest.fn()}
+            onKeyDown={jest.fn()}
+            onPointerDown={jest.fn()}
+            onDirection={jest.fn()}
+            onCommit={jest.fn()}
+        />);
+        const handle = screen.getByRole('button', {name: 'Move'});
+        fireEvent.pointerDown(handle, {button: 0});
+        expect(handle).toHaveFocus();
+        expect(handle).toHaveAttribute('data-pointer-focus', 'true');
+        fireEvent.keyDown(handle, {key: 'ArrowRight'});
+        expect(handle).not.toHaveAttribute('data-pointer-focus');
+        fireEvent.pointerDown(handle, {button: 0});
+        fireEvent.blur(handle);
+        expect(handle).not.toHaveAttribute('data-pointer-focus');
+    });
+
     it('marks a displaced tile for pointer-position easing', async() => {
         render(<DashboardTile
             block={tileBlock({id: 9, content: ''})}
@@ -665,12 +770,24 @@ describe('core_my grid components', () => {
         expect(configure).toHaveAttribute('data-blockid', '14');
         expect(configure).toHaveAttribute('data-blockform', 'block_html_edit_form');
 
-        // Delete goes through the dashboard's own confirmation rather than core's link.
-        const remove = screen.getByRole('menuitem', {name: 'Delete Useful links block'});
-        expect(remove).not.toHaveAttribute('href');
-        expect(remove).not.toHaveAttribute('data-modal');
-        fireEvent.click(remove);
-        expect(handlers.onDelete).toHaveBeenCalledWith(14, 'Useful links');
+        // Delete is the tile's own button, not repeated in the menu.
+        expect(screen.queryByRole('menuitem', {name: 'Delete Useful links block'})).not.toBeInTheDocument();
+    });
+
+    it('offers no menu for a block whose only action is Delete', async() => {
+        const handlers = tileHandlers();
+        render(<DashboardTile
+            block={tileBlock({id: 14, content: '', actions: blockActions.filter(action => action.key === 'delete')})}
+            item={{id: 14, column: 0, row: 0, columns: 2, rows: 2}}
+            labels={labels}
+            icons={icons}
+            editing
+            showControls={false}
+            {...handlers}
+        />);
+
+        expect(await screen.findByRole('button', {name: 'Delete Useful links block'})).toBeInTheDocument();
+        expect(screen.queryByRole('button', {name: 'Actions for Useful links'})).not.toBeInTheDocument();
     });
 
     it('offers Delete on the tile itself, named as the menu names it', async() => {
@@ -687,6 +804,9 @@ describe('core_my grid components', () => {
 
         const remove = await screen.findByRole('button', {name: 'Delete Useful links block'});
         expect(remove).toHaveClass('core-my-dashboard-tile__delete');
+        // As the Figma instance sets it: secondary, lg, icon-only.
+        expect(remove).toHaveClass('mds-btn--size-lg');
+        expect(remove).toHaveAttribute('data-variant', 'secondary');
         expect(remove.querySelector('.fa-minus')).toBeInTheDocument();
         fireEvent.click(remove);
         expect(handlers.onDelete).toHaveBeenCalledWith(14, 'Useful links');
@@ -753,6 +873,12 @@ describe('core_my grid components', () => {
             expect(onAdd).toHaveBeenCalled();
             // Edit mode is left with the page's own switch, not from the bar.
             expect(screen.queryByRole('button', {name: 'Done'})).not.toBeInTheDocument();
+        });
+
+        it('orders its actions as the design: Reset to default, Undo, then Add block', () => {
+            render(<DashboardEditBar {...props} />);
+            const names = screen.getAllByRole('button').map(button => button.textContent);
+            expect(names.slice(-3)).toEqual(['Reset to default', 'Undo', 'Add block']);
         });
 
         it('leaves out Reset to default while editing the default itself', () => {

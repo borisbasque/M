@@ -14,13 +14,14 @@
  */
 
 import React, {useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState} from 'react';
-import {Button} from '@moodlehq/design-system';
+import {Alert} from '@moodlehq/design-system';
 import {getString} from '@moodle/lms/core/stringUtils';
 import {isMoodleAjaxError} from '@moodle/lms/core/ajax';
 import {requireManyAsync} from '@moodle/lms/core/amd';
 import Pending from '@moodle/lms/core/pending';
-import DashboardTile from './components/DashboardTile';
+import DashboardTile, {LANDING_ANIMATION_MS} from './components/DashboardTile';
 import DashboardEditBar from './components/DashboardEditBar';
+import AddBlocksDialog from './components/AddBlocksDialog';
 import ConfirmationDialog from './components/ConfirmationDialog';
 import Icon, {renderIcon} from './components/Icon';
 import GridCell from './components/GridCell';
@@ -49,7 +50,7 @@ import {
     type DashboardData,
 } from './repository';
 import {useDashboardLabels, type DashboardLabels} from './strings';
-import {addBlockFallbackUrl, openAddBlockModal} from './addBlockModal';
+import {openAddBlockForm} from './addBlockModal';
 
 interface DashboardErrorBoundaryProps {
     children: React.ReactNode;
@@ -81,14 +82,15 @@ export class DashboardErrorBoundary extends React.Component<DashboardErrorBounda
         if (!this.state.error) {
             return this.props.children;
         }
-        return <div className="core-my-dashboard-status alert alert-danger" role="alert">
-            <p>{this.state.error.message}</p>
-            {this.props.onReset && this.props.resetLabel && <Button
-                variant="outline-danger"
-                label={this.props.resetLabel}
-                onClick={this.props.onReset}
-            />}
-        </div>;
+        return <Alert
+            type="danger"
+            className="core-my-dashboard-status"
+            isDismissible={false}
+            message={this.state.error.message}
+            isActionable={Boolean(this.props.onReset && this.props.resetLabel)}
+            actionLabel={this.props.resetLabel}
+            onAction={this.props.onReset}
+        />;
     }
 }
 
@@ -106,13 +108,14 @@ interface BoardCellsProps {
     rows: number;
     columnCount: number;
     layout: LayoutItem[];
+    /** Whether something is being moved or resized. */
+    active: boolean;
     interaction: Interaction | null;
     prospective?: LayoutItem;
     labels: DashboardLabels;
     addIcon: string;
     onActivate: (column: number, row: number) => void;
     onPlace: (column: number, row: number) => void;
-    onPreview: (column: number, row: number) => void;
 }
 
 /**
@@ -120,23 +123,25 @@ interface BoardCellsProps {
  *
  * At rest, the empty cells are merged into regions (see emptyRegions), each one button that adds a
  * block there. While a block is being moved or resized, every grid unit shows as an active cell so
- * all the snap points are visible, with the footprint the block would take on commit drawn over
- * them as one prospective cell. After a click or tap on a handle (origin 'mouseclick'), choosing
- * an active cell previews and places the block there.
+ * all the snap points are visible, and the ones under the footprint the block would take on
+ * commit become the drop preview while the rest shrink back. After a click or tap on a handle
+ * (origin 'mouseclick'), clicking an active cell places the block there. Hovering one does nothing:
+ * the tile moves only when told to, as with the arrow keys, or stepping it with the on-screen arrows
+ * would leave the pointer over the cell it just left, and pull it straight back.
  */
 const BoardCells = ({
     rows,
     columnCount,
     layout,
+    active,
     interaction,
     prospective,
     labels,
     addIcon,
     onActivate,
     onPlace,
-    onPreview,
 }: BoardCellsProps) => {
-    if (!interaction) {
+    if (!active) {
         return <>
             {emptyRegions(layout, columnCount, rows).map(region => <GridCell
                 key={`${region.column}:${region.row}`}
@@ -151,24 +156,197 @@ const BoardCells = ({
             />)}
         </>;
     }
-    const placing = interaction.origin === 'mouseclick';
+    const placing = interaction?.origin === 'mouseclick';
+    // The drop preview is drawn on the active cells themselves: those under the footprint keep their
+    // full size and take the preview's tint, and every other cell shrinks back from it, so the
+    // preview stands out without growing. How far a cell is from the footprint (in whole cells, on
+    // whichever axis is further) staggers its change in my.scss, so the cells nearest the preview
+    // move first and the change ripples outwards rather than happening all at once.
+    const footprint = prospective;
+    const distance = (column: number, row: number): number | undefined => {
+        if (!footprint) {
+            return undefined;
+        }
+        const across = Math.max(footprint.column - column, column - (footprint.column + footprint.columns - 1), 0);
+        const down = Math.max(footprint.row - row, row - (footprint.row + footprint.rows - 1), 0);
+        return Math.max(across, down);
+    };
     return <>
         {Array.from({length: rows}, (_, row) => Array.from({length: columnCount}, (__, column) => <GridCell
             key={`${column}:${row}`}
             column={column}
             row={row}
             state="active"
+            previewDistance={distance(column, row)}
             onPlace={placing ? onPlace : undefined}
-            onPreview={placing ? onPreview : undefined}
         />))}
-        {prospective && <GridCell
-            column={prospective.column}
-            row={prospective.row}
-            columns={prospective.columns}
-            rows={prospective.rows}
-            state="prospective"
-        />}
     </>;
+};
+
+/**
+ * The end-of-grid "Add a block" row: one more board cell (the same GridCell, cell styles and
+ * states as the empty space inside the grid), in a one-row grid with the board's columns, gap and
+ * row height so that it spans the full width one grid unit tall. While a block or palette item is
+ * moving it breaks into one active cell per column, like every grid unit above it, and is inert:
+ * blocks are only placed on the grid. The drop preview never reaches it, so while one shows these
+ * cells shrink back with the rest, a row further from the preview than the grid's last row.
+ */
+const EndOfGridCell = ({columnCount, moving, gridRows, prospective, label, addIcon, onActivate}: {
+    columnCount: number;
+    moving: boolean;
+    /** The grid's row count: this row sits just below them. */
+    gridRows: number;
+    prospective?: LayoutItem;
+    label: string;
+    addIcon: string;
+    onActivate: (trigger: HTMLElement) => void;
+}) => {
+    // Cells from the preview, as BoardCells counts them: whichever axis is further.
+    const distance = (column: number): number | undefined => {
+        if (!prospective) {
+            return undefined;
+        }
+        const across = Math.max(
+            prospective.column - column,
+            column - (prospective.column + prospective.columns - 1),
+            0,
+        );
+        return Math.max(across, gridRows - (prospective.row + prospective.rows - 1));
+    };
+    return <div
+        className="core-my-dashboard-addblock"
+        data-region="add-block-button"
+        style={{
+            gridTemplateColumns: `repeat(${columnCount}, minmax(0, 1fr))`,
+            gridTemplateRows: `${ROW_HEIGHT}px`,
+        }}
+    >
+        {moving
+            ? Array.from({length: columnCount}, (_, column) => <GridCell
+                key={column}
+                column={column}
+                row={0}
+                state="active"
+                previewDistance={distance(column)}
+            />)
+            : <GridCell
+                column={0}
+                row={0}
+                columns={columnCount}
+                label={label}
+                addLabel={label}
+                addIcon={addIcon}
+                hidePosition
+                onActivate={(_column, _row, trigger) => onActivate(trigger)}
+            />}
+    </div>;
+};
+
+/**
+ * How long a touch (or pen) has to rest on a handle before it picks the tile up, and how far it
+ * may wander meanwhile. Moving further first is a scroll, not a drag.
+ */
+export const TOUCH_HOLD_MS = 300;
+export const TOUCH_HOLD_SLOP = 8;
+
+/**
+ * Long press for touch and pen on a move or resize handle. The handles allow panning
+ * (touch-action: manipulation), so a finger that moves on before the hold completes simply scrolls
+ * the page and nothing is picked up. A press held still for TOUCH_HOLD_MS calls onHold; from then
+ * on the rest of that gesture's touchmoves are cancelled, so the page stops scrolling and the drag
+ * follows the finger. A release before then is a tap (onTap), which, like a mouse click, shows the
+ * on-screen move/resize controls. Returns a function that abandons the wait (on unmount).
+ */
+const awaitTouchHold = (
+    event: React.PointerEvent,
+    onHold: (x: number, y: number) => void,
+    onTap: () => void,
+): (() => void) => {
+    const {pointerId, clientX: x, clientY: y} = event;
+    let held = false;
+    // Registered now, non-passive, as the browser decides whether a touch scrolls from its first
+    // touchmoves; it only cancels them once the hold has completed.
+    const blockScroll = (touchEvent: TouchEvent) => {
+        if (held && touchEvent.cancelable) {
+            touchEvent.preventDefault();
+        }
+    };
+    // A long press would otherwise also open the context menu or the iOS callout.
+    const noMenu = (menuEvent: Event) => menuEvent.preventDefault();
+    const release = () => {
+        window.removeEventListener('touchmove', blockScroll);
+        window.removeEventListener('contextmenu', noMenu);
+        window.removeEventListener('pointerup', releaseAfterHold);
+        window.removeEventListener('pointercancel', releaseAfterHold);
+    };
+    const releaseAfterHold = (pointerEvent: PointerEvent) => {
+        if (pointerEvent.pointerId === pointerId) {
+            release();
+        }
+    };
+    const stopWaiting = () => {
+        window.clearTimeout(timer);
+        window.removeEventListener('pointermove', move);
+        window.removeEventListener('pointerup', up);
+        window.removeEventListener('pointercancel', abandon);
+    };
+    const abandon = (pointerEvent?: PointerEvent) => {
+        if (pointerEvent && pointerEvent.pointerId !== pointerId) {
+            return;
+        }
+        stopWaiting();
+        release();
+    };
+    const move = (pointerEvent: PointerEvent) => {
+        if (pointerEvent.pointerId === pointerId
+            && Math.hypot(pointerEvent.clientX - x, pointerEvent.clientY - y) >= TOUCH_HOLD_SLOP) {
+            abandon();
+        }
+    };
+    const up = (pointerEvent: PointerEvent) => {
+        if (pointerEvent.pointerId === pointerId) {
+            abandon();
+            onTap();
+        }
+    };
+    const timer = window.setTimeout(() => {
+        held = true;
+        stopWaiting();
+        window.addEventListener('pointerup', releaseAfterHold);
+        window.addEventListener('pointercancel', releaseAfterHold);
+        navigator.vibrate?.(10);
+        onHold(x, y);
+    }, TOUCH_HOLD_MS);
+    window.addEventListener('touchmove', blockScroll, {passive: false});
+    window.addEventListener('contextmenu', noMenu);
+    window.addEventListener('pointermove', move);
+    window.addEventListener('pointerup', up);
+    window.addEventListener('pointercancel', abandon);
+    return () => {
+        if (!held) {
+            abandon();
+        }
+    };
+};
+
+/**
+ * While a tile is dragged or resized with a pointer, mark the document so the cursor holds (grabbing
+ * for a move, nwse-resize for a resize) wherever the pointer goes, not just over the handle.
+ *
+ * @param interaction The move or resize under way, if any; only a pointer one sets the cursor.
+ */
+export const useInteractionCursor = (interaction: Pick<Interaction, 'mode' | 'origin'> | null): void => {
+    const mode = interaction?.origin === 'pointer' ? interaction.mode : null;
+    useEffect(() => {
+        if (!mode) {
+            return undefined;
+        }
+        const root = document.documentElement;
+        root.dataset.coreMyPointer = mode;
+        return () => {
+            delete root.dataset.coreMyPointer;
+        };
+    }, [mode]);
 };
 
 interface PointerDrag {
@@ -186,17 +364,15 @@ interface AddTarget {
     position?: 'start' | 'end';
 }
 
-type ConfirmAction = {type: 'reset'} | {
-    type: 'delete';
-    id: number;
-    title: string;
-    heading: string;
-    message: string;
-    confirmLabel: string;
-};
+type ConfirmAction = {type: 'reset'};
 
 // How many moves and resizes Undo can step back through.
 const UNDO_LIMIT = 20;
+
+// The latest the drop feedback is cleared, should its animationend never come (an animation
+// cancelled, or reduced motion, where there is no animation): the spin in my.scss takes 0.85s at most,
+// and after a pointer drag it starts only once the tile has travelled into place (LANDING_ANIMATION_MS).
+const DROP_FEEDBACK_MS = 1100 + LANDING_ANIMATION_MS;
 
 // See the settling MutationObserver in the collected-JS effect below for what these guard.
 const DASHBOARD_SETTLE_QUIET_MS = 250;
@@ -225,7 +401,7 @@ interface DashboardPlaceholderProps {
 
 /** What stands in for the dashboard until its data and strings have loaded, or if loading failed. */
 const DashboardPlaceholder = ({error, loadingLabel, initialLayout}: DashboardPlaceholderProps) => error
-    ? <div className="core-my-dashboard-status alert alert-danger" role="alert">{error}</div>
+    ? <Alert type="danger" className="core-my-dashboard-status" isDismissible={false} message={error} />
     : <DashboardLoading label={loadingLabel} layout={initialLayout} />;
 
 /**
@@ -245,10 +421,26 @@ const describeError = (caught: unknown): string => {
  * block picked up by a click or a tap; the keyboard has its own arrow keys. Tiles glide from cell to
  * cell rather than jumping, except a dragged tile, which already follows the pointer.
  */
-const tileMotion = (interaction: Interaction | null, id: number) => ({
-    showControls: interaction?.id === id && interaction.origin === 'mouseclick',
-    shouldAnimatePosition: Boolean(interaction) && (interaction?.origin !== 'pointer' || interaction.id !== id),
-});
+const tileInteraction = (interaction: Interaction | null, id: number) => {
+    const own = interaction?.id === id ? interaction : null;
+    return {
+        activeMode: own?.mode,
+        drag: own?.drag,
+        dragOrigin: own?.original,
+        showControls: own?.origin === 'mouseclick',
+        shouldAnimatePosition: Boolean(interaction) && (interaction?.origin !== 'pointer' || !own),
+    };
+};
+
+/**
+ * Where the drop preview shows: for a pointer drag or resize, wherever its draft is, including back
+ * over its starting place (the tile itself is following the pointer, so the preview is the only thing
+ * showing where it will drop, and hiding it there would make the grid's cells grow back and shrink
+ * again as it passes). The arrow keys, the on-screen arrows and click-to-place have none: they move
+ * the tile itself, a cell at a time, so it would only sit under the tile.
+ */
+const prospectiveFor = (interaction: Interaction | null) =>
+    (interaction?.origin === 'pointer' ? interaction.draft : undefined);
 
 /**
  * How many rows the grid shows: enough for the layout, plus one spare row while a block is moved by
@@ -413,7 +605,21 @@ const Dashboard = ({
     const [data, setData] = useState<DashboardData | null>(null);
     const [canonical, setCanonical] = useState<LayoutItem[]>([]);
     const [interaction, setInteraction] = useState<Interaction | null>(null);
+    useInteractionCursor(interaction);
     const [announcement, setAnnouncement] = useState('');
+    // The tile that has just landed (moved, or added onto the grid), for its drop feedback.
+    const [justDropped, setJustDropped] = useState<{id: number; key: number} | null>(null);
+    const justDroppedTimer = useRef<number | undefined>(undefined);
+    const flagDropped = useCallback((id: number) => {
+        window.clearTimeout(justDroppedTimer.current);
+        setJustDropped({id, key: Date.now()});
+        justDroppedTimer.current = window.setTimeout(() => setJustDropped(null), DROP_FEEDBACK_MS);
+    }, []);
+    const clearDropped = useCallback(() => {
+        window.clearTimeout(justDroppedTimer.current);
+        setJustDropped(null);
+    }, []);
+    useEffect(() => () => window.clearTimeout(justDroppedTimer.current), []);
     const [error, setError] = useState('');
     const [confirmAction, setConfirmAction] = useState<ConfirmAction | null>(null);
     const [saving, setSaving] = useState(false);
@@ -422,6 +628,9 @@ const Dashboard = ({
     const [history, setHistory] = useState<LayoutItem[][]>([]);
     const gridRef = useRef<HTMLDivElement>(null);
     const pointerRef = useRef<{x: number; y: number; moved: boolean} | null>(null);
+    // Abandons a touch long press still being waited for (see awaitTouchHold).
+    const touchHoldRef = useRef<(() => void) | null>(null);
+    useEffect(() => () => touchHoldRef.current?.(), []);
     const interactionRef = useRef<Interaction | null>(null);
     const canonicalRef = useRef<LayoutItem[]>([]);
     const displayLayoutRef = useRef<LayoutItem[]>([]);
@@ -477,9 +686,13 @@ const Dashboard = ({
         [canonical, columnCount],
     );
     displayLayoutRef.current = displayLayout;
-    const previewLayout = useMemo(() => interaction
+    // While a block is moved or resized, it goes exactly where it is put - a cell at a time with the
+    // arrow keys or the on-screen arrows, under the pointer when dragged - and the others make room
+    // for it (packWithPinned). Nothing rises until the drop (see commit), so a step never snaps the
+    // block somewhere else, nor tiles jump about under the pointer.
+    const previewLayout = useMemo(() => (interaction
         ? packWithPinned(displayLayout, columnCount, interaction.draft, limits)
-        : displayLayout, [columnCount, displayLayout, interaction, limits]);
+        : displayLayout), [columnCount, displayLayout, interaction, limits]);
     const bumpedBlockIds = useMemo(() => {
         if (interaction?.origin !== 'pointer') {
             return new Set<number>();
@@ -554,6 +767,10 @@ const Dashboard = ({
         }
         draft = clampToGrid(draft, columnCount, bounds);
         if (!layoutChanged(current.draft, draft)) {
+            // The grid's edge: a move says where the block still is, so the press is not met with silence.
+            if (current.mode === 'move') {
+                void announce('gridcellposition', {row: draft.row + 1, column: draft.column + 1});
+            }
             return;
         }
         const next = {...current, draft};
@@ -601,8 +818,10 @@ const Dashboard = ({
         if (!current || !currentData) {
             return;
         }
+        // What is saved is risen (see writeBack): the block settles into any room above it.
         const derived = packWithPinned(currentDisplay, currentColumns, current.draft, bounds);
-        const disturbed = disturbedCount(current.before, derived, current.id);
+        const landed = riseToFill(derived);
+        const disturbed = disturbedCount(current.before, landed, current.id);
         const next = writeBack(currentCanonical, derived, current.id, bounds, currentColumns);
         setSaving(true);
         try {
@@ -610,7 +829,7 @@ const Dashboard = ({
             setHistory(previous => [...previous, currentCanonical].slice(-UNDO_LIMIT));
             setCanonical(next);
             canonicalRef.current = next;
-            const item = derived.find(candidate => candidate.id === current.id)!;
+            const item = landed.find(candidate => candidate.id === current.id)!;
             await announce(current.mode === 'move' ? 'dashboardmovecommitted' : 'dashboardresizecommitted', {
                 row: item.row + 1,
                 column: item.column + 1,
@@ -618,6 +837,11 @@ const Dashboard = ({
                 rows: item.rows,
                 disturbed,
             });
+            // The drop outline takes over from the active tile's border in the same render, so the
+            // border it breaks up is the one that was just there.
+            if (current.mode === 'move') {
+                flagDropped(current.id);
+            }
             interactionRef.current = null;
             setInteraction(null);
         } catch (caught) {
@@ -625,7 +849,7 @@ const Dashboard = ({
         } finally {
             setSaving(false);
         }
-    }, [announce, siteDefault]);
+    }, [announce, flagDropped, siteDefault]);
 
     /** Put back the layout from before the last move or resize, and save it. */
     const undo = useCallback(async() => {
@@ -648,20 +872,8 @@ const Dashboard = ({
     }, [announce, history, siteDefault]);
 
     /**
-     * Ask before deleting a block, in the words core uses for it everywhere else ("Delete Timeline
-     * block?"). Deleting cannot be undone, so it is confirmed rather than offered for Undo.
-     */
-    const askToDelete = useCallback(async(id: number, title: string) => {
-        const [heading, message, confirmLabel] = await Promise.all([
-            getString('deletecheck', 'block', title),
-            getString('deleteblockcheck', 'block', title),
-            getString('delete', 'core'),
-        ]);
-        setConfirmAction({type: 'delete', id, title, heading, message, confirmLabel});
-    }, []);
-
-    /**
-     * Delete a block in place, without a page reload: remove it, reload the dashboard, and save it
+     * Delete a block in place, straight away and without a page reload: remove it, reload the
+     * dashboard, and save it
      * with the gap the block left closed (see riseToFill), as any other change is saved. Focus goes
      * to the edit bar's Add block button, since the block that held it is gone.
      */
@@ -779,11 +991,13 @@ const Dashboard = ({
      * meant to be a drag) is what pointerup below uses to decide whether this was a genuine drag
      * to commit, or a plain click that should instead just reveal the on-screen move/resize
      * controls (see the `up` handler and Interaction.origin).
+     *
+     * It starts from the point (x, y) where the handle was pressed: at once for a mouse, and once
+     * the long press has completed for touch and pen (see pointerDown).
      */
-    const pointerDown = useCallback((event: React.PointerEvent, id: number, mode: 'move' | 'resize') => {
-        event.preventDefault();
+    const beginPointerDrag = useCallback((x: number, y: number, id: number, mode: 'move' | 'resize') => {
         start(id, mode, 'pointer');
-        pointerRef.current = {x: event.clientX, y: event.clientY, moved: false};
+        pointerRef.current = {x, y, moved: false};
         const origin = displayLayout.find(item => item.id === id);
         if (!origin) {
             return;
@@ -860,7 +1074,10 @@ const Dashboard = ({
                     if (!previous) {
                         return previous;
                     }
-                    const next = {...previous, origin: 'mouseclick' as const};
+                    // A click, not a drag: forget any sub-threshold pointer travel. Left in place,
+                    // `drag` kept the tile drawn at its starting cell (see DashboardTile's
+                    // dragOrigin) while the arrows moved only its footprint.
+                    const next = {...previous, origin: 'mouseclick' as const, drag: undefined, draft: previous.original};
                     interactionRef.current = next;
                     return next;
                 });
@@ -877,6 +1094,25 @@ const Dashboard = ({
         window.addEventListener('pointerup', up);
         window.addEventListener('pointercancel', abort);
     }, [cancel, columnCount, commit, displayLayout, start]);
+
+    /**
+     * A press on a move or resize handle. A mouse starts the drag at once, as before; touch and pen
+     * wait for a long press (TOUCH_HOLD_MS, within TOUCH_HOLD_SLOP), so a swipe that starts on a
+     * handle still scrolls the page.
+     */
+    const pointerDown = useCallback((event: React.PointerEvent, id: number, mode: 'move' | 'resize') => {
+        event.preventDefault();
+        if (event.pointerType === 'touch' || event.pointerType === 'pen') {
+            // Touch and pen pick the tile up only after a long press (see awaitTouchHold); a tap
+            // shows the on-screen controls, as a mouse click does. The mouse starts at once.
+            touchHoldRef.current?.();
+            touchHoldRef.current = awaitTouchHold(event,
+                (x, y) => beginPointerDrag(x, y, id, mode),
+                () => start(id, mode, 'mouseclick'));
+            return;
+        }
+        beginPointerDrag(event.clientX, event.clientY, id, mode);
+    }, [beginPointerDrag, start]);
 
     /**
      * Place a block that has just been added where the user asked for it.
@@ -932,9 +1168,10 @@ const Dashboard = ({
             await updateDashboard('save', siteDefault, next);
             setCanonical(next);
             canonicalRef.current = next;
+            flagDropped(item.id);
         }
         await announce('dashboardblockadded', title);
-    }, [announce, columnCountRef, load, siteDefault]);
+    }, [announce, columnCountRef, flagDropped, load, siteDefault]);
 
     /** Add a block type with no add form of its own over the web service, then place it. */
     const add = useCallback(async(block: AvailableBlock, target: AddTarget) => {
@@ -962,23 +1199,56 @@ const Dashboard = ({
     }, [placeNewBlock]);
 
     /**
-     * Open the standard "Add a block" modal (see addBlockModal.ts) for a target position: an empty
-     * cell, the start of the grid, or its end.
+     * The add blocks modal, and the space it was opened for: an empty region, the end of the grid,
+     * or none (the edit bar's Add block), when + adds to the first free space.
      */
-    const openAddBlock = useCallback((target: AddTarget, trigger?: Element | null) => {
-        const current = dataRef.current;
-        if (!current || !labels) {
-            return;
+    const [addBlocks, setAddBlocks] = useState<{target: AddTarget | null; trigger: Element | null} | null>(null);
+    const openAddBlock = useCallback((target: AddTarget | null, trigger?: Element | null) => {
+        setAddBlocks({target, trigger: trigger ?? null});
+    }, []);
+    const closeAddBlocks = useCallback(() => setAddBlocks(null), []);
+    // Focus goes back to what opened the modal once it has gone: while it is open, the rest of the
+    // page is inert and cannot take focus.
+    const addBlocksTrigger = useRef<Element | null>(null);
+    useEffect(() => {
+        if (addBlocks) {
+            addBlocksTrigger.current = addBlocks.trigger;
+        } else {
+            (addBlocksTrigger.current as HTMLElement | null)?.focus?.();
+            addBlocksTrigger.current = null;
         }
-        openAddBlockModal({
-            blocks: current.availableblocks,
-            title: labels.addblock,
-            pagehash,
-            returnElement: trigger,
-            onSelect: block => void add(block, target),
-            onFormSubmitted: block => void placeFormAdded(block, target),
-        }).catch(caught => setError(describeError(caught)));
-    }, [add, labels, pagehash, placeFormAdded]);
+    }, [addBlocks]);
+
+    /**
+     * Add a block to a place on the grid: through its own form when it has one (as Text does, and
+     * as core/add_block_body would), otherwise straight away.
+     */
+    const addBlockTo = useCallback((block: AvailableBlock, target: AddTarget, trigger?: Element | null) => {
+        if (block.blockform && pagehash) {
+            openAddBlockForm(block, {
+                pagehash,
+                returnElement: trigger,
+                onFormSubmitted: added => void placeFormAdded(added, target),
+            }).catch(caught => setError(describeError(caught)));
+        } else {
+            void add(block, target);
+        }
+    }, [add, pagehash, placeFormAdded]);
+
+    /**
+     * + in the modal: the space the modal was opened for, then the first free space. The modal closes
+     * first, so the block is seen landing, and a block's own form does not open behind it.
+     */
+    const addFromModal = useCallback((block: AvailableBlock) => {
+        let target = addBlocks?.target ?? null;
+        if (!target) {
+            const layout = displayLayoutRef.current;
+            const region = emptyRegions(layout, columnCountRef.current, Math.max(1, maxRow(layout)))[0];
+            target = region ? {column: region.column, row: region.row} : {position: 'end'};
+        }
+        closeAddBlocks();
+        addBlockTo(block, target, addBlocks?.trigger);
+    }, [addBlockTo, addBlocks, closeAddBlocks, columnCountRef]);
 
     /**
      * Discard the user's own dashboard customisation and revert to the site default.
@@ -1008,16 +1278,15 @@ const Dashboard = ({
 
     // One spare row while a block moves, so it can be put below everything else.
     const rows = gridRows(previewLayout, interaction);
-    const prospective = interaction && (layoutChanged(interaction.original, interaction.draft) ||
-        (interaction.origin === 'pointer' && interaction.mode === 'resize' && interaction.drag?.shrinking))
-        ? interaction.draft : undefined;
+    const prospective = prospectiveFor(interaction);
+    // A block is being moved: every grid unit shows as an active cell.
+    const moving = Boolean(interaction);
     const requestReset = () => setConfirmAction({type: 'reset'});
-    const requestDelete = (id: number, title: string) => void askToDelete(id, title);
     return <div
-        className={`core-my-dashboard-app${data.editing ? ' core-my-dashboard-app--editing' : ''}`}
+        className={['core-my-dashboard-app', data.editing && 'core-my-dashboard-app--editing'].filter(Boolean).join(' ')}
         aria-busy={saving}
     >
-        {error && <div className="alert alert-danger" role="alert">{error}</div>}
+        {error && <Alert type="danger" isDismissible={false} message={error} />}
         <div className="visually-hidden" aria-live="polite" aria-atomic="true">{announcement}</div>
         {data.editing && <p className="core-my-dashboard-hint">
             <Icon markup={data.icons.move} className="core-my-dashboard-hint__icon" />
@@ -1040,13 +1309,13 @@ const Dashboard = ({
                     rows={rows}
                     columnCount={columnCount}
                     layout={previewLayout}
+                    active={moving}
                     interaction={interaction}
                     prospective={prospective}
                     labels={labels}
                     addIcon={data.icons.add}
                     onActivate={(targetColumn, targetRow) => openAddBlock({column: targetColumn, row: targetRow})}
                     onPlace={place}
-                    onPreview={(targetColumn, targetRow) => void target(targetColumn, targetRow)}
                 />}
                 {previewLayout.map(item => {
                     const block = blocksById.get(item.id);
@@ -1060,41 +1329,35 @@ const Dashboard = ({
                         labels={labels}
                         icons={data.icons}
                         editing={data.editing}
-                        activeMode={interaction?.id === item.id ? interaction.mode : undefined}
-                        {...tileMotion(interaction, item.id)}
-                        drag={interaction?.id === item.id ? interaction.drag : undefined}
-                        dragOrigin={interaction?.id === item.id ? interaction.original : undefined}
+                        {...tileInteraction(interaction, item.id)}
                         isBumped={bumpedBlockIds.has(item.id)}
+                        justDropped={justDropped?.id === item.id ? justDropped.key : undefined}
+                        onDropEnd={clearDropped}
                         onStart={start}
                         onKeyDown={keyDown}
                         onPointerDown={pointerDown}
                         onDirection={shift}
                         onCommit={() => void commit()}
-                        onDelete={requestDelete}
+                        onDelete={(id, title) => void deleteBlock(id, title)}
                     />;
                 })}
             </div>
         </DashboardErrorBoundary>
         {/*
-            The end-of-grid control is the same "Add a block" button core/add_block_button renders
-            under every other block region (same markup, classes and wrapper), so it reads, and is
-            found by the standard Behat steps, exactly as on any other page. It deliberately carries
-            no data-key="addblock": that is core_block/add_modal's hook, which is not loaded on the
-            dashboard pages, and the grid opens the modal itself (see openAddBlock) so that the
-            chosen block is placed without a page reload.
+            The end-of-grid control is one more board cell: the same GridCell, with the same cell
+            styles and states, as the empty space inside the grid, drawn as a full-width row one grid unit tall
+            below everything (Board cell v2 in Figma). Choosing it opens the add blocks modal, and the block
+            is placed below everything without a page reload.
         */}
-        {data.editing && <div className="d-grid core-my-dashboard-addblock" data-region="add-block-button">
-            <a
-                href={addBlockFallbackUrl()}
-                className="btn btn-add-content mb-3"
-                onClick={event => {
-                    event.preventDefault();
-                    openAddBlock({position: 'end'}, event.currentTarget);
-                }}
-            >
-                <Icon markup={data.icons.add} className="py-2 me-2" />{labels.addblock}
-            </a>
-        </div>}
+        {data.editing && <EndOfGridCell
+            columnCount={columnCount}
+            moving={moving}
+            gridRows={rows}
+            prospective={prospective}
+            label={labels.addblock}
+            addIcon={data.icons.add}
+            onActivate={trigger => openAddBlock({position: 'end'}, trigger)}
+        />}
         {data.editing && <DashboardEditBar
             siteDefault={siteDefault}
             canEditDefault={data.caneditdefault}
@@ -1103,17 +1366,23 @@ const Dashboard = ({
             icons={data.icons}
             onReset={requestReset}
             onUndo={() => void undo()}
-            onAdd={trigger => openAddBlock({position: 'start'}, trigger)}
+            onAdd={trigger => openAddBlock(null, trigger)}
+        />}
+        {data.editing && addBlocks && <AddBlocksDialog
+            blocks={data.availableblocks}
+            labels={labels}
+            icons={data.icons}
+            onAdd={addFromModal}
+            onClose={closeAddBlocks}
         />}
         {confirmAction && <ConfirmationDialog
-            title={confirmAction.type === 'delete' ? confirmAction.heading : labels.resetheading}
-            message={confirmAction.type === 'delete' ? confirmAction.message : labels.confirmreset}
-            confirmLabel={confirmAction.type === 'delete' ? confirmAction.confirmLabel : labels.confirm}
+            title={labels.resetheading}
+            message={labels.confirmreset}
+            confirmLabel={labels.confirm}
             cancelLabel={labels.cancel}
-            danger={confirmAction.type === 'delete'}
             onConfirm={() => {
                 setConfirmAction(null);
-                void (confirmAction.type === 'delete' ? deleteBlock(confirmAction.id, confirmAction.title) : reset());
+                void reset();
             }}
             onCancel={() => setConfirmAction(null)}
         />}

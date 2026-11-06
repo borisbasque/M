@@ -264,6 +264,7 @@ const packWithPinned = /* @__PURE__ */ __name((items, columnCount, pinned, limit
   }
   return result;
 }, "packWithPinned");
+const settleWithPinned = /* @__PURE__ */ __name((items, columnCount, pinned, limits = DEFAULT_LIMITS) => riseToFill(packWithPinned(items, columnCount, pinned, limits)), "settleWithPinned");
 const writeBack = /* @__PURE__ */ __name((canonical, derived, pinnedId, limits = DEFAULT_LIMITS, columnCount = limits.maxcolumns) => {
   const original = new Map(canonical.map((item) => [item.id, item]));
   const canonicalColumns = /* @__PURE__ */ __name((item) => item.sourceColumns ?? original.get(item.id)?.columns ?? item.columns, "canonicalColumns");
@@ -383,6 +384,7 @@ export {
   packLayout,
   packWithPinned,
   riseToFill,
+  settleWithPinned,
   writeBack
 };
 //# sourceMappingURL=layout.dev.js.map

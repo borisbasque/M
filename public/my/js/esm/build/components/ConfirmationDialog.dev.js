@@ -15,7 +15,6 @@ const ConfirmationDialog = /* @__PURE__ */ __name(({
   message,
   confirmLabel,
   cancelLabel,
-  danger = false,
   onConfirm,
   onCancel
 }) => {
@@ -36,28 +35,28 @@ const ConfirmationDialog = /* @__PURE__ */ __name(({
       children: [
         /* @__PURE__ */ jsxDEV("h2", { id: headingId, children: title }, void 0, false, {
           fileName: "public/my/js/esm/src/components/ConfirmationDialog.tsx",
-          lineNumber: 57,
+          lineNumber: 54,
           columnNumber: 9
         }),
         /* @__PURE__ */ jsxDEV("p", { id: messageId, children: message }, void 0, false, {
           fileName: "public/my/js/esm/src/components/ConfirmationDialog.tsx",
-          lineNumber: 58,
+          lineNumber: 55,
           columnNumber: 9
         }),
         /* @__PURE__ */ jsxDEV("div", { className: "core-my-dashboard-confirm__actions", children: [
           /* @__PURE__ */ jsxDEV(Button, { variant: "outline-secondary", label: cancelLabel, onClick: onCancel }, void 0, false, {
             fileName: "public/my/js/esm/src/components/ConfirmationDialog.tsx",
-            lineNumber: 60,
+            lineNumber: 57,
             columnNumber: 13
           }),
-          /* @__PURE__ */ jsxDEV(Button, { variant: danger ? "danger" : "primary", label: confirmLabel, onClick: onConfirm }, void 0, false, {
+          /* @__PURE__ */ jsxDEV(Button, { variant: "primary", label: confirmLabel, onClick: onConfirm }, void 0, false, {
             fileName: "public/my/js/esm/src/components/ConfirmationDialog.tsx",
-            lineNumber: 61,
+            lineNumber: 58,
             columnNumber: 13
           })
         ] }, void 0, true, {
           fileName: "public/my/js/esm/src/components/ConfirmationDialog.tsx",
-          lineNumber: 59,
+          lineNumber: 56,
           columnNumber: 9
         })
       ]
@@ -66,7 +65,7 @@ const ConfirmationDialog = /* @__PURE__ */ __name(({
     true,
     {
       fileName: "public/my/js/esm/src/components/ConfirmationDialog.tsx",
-      lineNumber: 50,
+      lineNumber: 47,
       columnNumber: 12
     }
   );

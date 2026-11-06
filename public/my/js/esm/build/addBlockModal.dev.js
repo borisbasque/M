@@ -86,6 +86,7 @@ const openAddBlockModal = /* @__PURE__ */ __name(async (options) => {
 }, "openAddBlockModal");
 export {
   addBlockFallbackUrl,
+  openAddBlockForm,
   openAddBlockModal
 };
 //# sourceMappingURL=addBlockModal.dev.js.map

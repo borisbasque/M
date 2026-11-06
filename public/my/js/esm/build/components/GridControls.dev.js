@@ -2,13 +2,15 @@ var __defProp = Object.defineProperty;
 var __name = (target, value) => __defProp(target, "name", { value, configurable: true });
 import { jsxDEV } from "react/jsx-dev-runtime";
 /**
- * Replaceable directional controls built with the Moodle Design System Button.
+ * Replaceable directional controls built with the Moodle Design System Button: secondary, large,
+ * icon-only, the same Button as the tile's Delete (minus) button, so its fill, hover, pressed state and
+ * keyboard-only focus ring all come from the design system.
  *
  * @module     core_my/components/GridControls
  * @copyright  2026 Matt Porritt <matt.porritt@moodle.com>
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
-import { Button, Tooltip } from "@moodlehq/design-system";
+import { Button } from "@moodlehq/design-system";
 import { renderIcon } from "./Icon";
 const directions = [
   { name: "up", horizontal: 0, vertical: -1 },
@@ -24,10 +26,10 @@ const GridControls = /* @__PURE__ */ __name(({ mode, labels, icons, onDirection 
     "aria-label": mode === "move" ? labels.movecontrols : labels.resizecontrols,
     children: directions.map((direction) => {
       const label = labels[direction.name];
-      return /* @__PURE__ */ jsxDEV(Tooltip, { label, children: /* @__PURE__ */ jsxDEV(
+      return /* @__PURE__ */ jsxDEV(
         Button,
         {
-          size: "sm",
+          size: "lg",
           variant: "secondary",
           className: `core-my-grid-controls__direction core-my-grid-controls__direction--${direction.name}`,
           "aria-label": label,
@@ -39,25 +41,21 @@ const GridControls = /* @__PURE__ */ __name(({ mode, labels, icons, onDirection 
           },
           onClick: () => onDirection(direction.horizontal, direction.vertical)
         },
-        void 0,
+        direction.name,
         false,
         {
           fileName: "public/my/js/esm/src/components/GridControls.tsx",
-          lineNumber: 44,
-          columnNumber: 13
+          lineNumber: 45,
+          columnNumber: 16
         }
-      ) }, direction.name, false, {
-        fileName: "public/my/js/esm/src/components/GridControls.tsx",
-        lineNumber: 43,
-        columnNumber: 16
-      });
+      );
     })
   },
   void 0,
   false,
   {
     fileName: "public/my/js/esm/src/components/GridControls.tsx",
-    lineNumber: 36,
+    lineNumber: 38,
     columnNumber: 81
   }
 ), "GridControls");

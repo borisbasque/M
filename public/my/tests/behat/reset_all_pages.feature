@@ -39,9 +39,8 @@ Feature: Reset all personalised pages to default
     And I navigate to "Appearance > Default Dashboard page" in site administration
     And I turn editing mode on
     And I add the "Latest announcements" block
-    And I open the action menu in "Timeline" "block"
-    And I choose "Delete Timeline block" in the open action menu
-    And I click on "Delete" "button" in the "Delete block?" "dialogue"
+    And I click on "Actions for Timeline" "button"
+    And I click on "Delete Timeline block" "button"
     And I turn editing mode off
     And I log out
 

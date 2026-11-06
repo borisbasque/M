@@ -67,7 +67,7 @@ final class get_dashboard_test extends \advanced_testcase {
             'maxcolumns' => \core_my\local\dashboard::MAX_COLUMNS,
             'maxrows' => \core_my\local\dashboard::MAX_ROWS,
         ], $result['limits']);
-        foreach (['move', 'resize', 'add', 'up', 'down', 'left', 'right', 'edit', 'undo', 'reset', 'remove', 'menu'] as $icon) {
+        foreach (['move', 'resize', 'add', 'up', 'down', 'left', 'right', 'edit', 'undo', 'reset', 'remove', 'menu', 'hidden', 'added'] as $icon) {
             $this->assertStringContainsString('<i ', $result['icons'][$icon], "The {$icon} icon must be rendered markup.");
             $this->assertStringContainsString('aria-hidden="true"', $result['icons'][$icon]);
         }
@@ -150,6 +150,8 @@ final class get_dashboard_test extends \advanced_testcase {
         // Configure keeps the attributes core_block/edit opens its form from.
         $this->assertSame('editblock', json_decode($actions['edit']['attributes'], true)['data-action']);
         $this->assertFalse($actions['edit']['danger']);
+        // The icon shows what the action does: the slashed eye hides the block.
+        $this->assertStringContainsString('fa-eye-slash', $actions['hide']['icon']);
 
         $USER->editing = 0;
         $PAGE = new \moodle_page();

@@ -21,8 +21,6 @@ interface ConfirmationDialogProps {
     message: string;
     confirmLabel: string;
     cancelLabel: string;
-    /** Whether confirming destroys something, as deleting a block does: the button says so too. */
-    danger?: boolean;
     onConfirm: () => void;
     onCancel: () => void;
 }
@@ -35,7 +33,6 @@ const ConfirmationDialog = ({
     message,
     confirmLabel,
     cancelLabel,
-    danger = false,
     onConfirm,
     onCancel,
 }: ConfirmationDialogProps) => {
@@ -58,7 +55,7 @@ const ConfirmationDialog = ({
         <p id={messageId}>{message}</p>
         <div className="core-my-dashboard-confirm__actions">
             <Button variant="outline-secondary" label={cancelLabel} onClick={onCancel} />
-            <Button variant={danger ? 'danger' : 'primary'} label={confirmLabel} onClick={onConfirm} />
+            <Button variant="primary" label={confirmLabel} onClick={onConfirm} />
         </div>
     </dialog>;
 };

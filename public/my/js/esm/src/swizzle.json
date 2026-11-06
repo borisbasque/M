@@ -1,4 +1,8 @@
 {
+  "components/AddBlocksDialog": {
+    "eject": "safe",
+    "wrap": "safe"
+  },
   "components/ConfirmationDialog": {
     "eject": "safe",
     "wrap": "safe"

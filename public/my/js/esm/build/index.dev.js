@@ -9,13 +9,14 @@ import { Fragment, jsxDEV } from "react/jsx-dev-runtime";
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
 import React, { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
-import { Button } from "@moodlehq/design-system";
+import { Alert } from "@moodlehq/design-system";
 import { getString } from "@moodle/lms/core/stringUtils";
 import { isMoodleAjaxError } from "@moodle/lms/core/ajax";
 import { requireManyAsync } from "@moodle/lms/core/amd";
 import Pending from "@moodle/lms/core/pending";
-import DashboardTile from "./components/DashboardTile";
+import DashboardTile, { LANDING_ANIMATION_MS } from "./components/DashboardTile";
 import DashboardEditBar from "./components/DashboardEditBar";
+import AddBlocksDialog from "./components/AddBlocksDialog";
 import ConfirmationDialog from "./components/ConfirmationDialog";
 import Icon from "./components/Icon";
 import GridCell from "./components/GridCell";
@@ -40,7 +41,7 @@ import {
   updateDashboard
 } from "./repository";
 import { useDashboardLabels } from "./strings";
-import { addBlockFallbackUrl, openAddBlockModal } from "./addBlockModal";
+import { openAddBlockForm } from "./addBlockModal";
 class DashboardErrorBoundary extends React.Component {
   static {
     __name(this, "DashboardErrorBoundary");
@@ -56,48 +57,41 @@ class DashboardErrorBoundary extends React.Component {
     if (!this.state.error) {
       return this.props.children;
     }
-    return /* @__PURE__ */ jsxDEV("div", { className: "core-my-dashboard-status alert alert-danger", role: "alert", children: [
-      /* @__PURE__ */ jsxDEV("p", { children: this.state.error.message }, void 0, false, {
+    return /* @__PURE__ */ jsxDEV(
+      Alert,
+      {
+        type: "danger",
+        className: "core-my-dashboard-status",
+        isDismissible: false,
+        message: this.state.error.message,
+        isActionable: Boolean(this.props.onReset && this.props.resetLabel),
+        actionLabel: this.props.resetLabel,
+        onAction: this.props.onReset
+      },
+      void 0,
+      false,
+      {
         fileName: "public/my/js/esm/src/index.tsx",
         lineNumber: 85,
-        columnNumber: 13
-      }, this),
-      this.props.onReset && this.props.resetLabel && /* @__PURE__ */ jsxDEV(
-        Button,
-        {
-          variant: "outline-danger",
-          label: this.props.resetLabel,
-          onClick: this.props.onReset
-        },
-        void 0,
-        false,
-        {
-          fileName: "public/my/js/esm/src/index.tsx",
-          lineNumber: 86,
-          columnNumber: 61
-        },
-        this
-      )
-    ] }, void 0, true, {
-      fileName: "public/my/js/esm/src/index.tsx",
-      lineNumber: 84,
-      columnNumber: 16
-    }, this);
+        columnNumber: 16
+      },
+      this
+    );
   }
 }
 const BoardCells = /* @__PURE__ */ __name(({
   rows,
   columnCount,
   layout,
+  active,
   interaction,
   prospective,
   labels,
   addIcon,
   onActivate,
-  onPlace,
-  onPreview
+  onPlace
 }) => {
-  if (!interaction) {
+  if (!active) {
     return /* @__PURE__ */ jsxDEV(Fragment, { children: emptyRegions(layout, columnCount, rows).map((region) => /* @__PURE__ */ jsxDEV(
       GridCell,
       {
@@ -114,70 +108,205 @@ const BoardCells = /* @__PURE__ */ __name(({
       false,
       {
         fileName: "public/my/js/esm/src/index.tsx",
-        lineNumber: 141,
+        lineNumber: 146,
         columnNumber: 68
       }
     )) }, void 0, false, {
       fileName: "public/my/js/esm/src/index.tsx",
-      lineNumber: 140,
+      lineNumber: 145,
       columnNumber: 16
     });
   }
-  const placing = interaction.origin === "mouseclick";
-  return /* @__PURE__ */ jsxDEV(Fragment, { children: [
-    Array.from({ length: rows }, (_, row) => Array.from({ length: columnCount }, (__, column) => /* @__PURE__ */ jsxDEV(
-      GridCell,
-      {
-        column,
-        row,
-        state: "active",
-        onPlace: placing ? onPlace : void 0,
-        onPreview: placing ? onPreview : void 0
-      },
-      `${column}:${row}`,
-      false,
-      {
-        fileName: "public/my/js/esm/src/index.tsx",
-        lineNumber: 156,
-        columnNumber: 99
-      }
-    ))),
-    prospective && /* @__PURE__ */ jsxDEV(
-      GridCell,
-      {
-        column: prospective.column,
-        row: prospective.row,
-        columns: prospective.columns,
-        rows: prospective.rows,
-        state: "prospective"
-      },
-      void 0,
-      false,
-      {
-        fileName: "public/my/js/esm/src/index.tsx",
-        lineNumber: 164,
-        columnNumber: 25
-      }
-    )
-  ] }, void 0, true, {
+  const placing = interaction?.origin === "mouseclick";
+  const footprint = prospective;
+  const distance = /* @__PURE__ */ __name((column, row) => {
+    if (!footprint) {
+      return void 0;
+    }
+    const across = Math.max(footprint.column - column, column - (footprint.column + footprint.columns - 1), 0);
+    const down = Math.max(footprint.row - row, row - (footprint.row + footprint.rows - 1), 0);
+    return Math.max(across, down);
+  }, "distance");
+  return /* @__PURE__ */ jsxDEV(Fragment, { children: Array.from({ length: rows }, (_, row) => Array.from({ length: columnCount }, (__, column) => /* @__PURE__ */ jsxDEV(
+    GridCell,
+    {
+      column,
+      row,
+      state: "active",
+      previewDistance: distance(column, row),
+      onPlace: placing ? onPlace : void 0
+    },
+    `${column}:${row}`,
+    false,
+    {
+      fileName: "public/my/js/esm/src/index.tsx",
+      lineNumber: 175,
+      columnNumber: 99
+    }
+  ))) }, void 0, false, {
     fileName: "public/my/js/esm/src/index.tsx",
-    lineNumber: 155,
+    lineNumber: 174,
     columnNumber: 12
   });
 }, "BoardCells");
+const EndOfGridCell = /* @__PURE__ */ __name(({ columnCount, moving, gridRows: gridRows2, prospective, label, addIcon, onActivate }) => {
+  const distance = /* @__PURE__ */ __name((column) => {
+    if (!prospective) {
+      return void 0;
+    }
+    const across = Math.max(
+      prospective.column - column,
+      column - (prospective.column + prospective.columns - 1),
+      0
+    );
+    return Math.max(across, gridRows2 - (prospective.row + prospective.rows - 1));
+  }, "distance");
+  return /* @__PURE__ */ jsxDEV(
+    "div",
+    {
+      className: "core-my-dashboard-addblock",
+      "data-region": "add-block-button",
+      style: {
+        gridTemplateColumns: `repeat(${columnCount}, minmax(0, 1fr))`,
+        gridTemplateRows: `${ROW_HEIGHT}px`
+      },
+      children: moving ? Array.from({ length: columnCount }, (_, column) => /* @__PURE__ */ jsxDEV(
+        GridCell,
+        {
+          column,
+          row: 0,
+          state: "active",
+          previewDistance: distance(column)
+        },
+        column,
+        false,
+        {
+          fileName: "public/my/js/esm/src/index.tsx",
+          lineNumber: 225,
+          columnNumber: 64
+        }
+      )) : /* @__PURE__ */ jsxDEV(
+        GridCell,
+        {
+          column: 0,
+          row: 0,
+          columns: columnCount,
+          label,
+          addLabel: label,
+          addIcon,
+          hidePosition: true,
+          onActivate: (_column, _row, trigger) => onActivate(trigger)
+        },
+        void 0,
+        false,
+        {
+          fileName: "public/my/js/esm/src/index.tsx",
+          lineNumber: 232,
+          columnNumber: 15
+        }
+      )
+    },
+    void 0,
+    false,
+    {
+      fileName: "public/my/js/esm/src/index.tsx",
+      lineNumber: 216,
+      columnNumber: 12
+    }
+  );
+}, "EndOfGridCell");
+const TOUCH_HOLD_MS = 300;
+const TOUCH_HOLD_SLOP = 8;
+const awaitTouchHold = /* @__PURE__ */ __name((event, onHold, onTap) => {
+  const { pointerId, clientX: x, clientY: y } = event;
+  let held = false;
+  const blockScroll = /* @__PURE__ */ __name((touchEvent) => {
+    if (held && touchEvent.cancelable) {
+      touchEvent.preventDefault();
+    }
+  }, "blockScroll");
+  const noMenu = /* @__PURE__ */ __name((menuEvent) => menuEvent.preventDefault(), "noMenu");
+  const release = /* @__PURE__ */ __name(() => {
+    window.removeEventListener("touchmove", blockScroll);
+    window.removeEventListener("contextmenu", noMenu);
+    window.removeEventListener("pointerup", releaseAfterHold);
+    window.removeEventListener("pointercancel", releaseAfterHold);
+  }, "release");
+  const releaseAfterHold = /* @__PURE__ */ __name((pointerEvent) => {
+    if (pointerEvent.pointerId === pointerId) {
+      release();
+    }
+  }, "releaseAfterHold");
+  const stopWaiting = /* @__PURE__ */ __name(() => {
+    window.clearTimeout(timer);
+    window.removeEventListener("pointermove", move);
+    window.removeEventListener("pointerup", up);
+    window.removeEventListener("pointercancel", abandon);
+  }, "stopWaiting");
+  const abandon = /* @__PURE__ */ __name((pointerEvent) => {
+    if (pointerEvent && pointerEvent.pointerId !== pointerId) {
+      return;
+    }
+    stopWaiting();
+    release();
+  }, "abandon");
+  const move = /* @__PURE__ */ __name((pointerEvent) => {
+    if (pointerEvent.pointerId === pointerId && Math.hypot(pointerEvent.clientX - x, pointerEvent.clientY - y) >= TOUCH_HOLD_SLOP) {
+      abandon();
+    }
+  }, "move");
+  const up = /* @__PURE__ */ __name((pointerEvent) => {
+    if (pointerEvent.pointerId === pointerId) {
+      abandon();
+      onTap();
+    }
+  }, "up");
+  const timer = window.setTimeout(() => {
+    held = true;
+    stopWaiting();
+    window.addEventListener("pointerup", releaseAfterHold);
+    window.addEventListener("pointercancel", releaseAfterHold);
+    navigator.vibrate?.(10);
+    onHold(x, y);
+  }, TOUCH_HOLD_MS);
+  window.addEventListener("touchmove", blockScroll, { passive: false });
+  window.addEventListener("contextmenu", noMenu);
+  window.addEventListener("pointermove", move);
+  window.addEventListener("pointerup", up);
+  window.addEventListener("pointercancel", abandon);
+  return () => {
+    if (!held) {
+      abandon();
+    }
+  };
+}, "awaitTouchHold");
+const useInteractionCursor = /* @__PURE__ */ __name((interaction) => {
+  const mode = interaction?.origin === "pointer" ? interaction.mode : null;
+  useEffect(() => {
+    if (!mode) {
+      return void 0;
+    }
+    const root = document.documentElement;
+    root.dataset.coreMyPointer = mode;
+    return () => {
+      delete root.dataset.coreMyPointer;
+    };
+  }, [mode]);
+}, "useInteractionCursor");
 const UNDO_LIMIT = 20;
+const DROP_FEEDBACK_MS = 1100 + LANDING_ANIMATION_MS;
 const DASHBOARD_SETTLE_QUIET_MS = 250;
 const DASHBOARD_SETTLE_TIMEOUT_MS = 5e3;
 let dashboardSettleCounter = 0;
 const resolveSiteDefault = /* @__PURE__ */ __name((prop) => prop ?? window.location.pathname.endsWith("/my/indexsys.php"), "resolveSiteDefault");
 const resolveLimits = /* @__PURE__ */ __name((data) => data?.limits ?? DEFAULT_LIMITS, "resolveLimits");
-const DashboardPlaceholder = /* @__PURE__ */ __name(({ error, loadingLabel, initialLayout }) => error ? /* @__PURE__ */ jsxDEV("div", { className: "core-my-dashboard-status alert alert-danger", role: "alert", children: error }, void 0, false, {
+const DashboardPlaceholder = /* @__PURE__ */ __name(({ error, loadingLabel, initialLayout }) => error ? /* @__PURE__ */ jsxDEV(Alert, { type: "danger", className: "core-my-dashboard-status", isDismissible: false, message: error }, void 0, false, {
   fileName: "public/my/js/esm/src/index.tsx",
-  lineNumber: 228,
+  lineNumber: 404,
   columnNumber: 7
 }) : /* @__PURE__ */ jsxDEV(DashboardLoading, { label: loadingLabel, layout: initialLayout }, void 0, false, {
   fileName: "public/my/js/esm/src/index.tsx",
-  lineNumber: 229,
+  lineNumber: 405,
   columnNumber: 7
 }), "DashboardPlaceholder");
 const describeError = /* @__PURE__ */ __name((caught) => {
@@ -186,10 +315,17 @@ const describeError = /* @__PURE__ */ __name((caught) => {
   }
   return String(caught);
 }, "describeError");
-const tileMotion = /* @__PURE__ */ __name((interaction, id) => ({
-  showControls: interaction?.id === id && interaction.origin === "mouseclick",
-  shouldAnimatePosition: Boolean(interaction) && (interaction?.origin !== "pointer" || interaction.id !== id)
-}), "tileMotion");
+const tileInteraction = /* @__PURE__ */ __name((interaction, id) => {
+  const own = interaction?.id === id ? interaction : null;
+  return {
+    activeMode: own?.mode,
+    drag: own?.drag,
+    dragOrigin: own?.original,
+    showControls: own?.origin === "mouseclick",
+    shouldAnimatePosition: Boolean(interaction) && (interaction?.origin !== "pointer" || !own)
+  };
+}, "tileInteraction");
+const prospectiveFor = /* @__PURE__ */ __name((interaction) => interaction?.origin === "pointer" ? interaction.draft : void 0, "prospectiveFor");
 const gridRows = /* @__PURE__ */ __name((layout, interaction) => Math.max(1, maxRow(layout)) + (interaction?.mode === "move" && interaction.origin !== "keyboard" ? 1 : 0), "gridRows");
 const isRtl = /* @__PURE__ */ __name((element) => Boolean(element) && getComputedStyle(element).direction === "rtl", "isRtl");
 const layoutChanged = /* @__PURE__ */ __name((original, draft) => original.column !== draft.column || original.row !== draft.row || original.columns !== draft.columns || original.rows !== draft.rows, "layoutChanged");
@@ -267,13 +403,28 @@ const Dashboard = /* @__PURE__ */ __name(({
   const [data, setData] = useState(null);
   const [canonical, setCanonical] = useState([]);
   const [interaction, setInteraction] = useState(null);
+  useInteractionCursor(interaction);
   const [announcement, setAnnouncement] = useState("");
+  const [justDropped, setJustDropped] = useState(null);
+  const justDroppedTimer = useRef(void 0);
+  const flagDropped = useCallback((id) => {
+    window.clearTimeout(justDroppedTimer.current);
+    setJustDropped({ id, key: Date.now() });
+    justDroppedTimer.current = window.setTimeout(() => setJustDropped(null), DROP_FEEDBACK_MS);
+  }, []);
+  const clearDropped = useCallback(() => {
+    window.clearTimeout(justDroppedTimer.current);
+    setJustDropped(null);
+  }, []);
+  useEffect(() => () => window.clearTimeout(justDroppedTimer.current), []);
   const [error, setError] = useState("");
   const [confirmAction, setConfirmAction] = useState(null);
   const [saving, setSaving] = useState(false);
   const [history, setHistory] = useState([]);
   const gridRef = useRef(null);
   const pointerRef = useRef(null);
+  const touchHoldRef = useRef(null);
+  useEffect(() => () => touchHoldRef.current?.(), []);
   const interactionRef = useRef(null);
   const canonicalRef = useRef([]);
   const displayLayoutRef = useRef([]);
@@ -360,6 +511,9 @@ const Dashboard = /* @__PURE__ */ __name(({
     }
     draft = clampToGrid(draft, columnCount, bounds);
     if (!layoutChanged(current.draft, draft)) {
+      if (current.mode === "move") {
+        void announce("gridcellposition", { row: draft.row + 1, column: draft.column + 1 });
+      }
       return;
     }
     const next = { ...current, draft };
@@ -388,7 +542,8 @@ const Dashboard = /* @__PURE__ */ __name(({
       return;
     }
     const derived = packWithPinned(currentDisplay, currentColumns, current.draft, bounds);
-    const disturbed = disturbedCount(current.before, derived, current.id);
+    const landed = riseToFill(derived);
+    const disturbed = disturbedCount(current.before, landed, current.id);
     const next = writeBack(currentCanonical, derived, current.id, bounds, currentColumns);
     setSaving(true);
     try {
@@ -396,7 +551,7 @@ const Dashboard = /* @__PURE__ */ __name(({
       setHistory((previous) => [...previous, currentCanonical].slice(-UNDO_LIMIT));
       setCanonical(next);
       canonicalRef.current = next;
-      const item = derived.find((candidate) => candidate.id === current.id);
+      const item = landed.find((candidate) => candidate.id === current.id);
       await announce(current.mode === "move" ? "dashboardmovecommitted" : "dashboardresizecommitted", {
         row: item.row + 1,
         column: item.column + 1,
@@ -404,6 +559,9 @@ const Dashboard = /* @__PURE__ */ __name(({
         rows: item.rows,
         disturbed
       });
+      if (current.mode === "move") {
+        flagDropped(current.id);
+      }
       interactionRef.current = null;
       setInteraction(null);
     } catch (caught) {
@@ -411,7 +569,7 @@ const Dashboard = /* @__PURE__ */ __name(({
     } finally {
       setSaving(false);
     }
-  }, [announce, siteDefault]);
+  }, [announce, flagDropped, siteDefault]);
   const undo = useCallback(async () => {
     const previous = history[history.length - 1];
     if (!previous) {
@@ -430,14 +588,6 @@ const Dashboard = /* @__PURE__ */ __name(({
       setSaving(false);
     }
   }, [announce, history, siteDefault]);
-  const askToDelete = useCallback(async (id, title) => {
-    const [heading, message, confirmLabel] = await Promise.all([
-      getString("deletecheck", "block", title),
-      getString("deleteblockcheck", "block", title),
-      getString("delete", "core")
-    ]);
-    setConfirmAction({ type: "delete", id, title, heading, message, confirmLabel });
-  }, []);
   const deleteBlock = useCallback(async (id, title) => {
     setSaving(true);
     try {
@@ -515,10 +665,9 @@ const Dashboard = /* @__PURE__ */ __name(({
       shift(...directions[event.key]);
     }
   }, [cancel, commit, interaction, shift, start]);
-  const pointerDown = useCallback((event, id, mode) => {
-    event.preventDefault();
+  const beginPointerDrag = useCallback((x, y, id, mode) => {
     start(id, mode, "pointer");
-    pointerRef.current = { x: event.clientX, y: event.clientY, moved: false };
+    pointerRef.current = { x, y, moved: false };
     const origin = displayLayout.find((item) => item.id === id);
     if (!origin) {
       return;
@@ -597,7 +746,7 @@ const Dashboard = /* @__PURE__ */ __name(({
           if (!previous) {
             return previous;
           }
-          const next = { ...previous, origin: "mouseclick" };
+          const next = { ...previous, origin: "mouseclick", drag: void 0, draft: previous.original };
           interactionRef.current = next;
           return next;
         });
@@ -614,6 +763,19 @@ const Dashboard = /* @__PURE__ */ __name(({
     window.addEventListener("pointerup", up);
     window.addEventListener("pointercancel", abort);
   }, [cancel, columnCount, commit, displayLayout, start]);
+  const pointerDown = useCallback((event, id, mode) => {
+    event.preventDefault();
+    if (event.pointerType === "touch" || event.pointerType === "pen") {
+      touchHoldRef.current?.();
+      touchHoldRef.current = awaitTouchHold(
+        event,
+        (x, y) => beginPointerDrag(x, y, id, mode),
+        () => start(id, mode, "mouseclick")
+      );
+      return;
+    }
+    beginPointerDrag(event.clientX, event.clientY, id, mode);
+  }, [beginPointerDrag, start]);
   const placeNewBlock = useCallback(async (blockid, target2, title) => {
     const previousIds = new Set((dataRef.current?.blocks ?? []).map((block) => block.id));
     const response = await load();
@@ -646,9 +808,10 @@ const Dashboard = /* @__PURE__ */ __name(({
       await updateDashboard("save", siteDefault, next);
       setCanonical(next);
       canonicalRef.current = next;
+      flagDropped(item.id);
     }
     await announce("dashboardblockadded", title);
-  }, [announce, columnCountRef, load, siteDefault]);
+  }, [announce, columnCountRef, flagDropped, load, siteDefault]);
   const add = useCallback(async (block, target2) => {
     setSaving(true);
     try {
@@ -670,20 +833,41 @@ const Dashboard = /* @__PURE__ */ __name(({
       setSaving(false);
     }
   }, [placeNewBlock]);
+  const [addBlocks, setAddBlocks] = useState(null);
   const openAddBlock = useCallback((target2, trigger) => {
-    const current = dataRef.current;
-    if (!current || !labels) {
-      return;
+    setAddBlocks({ target: target2, trigger: trigger ?? null });
+  }, []);
+  const closeAddBlocks = useCallback(() => setAddBlocks(null), []);
+  const addBlocksTrigger = useRef(null);
+  useEffect(() => {
+    if (addBlocks) {
+      addBlocksTrigger.current = addBlocks.trigger;
+    } else {
+      addBlocksTrigger.current?.focus?.();
+      addBlocksTrigger.current = null;
     }
-    openAddBlockModal({
-      blocks: current.availableblocks,
-      title: labels.addblock,
-      pagehash,
-      returnElement: trigger,
-      onSelect: /* @__PURE__ */ __name((block) => void add(block, target2), "onSelect"),
-      onFormSubmitted: /* @__PURE__ */ __name((block) => void placeFormAdded(block, target2), "onFormSubmitted")
-    }).catch((caught) => setError(describeError(caught)));
-  }, [add, labels, pagehash, placeFormAdded]);
+  }, [addBlocks]);
+  const addBlockTo = useCallback((block, target2, trigger) => {
+    if (block.blockform && pagehash) {
+      openAddBlockForm(block, {
+        pagehash,
+        returnElement: trigger,
+        onFormSubmitted: /* @__PURE__ */ __name((added) => void placeFormAdded(added, target2), "onFormSubmitted")
+      }).catch((caught) => setError(describeError(caught)));
+    } else {
+      void add(block, target2);
+    }
+  }, [add, pagehash, placeFormAdded]);
+  const addFromModal = useCallback((block) => {
+    let target2 = addBlocks?.target ?? null;
+    if (!target2) {
+      const layout = displayLayoutRef.current;
+      const region = emptyRegions(layout, columnCountRef.current, Math.max(1, maxRow(layout)))[0];
+      target2 = region ? { column: region.column, row: region.row } : { position: "end" };
+    }
+    closeAddBlocks();
+    addBlockTo(block, target2, addBlocks?.trigger);
+  }, [addBlockTo, addBlocks, closeAddBlocks, columnCountRef]);
   const reset = useCallback(async () => {
     if (!data) {
       return;
@@ -701,40 +885,40 @@ const Dashboard = /* @__PURE__ */ __name(({
   if (!data || !labels) {
     return /* @__PURE__ */ jsxDEV(DashboardPlaceholder, { error, loadingLabel, initialLayout }, void 0, false, {
       fileName: "public/my/js/esm/src/index.tsx",
-      lineNumber: 1006,
+      lineNumber: 1276,
       columnNumber: 16
     });
   }
   const rows = gridRows(previewLayout, interaction);
-  const prospective = interaction && (layoutChanged(interaction.original, interaction.draft) || interaction.origin === "pointer" && interaction.mode === "resize" && interaction.drag?.shrinking) ? interaction.draft : void 0;
+  const prospective = prospectiveFor(interaction);
+  const moving = Boolean(interaction);
   const requestReset = /* @__PURE__ */ __name(() => setConfirmAction({ type: "reset" }), "requestReset");
-  const requestDelete = /* @__PURE__ */ __name((id, title) => void askToDelete(id, title), "requestDelete");
   return /* @__PURE__ */ jsxDEV(
     "div",
     {
-      className: `core-my-dashboard-app${data.editing ? " core-my-dashboard-app--editing" : ""}`,
+      className: ["core-my-dashboard-app", data.editing && "core-my-dashboard-app--editing"].filter(Boolean).join(" "),
       "aria-busy": saving,
       children: [
-        error && /* @__PURE__ */ jsxDEV("div", { className: "alert alert-danger", role: "alert", children: error }, void 0, false, {
+        error && /* @__PURE__ */ jsxDEV(Alert, { type: "danger", isDismissible: false, message: error }, void 0, false, {
           fileName: "public/my/js/esm/src/index.tsx",
-          lineNumber: 1020,
+          lineNumber: 1289,
           columnNumber: 19
         }),
         /* @__PURE__ */ jsxDEV("div", { className: "visually-hidden", "aria-live": "polite", "aria-atomic": "true", children: announcement }, void 0, false, {
           fileName: "public/my/js/esm/src/index.tsx",
-          lineNumber: 1021,
+          lineNumber: 1290,
           columnNumber: 9
         }),
         data.editing && /* @__PURE__ */ jsxDEV("p", { className: "core-my-dashboard-hint", children: [
           /* @__PURE__ */ jsxDEV(Icon, { markup: data.icons.move, className: "core-my-dashboard-hint__icon" }, void 0, false, {
             fileName: "public/my/js/esm/src/index.tsx",
-            lineNumber: 1023,
+            lineNumber: 1292,
             columnNumber: 13
           }),
           labels.edithint
         ] }, void 0, true, {
           fileName: "public/my/js/esm/src/index.tsx",
-          lineNumber: 1022,
+          lineNumber: 1291,
           columnNumber: 26
         }),
         /* @__PURE__ */ jsxDEV(
@@ -759,19 +943,19 @@ const Dashboard = /* @__PURE__ */ __name(({
                       rows,
                       columnCount,
                       layout: previewLayout,
+                      active: moving,
                       interaction,
                       prospective,
                       labels,
                       addIcon: data.icons.add,
                       onActivate: (targetColumn, targetRow) => openAddBlock({ column: targetColumn, row: targetRow }),
-                      onPlace: place,
-                      onPreview: (targetColumn, targetRow) => void target(targetColumn, targetRow)
+                      onPlace: place
                     },
                     void 0,
                     false,
                     {
                       fileName: "public/my/js/esm/src/index.tsx",
-                      lineNumber: 1039,
+                      lineNumber: 1308,
                       columnNumber: 34
                     }
                   ),
@@ -788,23 +972,22 @@ const Dashboard = /* @__PURE__ */ __name(({
                         labels,
                         icons: data.icons,
                         editing: data.editing,
-                        activeMode: interaction?.id === item.id ? interaction.mode : void 0,
-                        ...tileMotion(interaction, item.id),
-                        drag: interaction?.id === item.id ? interaction.drag : void 0,
-                        dragOrigin: interaction?.id === item.id ? interaction.original : void 0,
+                        ...tileInteraction(interaction, item.id),
                         isBumped: bumpedBlockIds.has(item.id),
+                        justDropped: justDropped?.id === item.id ? justDropped.key : void 0,
+                        onDropEnd: clearDropped,
                         onStart: start,
                         onKeyDown: keyDown,
                         onPointerDown: pointerDown,
                         onDirection: shift,
                         onCommit: () => void commit(),
-                        onDelete: requestDelete
+                        onDelete: (id, title) => void deleteBlock(id, title)
                       },
                       item.id,
                       false,
                       {
                         fileName: "public/my/js/esm/src/index.tsx",
-                        lineNumber: 1056,
+                        lineNumber: 1325,
                         columnNumber: 28
                       }
                     );
@@ -815,7 +998,7 @@ const Dashboard = /* @__PURE__ */ __name(({
               true,
               {
                 fileName: "public/my/js/esm/src/index.tsx",
-                lineNumber: 1030,
+                lineNumber: 1299,
                 columnNumber: 13
               }
             )
@@ -824,40 +1007,29 @@ const Dashboard = /* @__PURE__ */ __name(({
           false,
           {
             fileName: "public/my/js/esm/src/index.tsx",
-            lineNumber: 1026,
+            lineNumber: 1295,
             columnNumber: 9
           }
         ),
-        data.editing && /* @__PURE__ */ jsxDEV("div", { className: "d-grid core-my-dashboard-addblock", "data-region": "add-block-button", children: /* @__PURE__ */ jsxDEV(
-          "a",
+        data.editing && /* @__PURE__ */ jsxDEV(
+          EndOfGridCell,
           {
-            href: addBlockFallbackUrl(),
-            className: "btn btn-add-content mb-3",
-            onClick: (event) => {
-              event.preventDefault();
-              openAddBlock({ position: "end" }, event.currentTarget);
-            },
-            children: [
-              /* @__PURE__ */ jsxDEV(Icon, { markup: data.icons.add, className: "py-2 me-2" }, void 0, false, {
-                fileName: "public/my/js/esm/src/index.tsx",
-                lineNumber: 1095,
-                columnNumber: 17
-              }),
-              labels.addblock
-            ]
+            columnCount,
+            moving,
+            gridRows: rows,
+            prospective,
+            label: labels.addblock,
+            addIcon: data.icons.add,
+            onActivate: (trigger) => openAddBlock({ position: "end" }, trigger)
           },
           void 0,
-          true,
+          false,
           {
             fileName: "public/my/js/esm/src/index.tsx",
-            lineNumber: 1087,
-            columnNumber: 13
+            lineNumber: 1352,
+            columnNumber: 26
           }
-        ) }, void 0, false, {
-          fileName: "public/my/js/esm/src/index.tsx",
-          lineNumber: 1086,
-          columnNumber: 26
-        }),
+        ),
         data.editing && /* @__PURE__ */ jsxDEV(
           DashboardEditBar,
           {
@@ -868,27 +1040,43 @@ const Dashboard = /* @__PURE__ */ __name(({
             icons: data.icons,
             onReset: requestReset,
             onUndo: () => void undo(),
-            onAdd: (trigger) => openAddBlock({ position: "start" }, trigger)
+            onAdd: (trigger) => openAddBlock(null, trigger)
           },
           void 0,
           false,
           {
             fileName: "public/my/js/esm/src/index.tsx",
-            lineNumber: 1098,
+            lineNumber: 1361,
             columnNumber: 26
+          }
+        ),
+        data.editing && addBlocks && /* @__PURE__ */ jsxDEV(
+          AddBlocksDialog,
+          {
+            blocks: data.availableblocks,
+            labels,
+            icons: data.icons,
+            onAdd: addFromModal,
+            onClose: closeAddBlocks
+          },
+          void 0,
+          false,
+          {
+            fileName: "public/my/js/esm/src/index.tsx",
+            lineNumber: 1371,
+            columnNumber: 39
           }
         ),
         confirmAction && /* @__PURE__ */ jsxDEV(
           ConfirmationDialog,
           {
-            title: confirmAction.type === "delete" ? confirmAction.heading : labels.resetheading,
-            message: confirmAction.type === "delete" ? confirmAction.message : labels.confirmreset,
-            confirmLabel: confirmAction.type === "delete" ? confirmAction.confirmLabel : labels.confirm,
+            title: labels.resetheading,
+            message: labels.confirmreset,
+            confirmLabel: labels.confirm,
             cancelLabel: labels.cancel,
-            danger: confirmAction.type === "delete",
             onConfirm: () => {
               setConfirmAction(null);
-              void (confirmAction.type === "delete" ? deleteBlock(confirmAction.id, confirmAction.title) : reset());
+              void reset();
             },
             onCancel: () => setConfirmAction(null)
           },
@@ -896,7 +1084,7 @@ const Dashboard = /* @__PURE__ */ __name(({
           false,
           {
             fileName: "public/my/js/esm/src/index.tsx",
-            lineNumber: 1108,
+            lineNumber: 1378,
             columnNumber: 27
           }
         )
@@ -906,7 +1094,7 @@ const Dashboard = /* @__PURE__ */ __name(({
     true,
     {
       fileName: "public/my/js/esm/src/index.tsx",
-      lineNumber: 1016,
+      lineNumber: 1285,
       columnNumber: 12
     }
   );
@@ -914,6 +1102,9 @@ const Dashboard = /* @__PURE__ */ __name(({
 var index_default = Dashboard;
 export {
   DashboardErrorBoundary,
-  index_default as default
+  TOUCH_HOLD_MS,
+  TOUCH_HOLD_SLOP,
+  index_default as default,
+  useInteractionCursor
 };
 //# sourceMappingURL=index.dev.js.map

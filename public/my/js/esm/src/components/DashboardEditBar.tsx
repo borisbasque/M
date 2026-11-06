@@ -72,6 +72,7 @@ const DashboardEditBar = ({
                 </Dropdown>
             </> : <p className="core-my-dashboard-scope">{siteDefault ? labels.scopesitedefault : labels.scopeown}</p>}
         </div>
+        <span className="core-my-dashboard-toolbar__divider" aria-hidden="true" />
         <div className="core-my-dashboard-toolbar__actions">
             {!siteDefault && <Button
                 variant="ghost"

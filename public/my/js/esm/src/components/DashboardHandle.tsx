@@ -40,11 +40,18 @@ interface DashboardHandleProps {
 // "drag this corner". It is decorative; the button's own label names it.
 const resizeGrip = <svg
     className="core-my-dashboard-icon core-my-dashboard-resize-grip"
-    viewBox="0 0 10 10"
+    viewBox="0 0 12 12"
     aria-hidden="true"
     focusable="false"
 >
-    <path d="M9 1L1 9M9 5L5 9" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" fill="none" />
+    <path
+        d="M10.8 1.2L1.2 10.8M10.8 6L6 10.8"
+        stroke="currentColor"
+        strokeWidth="1.75"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        fill="none"
+    />
 </svg>;
 
 const DashboardHandle = ({
@@ -63,6 +70,8 @@ const DashboardHandle = ({
 }: DashboardHandleProps) => <div
     className={`core-my-dashboard-handle-wrapper core-my-dashboard-handle-wrapper--${mode}${active ? ' active' : ''}`}
     onBlur={event => {
+        // A pointer press's mark (see onPointerDown) lasts only as long as that focus.
+        delete (event.target as HTMLElement).dataset.pointerFocus;
         const nextTarget = event.relatedTarget;
         if (active && (!(nextTarget instanceof Node) || !event.currentTarget.contains(nextTarget))) {
             onCommit();
@@ -88,14 +97,23 @@ const DashboardHandle = ({
                     onStart();
                 }
             }}
-            onKeyDown={onKeyDown}
+            onKeyDown={event => {
+                // Back on the keyboard: the focus ring shows again.
+                delete event.currentTarget.dataset.pointerFocus;
+                onKeyDown(event);
+            }}
             onPointerDown={event => {
                 if (active) {
                     event.preventDefault();
                     onCommit();
                     return;
                 }
-                event.currentTarget.focus();
+                // The handle takes focus so the drag ends on blur and keyboard users can carry on
+                // from it, but a pointer press must not show the keyboard focus ring. Browsers can
+                // still match :focus-visible after a scripted focus (when focus last came from the
+                // keyboard), so the press is marked and the ring is suppressed for it in my.scss.
+                event.currentTarget.dataset.pointerFocus = 'true';
+                event.currentTarget.focus({focusVisible: false} as FocusOptions);
                 onPointerDown(event);
             }}
         />

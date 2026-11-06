@@ -26,11 +26,10 @@ Feature: Arrange dashboard blocks in a responsive grid
     And I press the enter key
     Then I should see "Item resized to"
     When I click on "Add block" "button"
-    And I click on "Online users" "link" in the "Add a block" "dialogue"
+    And I click on "[data-blockname='online_users'] button" "css_element" in the "Add blocks" "dialogue"
     Then "Online users" "block" should exist
-    When I open the action menu in "Online users" "block"
-    And I choose "Delete Online users block" in the open action menu
-    And I click on "Delete" "button" in the "Delete block?" "dialogue"
+    When I click on "Actions for Online users" "button"
+    And I click on "Delete Online users block" "button"
     Then "Online users" "block" should not exist
 
   @javascript
@@ -111,23 +110,20 @@ Feature: Arrange dashboard blocks in a responsive grid
     Then "[data-columns='1']" "css_element" should exist
 
   @javascript @accessibility
-  Scenario: The add block modal and the confirmation dialog are accessible while open
+  Scenario: The add blocks modal and the reset confirmation are accessible while open
     When I turn editing mode on
     And I click on "Add block" "button"
-    Then "Add a block" "dialogue" should exist
+    Then "Add blocks" "dialogue" should exist
     And the page should meet accessibility standards
-    # The modal is core's own (core/modal_cancel); unlike a native dialog it does not take the rest
-    # of the page out of axe's view, and some blocks' own content (the calendar's month heading, for
-    # one) does not follow the best-practice heading order, so that extra check is scoped to it.
-    And the "Add a block" "dialogue" should meet accessibility standards with "best-practice" extra tests
-    When I click on "Cancel" "button" in the "Add a block" "dialogue"
-    And I open the action menu in "Course overview" "block"
-    And I choose "Delete Course overview block" in the open action menu
-    Then "Delete block?" "dialogue" should exist
+    # Some blocks' own content (the calendar's month heading, for one) does not follow the
+    # best-practice heading order, so that extra check is scoped to the modal.
+    And the "Add blocks" "dialogue" should meet accessibility standards with "best-practice" extra tests
+    When I click on "Close" "button" in the "Add blocks" "dialogue"
+    And I click on "Reset to default" "button"
+    Then "Reset dashboard" "dialogue" should exist
     And the page should meet accessibility standards
-    # The delete confirmation is core's own modal too, so the extra check is scoped the same way.
-    And the "Delete block?" "dialogue" should meet accessibility standards with "best-practice" extra tests
-    When I click on "Cancel" "button" in the "Delete block?" "dialogue"
+    And the "Reset dashboard" "dialogue" should meet accessibility standards with "best-practice" extra tests
+    When I click on "Cancel" "button" in the "Reset dashboard" "dialogue"
     Then "Course overview" "block" should exist
 
   @javascript
@@ -161,25 +157,26 @@ Feature: Arrange dashboard blocks in a responsive grid
     Given I log out
     And I log in as "admin"
     When I turn editing mode on
-    And I open the action menu in "Course overview" "block"
-    # The menu is the block's own, as on every other page. Only Move is left out: the grid's
-    # handle repositions a tile directly, and the classic region picker has no regions here.
-    Then I should see "Configure Course overview block" in the "Course overview" "block"
-    And I should see "Hide Course overview block" in the "Course overview" "block"
-    And I should see "Manage permissions" in the "Course overview" "block"
-    And I should see "Check permissions" in the "Course overview" "block"
-    And I should see "Delete Course overview block" in the "Course overview" "block"
+    And I click on "Actions for Course overview" "button"
+    # The menu has the block's own actions, as on every other page, in the design system Dropdown.
+    # Only Move is left out: the grid's handle repositions a tile directly, and the classic region
+    # picker has no regions here.
+    Then "Configure Course overview block" "link" should exist
+    And "Hide Course overview block" "link" should exist
+    And "Manage permissions" "link" should exist
+    And "Check permissions" "link" should exist
+    And "Delete Course overview block" "button" should exist
     And "Move Course overview block" "link" should not exist
     # The menu drops down over the tile beneath, so an item has to be really clickable, not just
     # present: a covered item fails this step.
-    When I choose "Check permissions" in the open action menu
+    When I click on "Check permissions" "link"
     Then I should see "Check permissions in"
     And I visit "/my/index.php"
-    # A block with fields of its own, like Text, is added through its own form, from the standard
-    # "Add a block" modal, exactly as on every other page - but with the where-this-block-appears
-    # fields hidden, since the grid owns its position here; the same goes for Configure later.
+    # A block with fields of its own, like Text, is added through its own form, from the add blocks
+    # modal, as on every other page - but with the where-this-block-appears fields hidden, since
+    # the grid owns its position here; the same goes for Configure later.
     When I click on "Add block" "button"
-    And I click on "Text..." "link" in the "Add a block" "dialogue"
+    And I click on "[data-blockname='html'] button" "css_element" in the "Add blocks" "dialogue"
     Then "Add Text block" "dialogue" should exist
     And "Default region" "field" should not exist in the "Add Text block" "dialogue"
     And "Region" "field" should not exist in the "Add Text block" "dialogue"
@@ -188,19 +185,19 @@ Feature: Arrange dashboard blocks in a responsive grid
       | Content          | Things to follow |
     And I click on "Save changes" "button" in the "Add Text block" "dialogue"
     Then I should see "Things to follow" in the "Notes" "block"
-    When I open the action menu in "Notes" "block"
-    And I choose "Configure Notes block" in the open action menu
+    When I click on "Actions for Notes" "button"
+    And I click on "Configure Notes block" "link"
     Then "Configure Notes block" "dialogue" should exist
     And "Region" "field" should not exist in the "Configure Notes block" "dialogue"
 
   @javascript
   Scenario: A block hidden through its standard menu keeps its place in the grid
     When I turn editing mode on
-    And I open the action menu in "Timeline" "block"
-    And I choose "Hide Timeline block" in the open action menu
+    And I click on "Actions for Timeline" "button"
+    And I click on "Hide Timeline block" "link"
     Then ".core-my-dashboard-tile--hidden[data-block='timeline']" "css_element" should exist
-    And I open the action menu in "Timeline" "block"
-    And I should see "Show Timeline block" in the "Timeline" "block"
+    And I click on "Actions for Timeline" "button"
+    And "Show Timeline block" "link" should exist
     When I turn editing mode off
     Then "Timeline" "block" should not exist
     And "Course overview" "block" should exist

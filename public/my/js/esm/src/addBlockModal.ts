@@ -95,7 +95,10 @@ export const addBlockFallbackUrl = (): string => {
  * @param block The chosen block type (one with a blockform).
  * @param options The modal options the form inherits the page hash and callbacks from.
  */
-const openAddBlockForm = async(block: AvailableBlock, options: AddBlockModalOptions): Promise<void> => {
+export const openAddBlockForm = async(
+    block: AvailableBlock,
+    options: Pick<AddBlockModalOptions, 'pagehash' | 'returnElement' | 'onFormSubmitted'>,
+): Promise<void> => {
     const [ModalForm] = await requireManyAsync(['core_form/modalform']) as [ModalFormModule];
     const form = new ModalForm({
         modalConfig: {

@@ -17,7 +17,7 @@ import type React from 'react';
 import * as Ajax from '@moodle/lms/core/ajax';
 import * as stringUtils from '@moodle/lms/core/stringUtils';
 import {requireManyAsync} from '@moodle/lms/core/amd';
-import Dashboard, {DashboardErrorBoundary} from '../src/index';
+import Dashboard, {DashboardErrorBoundary, TOUCH_HOLD_MS, TOUCH_HOLD_SLOP} from '../src/index';
 import type {DashboardData, DashboardIcons} from '../src/repository';
 import {DEFAULT_LIMITS, type LayoutItem} from '../src/layout';
 
@@ -40,6 +40,21 @@ jest.mock('@moodlehq/design-system', () => {
             data-variant={variant}
             {...props}
         >{startIcon}{label}</button>),
+        SearchInput: ReactActual.forwardRef((
+            {label, clearLabel: _clearLabel, hideLabel: _hideLabel, ...props}:
+            React.InputHTMLAttributes<HTMLInputElement> & {label: string; clearLabel: string; hideLabel?: boolean},
+            ref: React.Ref<HTMLInputElement>,
+        ) => <input ref={ref} type="search" aria-label={label} {...props} />),
+        Alert: ({message, isActionable, actionLabel, onAction, className}: {
+            message: string;
+            isActionable?: boolean;
+            actionLabel?: string;
+            onAction?: () => void;
+            className?: string;
+        }) => <div className={className}>
+            <span role="alert">{message}</span>
+            {isActionable && <button type="button" onClick={onAction}>{actionLabel}</button>}
+        </div>,
         CloseButton: ({size: _size, ...props}: React.ButtonHTMLAttributes<HTMLButtonElement> & {size?: string}) =>
             <button type="button" {...props} />,
         Badge: ({label, variant: _variant, subtle: _subtle, pill: _pill, ...props}:
@@ -110,13 +125,18 @@ afterAll(() => {
 const strings: Record<string, Record<string, string>> = {
     core: {
         addblock: 'Add a block',
+        closebuttontitle: 'Close',
         confirm: 'Confirm',
+        hiddenfromstudents: 'Hidden from students',
         'delete': 'Delete',
         actionsfor: 'Actions for {$a}',
         loading: 'Loading',
     },
     my: {
         dashboardaddblock: 'Add block',
+        dashboardaddblocks: 'Add blocks',
+        dashboardblockonpage: 'Added',
+        dashboardblockremoved: '{$a} block deleted.',
         dashboardediting: 'Editing',
         dashboardedithint: 'Drag a block by its header to move it, or drag its corner to resize.',
         dashboardreset: 'Reset to default',
@@ -125,6 +145,9 @@ const strings: Record<string, Record<string, string>> = {
         dashboardundo: 'Undo',
         dashboardundone: 'Last change undone.',
         dashboardcancel: 'Cancel',
+        dashboardmarketplace: 'Discover more blocks on Moodle Marketplace',
+        dashboardnoblocksfound: 'No blocks match your search.',
+        dashboardsearchblocks: 'Search blocks',
         confirmresetdashboard: 'Reset this dashboard?',
         dashboarddown: 'Down',
         addblockhere: 'Add a block here',
@@ -149,7 +172,6 @@ const strings: Record<string, Record<string, string>> = {
         dashboardminimumsize: 'Minimum block size reached: {$a}.',
         dashboardoperationdiscarded: 'Operation discarded.',
         dashboardblockadded: '{$a} block added.',
-        dashboardblockremoved: '{$a} block deleted.',
     },
     block: {
         moveblock: 'Move {$a} block',
@@ -186,6 +208,9 @@ const icons: DashboardIcons = {
     reset: '<i class="icon fa fa-arrow-rotate-left fa-fw" aria-hidden="true"></i>',
     remove: '<i class="icon fa fa-minus fa-fw" aria-hidden="true"></i>',
     menu: '<i class="icon fa fa-ellipsis-vertical fa-fw" aria-hidden="true"></i>',
+    hidden: '<i class="icon fa fa-eye-slash fa-fw" aria-hidden="true"></i>',
+    added: '<i class="icon fa fa-check fa-fw" aria-hidden="true"></i>',
+    external: '<i class="icon fa fa-arrow-up-right-from-square fa-fw" aria-hidden="true"></i>',
 };
 
 
@@ -346,7 +371,7 @@ describe('core_my Dashboard application', () => {
         await waitFor(() => expect(screen.getByRole('button', {name: 'Undo'})).toBeDisabled());
     });
 
-    it('deletes a block in place after a danger confirmation, closing the gap it leaves', async() => {
+    it('deletes a block in place straight away, closing the gap it leaves', async() => {
         const deleteAction = {
             key: 'delete',
             label: 'Delete First block block',
@@ -369,16 +394,12 @@ describe('core_my Dashboard application', () => {
 
         render(<Dashboard />);
 
-        fireEvent.click(await screen.findByRole('button', {name: 'Delete First block block'}));
-        const dialog = await screen.findByRole('dialog', {name: 'Delete First block block?'});
-        expect(dialog).toHaveAccessibleDescription('This will delete the block First block.');
-        const confirm = within(dialog).getByRole('button', {name: 'Delete'});
-        expect(confirm).toHaveAttribute('data-variant', 'danger');
-        expect(within(dialog).getByRole('button', {name: 'Cancel'})).toHaveAttribute('data-variant', 'outline-secondary');
-
+        const deleteButton = await screen.findByRole('button', {name: 'Delete First block block'});
         await act(async() => {
-            fireEvent.click(confirm);
+            fireEvent.click(deleteButton);
         });
+        // Nothing asks first.
+        expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
 
         const updates = () => fetchOneSpy.mock.calls
             .map(([request]) => request as {methodname: string; args: {action: string; blockid: number; layout: LayoutItem[]}})
@@ -393,24 +414,6 @@ describe('core_my Dashboard application', () => {
         expect(screen.getByRole('button', {name: 'Add block'})).toHaveFocus();
     });
 
-    it('keeps the block when the deletion is cancelled', async() => {
-        const deleteAction = {
-            key: 'delete', label: 'Delete First block block', url: '', icon: '', attributes: '{}', danger: true,
-        };
-        const [first, second] = buildData().blocks;
-        const fetchOneSpy = mockDashboardApi({getResponses: [buildData({blocks: [{...first, actions: [deleteAction]}, second]})]});
-
-        render(<Dashboard />);
-
-        fireEvent.click(await screen.findByRole('button', {name: 'Delete First block block'}));
-        const dialog = await screen.findByRole('dialog', {name: 'Delete First block block?'});
-        fireEvent.click(within(dialog).getByRole('button', {name: 'Cancel'}));
-
-        expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
-        expect(screen.getByText('First block')).toBeInTheDocument();
-        expect(findSaveCall(fetchOneSpy)).toBeUndefined();
-    });
-
     it('moves with the arrow keys alone, announcing each step', async() => {
         mockDashboardApi({getResponses: [buildData()]});
 
@@ -421,9 +424,113 @@ describe('core_my Dashboard application', () => {
         // The on-screen direction controls are for a click or a tap, not the keyboard.
         expect(screen.queryByRole('group', {name: 'Move block controls'})).not.toBeInTheDocument();
         await act(async() => {
-            fireEvent.keyDown(moveHandle, {key: 'ArrowDown'});
+            fireEvent.keyDown(moveHandle, {key: 'ArrowRight'});
         });
-        await waitFor(() => expect(document.querySelector('[aria-live="polite"]')).toHaveTextContent('Row 2, column 1'));
+        await waitFor(() => expect(document.querySelector('[aria-live="polite"]')).toHaveTextContent('Row 1, column 2'));
+    });
+
+    describe('moving step by step with the arrow keys or the on-screen arrows', () => {
+        // The first block sits on top of the second, in the same two columns.
+        const stacked = () => buildData({layout: [
+            {id: 101, column: 0, row: 0, columns: 2, rows: 2},
+            {id: 102, column: 0, row: 2, columns: 2, rows: 2},
+        ]});
+        const tileOf = (container: HTMLElement, id: number) =>
+            container.querySelector<HTMLElement>(`.core-my-dashboard-tile[data-block-id="${id}"]`)!;
+        const savedLayout = (fetchOneSpy: jest.SpyInstance) =>
+            (findSaveCall(fetchOneSpy)![0] as {args: {layout: LayoutItem[]}}).args.layout;
+
+        const previewCells = (container: HTMLElement) => [...container.querySelectorAll('.core-my-grid-cell--prospective')];
+
+        it('moves the tile a row at a time with no drop preview, and settles on the drop', async() => {
+            const fetchOneSpy = mockDashboardApi({getResponses: [stacked()]});
+            const {container} = render(<Dashboard />);
+
+            const moveHandle = await screen.findByRole('button', {name: 'Move First block block'});
+            fireEvent.keyDown(moveHandle, {key: 'Enter'});
+            await act(async() => {
+                fireEvent.keyDown(moveHandle, {key: 'ArrowDown'});
+            });
+            // The tile goes exactly one row down, and it is the only thing showing where it is going.
+            expect(tileOf(container, 101).style.gridRow).toBe('2 / span 2');
+            await waitFor(() => expect(document.querySelector('[aria-live="polite"]')).toHaveTextContent('Row 2, column 1'));
+            expect(previewCells(container)).toEqual([]);
+
+            // Right past the block below: that one would rise into the top, so this settles under it.
+            fireEvent.keyDown(moveHandle, {key: 'ArrowDown'});
+            fireEvent.keyDown(moveHandle, {key: 'ArrowDown'});
+            fireEvent.keyDown(moveHandle, {key: 'ArrowDown'});
+            expect(tileOf(container, 101).style.gridRow).toBe('5 / span 2');
+            expect(tileOf(container, 102).style.gridRow).toBe('3 / span 2');
+            await act(async() => {
+                fireEvent.keyDown(moveHandle, {key: 'Enter'});
+            });
+
+            await waitFor(() => expect(findSaveCall(fetchOneSpy)).toBeDefined());
+            const layout = savedLayout(fetchOneSpy);
+            expect(layout.find(item => item.id === 101)).toMatchObject({column: 0, row: 2});
+            expect(layout.find(item => item.id === 102)).toMatchObject({column: 0, row: 0});
+            // Risen into the room above on the drop.
+            await waitFor(() => expect(container.querySelector('.core-my-dashboard-tile--active')).toBeNull());
+            expect(tileOf(container, 101).style.gridRow).toBe('3 / span 2');
+            expect(tileOf(container, 102).style.gridRow).toBe('1 / span 2');
+        });
+
+        it('steps back up a row at a time, stops at the top, and rises back on the drop', async() => {
+            const fetchOneSpy = mockDashboardApi({getResponses: [stacked()]});
+            const {container} = render(<Dashboard />);
+
+            const moveHandle = await screen.findByRole('button', {name: 'Move First block block'});
+            fireEvent.keyDown(moveHandle, {key: 'Enter'});
+            // Already at the top: a step up goes nowhere.
+            fireEvent.keyDown(moveHandle, {key: 'ArrowUp'});
+            expect(tileOf(container, 101).style.gridRow).toBe('1 / span 2');
+            fireEvent.keyDown(moveHandle, {key: 'ArrowDown'});
+            fireEvent.keyDown(moveHandle, {key: 'ArrowDown'});
+            fireEvent.keyDown(moveHandle, {key: 'ArrowUp'});
+            expect(tileOf(container, 101).style.gridRow).toBe('2 / span 2');
+            await act(async() => {
+                fireEvent.keyDown(moveHandle, {key: 'Enter'});
+            });
+            await waitFor(() => expect(findSaveCall(fetchOneSpy)).toBeDefined());
+            expect(savedLayout(fetchOneSpy).find(item => item.id === 101)).toMatchObject({column: 0, row: 0});
+        });
+
+        it('moves the tile itself, not just its footprint, with the on-screen arrows after a click', async() => {
+            const fetchOneSpy = mockDashboardApi({getResponses: [buildData()]});
+            const {container} = render(<Dashboard />);
+
+            const moveHandle = await screen.findByRole('button', {name: 'Move First block block'});
+            // A click with a little hand tremor: the pointer travels a pixel, under the drag threshold.
+            await act(async() => {
+                fireEvent(moveHandle, new MouseEvent('pointerdown', {bubbles: true, clientX: 10, clientY: 10}));
+                window.dispatchEvent(new MouseEvent('pointermove', {clientX: 11, clientY: 10}));
+                window.dispatchEvent(new MouseEvent('pointerup', {clientX: 11, clientY: 10}));
+            });
+            const controls = screen.getByRole('group', {name: 'Move block controls'});
+            await act(async() => {
+                fireEvent.click(within(controls).getByRole('button', {name: 'Right'}));
+            });
+            const tile = tileOf(container, 101);
+            expect(tile.style.gridColumn).toBe('2 / span 2');
+            expect(tile.style.transform).toBe('');
+            // The step leaves the pointer over the cell the tile just left: that must not pull it back.
+            const left = [...container.querySelectorAll<HTMLElement>('.core-my-grid-cell--active')]
+                .find(cell => cell.style.gridColumn === '1 / span 1')!;
+            await act(async() => {
+                fireEvent.pointerEnter(left);
+            });
+            expect(tile.style.gridColumn).toBe('2 / span 2');
+            // No drop preview: it would only sit under the tile.
+            expect(previewCells(container)).toEqual([]);
+
+            // Clicking the handle again puts it down where it is shown.
+            await act(async() => {
+                fireEvent(moveHandle, new MouseEvent('pointerdown', {bubbles: true, clientX: 10, clientY: 10}));
+            });
+            await waitFor(() => expect(findSaveCall(fetchOneSpy)).toBeDefined());
+            expect(savedLayout(fetchOneSpy).find(item => item.id === 101)).toMatchObject({column: 1, row: 0});
+        });
     });
 
     it('discards a keyboard interaction on Escape without saving', async() => {
@@ -535,7 +642,7 @@ describe('core_my Dashboard application', () => {
             .toHaveAttribute('data-columns', '6'));
 
         // Two 2 x 2 blocks with a one-column gap and two columns free on the right: two regions.
-        expect(container.querySelectorAll('.core-my-grid-cell--available')).toHaveLength(2);
+        expect(container.querySelectorAll('.core-my-dashboard-grid .core-my-grid-cell--available')).toHaveLength(2);
         expect(container.querySelector('.core-my-grid-cell--active')).toBeNull();
 
         const moveHandle = screen.getByRole('button', {name: 'Move First block block'});
@@ -573,7 +680,130 @@ describe('core_my Dashboard application', () => {
         expect(args.layout.find(item => item.id === 101)).toMatchObject({column: 3, row: 2});
     });
 
-    describe('adding a block through the standard "Add a block" modal', () => {
+    describe('touch and pen long press on a handle', () => {
+        // The jsdom environment has no PointerEvent; this carries the pointerType and pointerId the handler reads.
+        const OriginalPointerEvent = window.PointerEvent;
+        beforeAll(() => {
+            class TestPointerEvent extends MouseEvent {
+                pointerType: string;
+                pointerId: number;
+                constructor(type: string, init: PointerEventInit = {}) {
+                    super(type, init);
+                    this.pointerType = init.pointerType ?? 'mouse';
+                    this.pointerId = init.pointerId ?? 1;
+                }
+            }
+            window.PointerEvent = TestPointerEvent as unknown as typeof PointerEvent;
+        });
+        afterAll(() => {
+            window.PointerEvent = OriginalPointerEvent;
+        });
+        afterEach(() => {
+            jest.useRealTimers();
+        });
+
+        const press = async(pointerType = 'touch') => {
+            mockDashboardApi({getResponses: [buildData()]});
+            const {container} = render(<Dashboard />);
+            await waitFor(() => expect(container.querySelector('.core-my-grid-cell--available')).not.toBeNull());
+            jest.useFakeTimers();
+            const moveHandle = screen.getByRole('button', {name: 'Move First block block'});
+            act(() => {
+                fireEvent.pointerDown(moveHandle, {clientX: 100, clientY: 100, pointerType, pointerId: 7});
+            });
+            return container;
+        };
+        const touchMoveIsCancelled = () => {
+            const touchMove = new Event('touchmove', {cancelable: true});
+            window.dispatchEvent(touchMove);
+            return touchMove.defaultPrevented;
+        };
+
+        it('holds the grabbing cursor on the document for a mouse move', async() => {
+            mockDashboardApi({getResponses: [buildData()]});
+            const {container} = render(<Dashboard />);
+            await waitFor(() => expect(container.querySelector('.core-my-grid-cell--available')).not.toBeNull());
+            const root = document.documentElement;
+            expect(root.dataset.coreMyPointer).toBeUndefined();
+            act(() => {
+                fireEvent.pointerDown(screen.getByRole('button', {name: 'Move First block block'}),
+                    {clientX: 100, clientY: 100, pointerType: 'mouse', pointerId: 3});
+            });
+            expect(root.dataset.coreMyPointer).toBe('move');
+            act(() => {
+                fireEvent.pointerUp(window, {clientX: 100, clientY: 100, pointerType: 'mouse', pointerId: 3});
+            });
+            expect(root.dataset.coreMyPointer).toBeUndefined();
+        });
+
+        it('holds the nwse-resize cursor on the document for a mouse resize', async() => {
+            mockDashboardApi({getResponses: [buildData()]});
+            const {container} = render(<Dashboard />);
+            await waitFor(() => expect(container.querySelector('.core-my-grid-cell--available')).not.toBeNull());
+            const root = document.documentElement;
+            act(() => {
+                fireEvent.pointerDown(container.querySelector('.core-my-dashboard-handle--resize') as HTMLElement,
+                    {clientX: 100, clientY: 100, pointerType: 'mouse', pointerId: 4});
+            });
+            expect(root.dataset.coreMyPointer).toBe('resize');
+            act(() => {
+                fireEvent.pointerUp(window, {clientX: 100, clientY: 100, pointerType: 'mouse', pointerId: 4});
+            });
+            expect(root.dataset.coreMyPointer).toBeUndefined();
+        });
+
+        it('picks the tile up only once a touch has been held still, with a vibration', async() => {
+            const vibrate = jest.fn();
+            Object.defineProperty(navigator, 'vibrate', {value: vibrate, configurable: true});
+            const container = await press();
+            expect(container.querySelector('.core-my-grid-cell--active')).toBeNull();
+            expect(touchMoveIsCancelled()).toBe(false);
+
+            act(() => {
+                fireEvent.pointerMove(window, {clientX: 104, clientY: 103, pointerType: 'touch', pointerId: 7});
+                jest.advanceTimersByTime(TOUCH_HOLD_MS);
+            });
+            expect(container.querySelector('.core-my-grid-cell--active')).not.toBeNull();
+            expect(vibrate).toHaveBeenCalledWith(10);
+            // From here the page no longer scrolls under the finger.
+            expect(touchMoveIsCancelled()).toBe(true);
+
+            act(() => {
+                fireEvent.pointerUp(window, {pointerType: 'touch', pointerId: 7});
+            });
+            expect(touchMoveIsCancelled()).toBe(false);
+            Reflect.deleteProperty(navigator, 'vibrate');
+        });
+
+        it('lets a touch that moves on before the hold scroll, without picking anything up', async() => {
+            const container = await press();
+            act(() => {
+                fireEvent.pointerMove(window, {
+                    clientX: 100, clientY: 100 + TOUCH_HOLD_SLOP, pointerType: 'touch', pointerId: 7,
+                });
+                jest.advanceTimersByTime(TOUCH_HOLD_MS * 2);
+            });
+            expect(container.querySelector('.core-my-grid-cell--active')).toBeNull();
+            expect(touchMoveIsCancelled()).toBe(false);
+        });
+
+        it('treats a tap as a click: the on-screen controls, with the cells to place it in', async() => {
+            const container = await press('pen');
+            act(() => {
+                fireEvent.pointerUp(window, {pointerType: 'pen', pointerId: 7});
+                jest.advanceTimersByTime(TOUCH_HOLD_MS * 2);
+            });
+            expect(container.querySelector('.core-my-grid-cell--placing')).not.toBeNull();
+        });
+    });
+
+    describe('adding a block from the add blocks modal', () => {
+        /** Add a block by clicking its card in the open modal. */
+        const chooseBlock = async(title: string) => {
+            const modal = await screen.findByRole('dialog', {name: 'Add blocks'});
+            fireEvent.click(within(modal).getByRole('button', {name: new RegExp(`^${title}`)}));
+        };
+
         interface FakeModalForm {
             config: unknown;
             show: jest.Mock;
@@ -678,7 +908,7 @@ describe('core_my Dashboard application', () => {
 
             const emptyCell = await screen.findByRole('button', {name: 'Add a block here, Row 1, column 3'});
             fireEvent.click(emptyCell);
-            fireEvent.click(await screen.findByText('Calendar', {selector: 'a[data-blockname]'}));
+            await chooseBlock('Calendar');
 
             await waitFor(() => {
                 const calls = fetchOneSpy.mock.calls.filter(([request]) =>
@@ -697,8 +927,7 @@ describe('core_my Dashboard application', () => {
             expect(args.layout.find(item => item.id === 102)).toMatchObject({column: 3, row: 0});
         });
 
-        it('opens the core modal with core/add_block_body and places the chosen block at the start', async() => {
-            const {modal, CancelModal, Templates} = mockCoreModules();
+        it('opens the modal from the edit bar, adds a block to the first free space, and closes', async() => {
             const fetchOneSpy = mockDashboardApi({
                 getResponses: [buildData(), afterAdd()],
                 updateImpl: () => Promise.resolve({status: true, blockid: 103}),
@@ -708,27 +937,86 @@ describe('core_my Dashboard application', () => {
             const trigger = await screen.findByRole('button', {name: 'Add block'});
             fireEvent.click(trigger);
 
-            await waitFor(() => expect(modal.show).toHaveBeenCalled());
-            expect(CancelModal.create).toHaveBeenCalledWith({title: 'Add a block', returnElement: trigger});
-            expect(Templates.render).toHaveBeenCalledWith('core/add_block_body', expect.objectContaining({
-                blocks: [{name: 'calendar_month', title: 'Calendar', blockform: null}],
-                blockregion: 'content',
-                pagehash: 'abc123',
-                url: expect.stringContaining('bui_addblock='),
-            }));
+            const modal = await screen.findByRole('dialog', {name: 'Add blocks'});
+            expect(modal).toHaveFocus();
+            const card = within(modal).getByRole('button', {name: /^Calendar/});
+            // There is nothing to confirm: clicking the card adds the block.
+            expect(within(modal).queryByRole('button', {name: 'Add block'})).not.toBeInTheDocument();
+            fireEvent.click(card);
 
-            fireEvent.click(await screen.findByText('Calendar', {selector: 'a[data-blockname]'}));
+            // The modal closes at once, with focus back on what opened it.
+            expect(screen.queryByRole('dialog', {name: 'Add blocks'})).not.toBeInTheDocument();
+            expect(trigger).toHaveFocus();
 
-            expect(modal.destroy).toHaveBeenCalled();
             await waitFor(() => expect(saveCalls(fetchOneSpy)).toHaveLength(2));
             const [addCall, saveCall] = saveCalls(fetchOneSpy);
             expect(addCall.args).toMatchObject({action: 'add', blockname: 'calendar_month'});
             expect(saveCall.args.action).toBe('save');
-            expect(saveCall.args.layout!.find(item => item.id === 103)).toMatchObject({column: 0, row: 0});
+            // The gap between the two fixture blocks is the first free space.
+            expect(saveCall.args.layout!.find(item => item.id === 103)).toMatchObject({column: 2, row: 0});
         });
 
-        it('offers the standard end-of-grid add block button, which places the block below everything', async() => {
-            const {modal} = mockCoreModules();
+        it('closes on the close button, Escape or a click outside, returning focus', async() => {
+            mockDashboardApi({getResponses: [buildData()]});
+            render(<Dashboard />);
+            const trigger = await screen.findByRole('button', {name: 'Add block'});
+
+            fireEvent.click(trigger);
+            fireEvent.click(within(await screen.findByRole('dialog', {name: 'Add blocks'})).getByRole('button', {name: 'Close'}));
+            expect(screen.queryByRole('dialog', {name: 'Add blocks'})).not.toBeInTheDocument();
+            expect(trigger).toHaveFocus();
+
+            fireEvent.click(trigger);
+            fireEvent(await screen.findByRole('dialog', {name: 'Add blocks'}), new Event('cancel'));
+            expect(screen.queryByRole('dialog', {name: 'Add blocks'})).not.toBeInTheDocument();
+
+            fireEvent.click(trigger);
+            fireEvent.click(await screen.findByRole('dialog', {name: 'Add blocks'}));
+            expect(screen.queryByRole('dialog', {name: 'Add blocks'})).not.toBeInTheDocument();
+            expect(trigger).toHaveFocus();
+        });
+
+        it('does not let a block be dragged out of the modal', async() => {
+            const fetchOneSpy = mockDashboardApi({getResponses: [buildData()]});
+            const {container} = render(<Dashboard />);
+            fireEvent.click(await screen.findByRole('button', {name: 'Add block'}));
+            const modal = await screen.findByRole('dialog', {name: 'Add blocks'});
+
+            fireEvent.pointerDown(within(modal).getByText('Calendar'), {button: 0, clientX: 10, clientY: 10});
+            fireEvent.pointerMove(window, {clientX: 200, clientY: 200});
+            fireEvent.pointerUp(window, {clientX: 200, clientY: 200});
+
+            expect(container.querySelector('.core-my-grid-cell--prospective')).toBeNull();
+            expect(saveCalls(fetchOneSpy)).toHaveLength(0);
+        });
+
+        it('lists blocks already on the dashboard as added, and narrows the list as you search', async() => {
+            mockDashboardApi({getResponses: [buildData({availableblocks: [
+                {name: 'timeline', title: 'Timeline', description: 'Upcoming deadlines.', added: true},
+                {name: 'calendar_month', title: 'Calendar', description: 'A month of events.'},
+            ]})]});
+
+            render(<Dashboard />);
+            fireEvent.click(await screen.findByRole('button', {name: 'Add block'}));
+            const modal = await screen.findByRole('dialog', {name: 'Add blocks'});
+            expect(within(modal).getByText('Added')).toBeInTheDocument();
+            // Added blocks go last, whatever order they arrive in.
+            expect(within(modal).getAllByRole('listitem').map(item => item.getAttribute('data-blockname')))
+                .toEqual(['calendar_month', 'timeline']);
+            expect(within(modal).queryByRole('button', {name: /^Timeline/})).not.toBeInTheDocument();
+            expect(within(modal).getByRole('button', {name: /^Calendar/})).toBeInTheDocument();
+            expect(within(modal).getByRole('link', {name: 'Discover more blocks on Moodle Marketplace'}))
+                .toHaveAttribute('href', 'https://moodle.org/plugins/?q=type:block');
+
+            fireEvent.change(within(modal).getByRole('searchbox'), {target: {value: 'deadlines'}});
+            expect(within(modal).queryByText('Calendar')).not.toBeInTheDocument();
+            expect(within(modal).getByText('Timeline')).toBeInTheDocument();
+            fireEvent.change(within(modal).getByRole('searchbox'), {target: {value: 'nothing like it'}});
+            expect(within(modal).getByText('No blocks match your search.')).toBeInTheDocument();
+        });
+
+        it('offers an end-of-grid board cell, which places the block below everything', async() => {
+            mockCoreModules();
             const fetchOneSpy = mockDashboardApi({
                 getResponses: [buildData(), afterAdd()],
                 updateImpl: () => Promise.resolve({status: true, blockid: 103}),
@@ -737,17 +1025,38 @@ describe('core_my Dashboard application', () => {
             const {container} = render(<Dashboard />);
             await screen.findByText('First block');
             const wrapper = container.querySelector('[data-region="add-block-button"]')!;
-            const link = within(wrapper as HTMLElement).getByRole('link', {name: 'Add a block'});
-            expect(link).toHaveClass('btn-add-content');
-            expect(link).not.toHaveAttribute('data-key');
-            fireEvent.click(link);
+            // The same GridCell as the empty space in the grid, spanning every column of one row.
+            const cell = within(wrapper as HTMLElement).getByRole('button', {name: 'Add a block'});
+            expect(cell).toHaveClass('core-my-grid-cell', 'core-my-grid-cell--available');
+            expect(cell).not.toHaveClass('btn-add-content');
+            const columns = (wrapper as HTMLElement).style.gridTemplateColumns.match(/repeat\((\d+)/)![1];
+            expect(cell.style.gridColumn).toBe(`1 / span ${columns}`);
+            fireEvent.click(cell);
 
-            await waitFor(() => expect(modal.show).toHaveBeenCalled());
-            fireEvent.click(await screen.findByText('Calendar', {selector: 'a[data-blockname]'}));
+            await screen.findByRole('dialog', {name: 'Add blocks'});
+            await chooseBlock('Calendar');
 
             await waitFor(() => expect(screen.getByText('Cal')).toBeInTheDocument());
             await waitFor(() => expect(saveCalls(fetchOneSpy).map(call => call.args.action)).toEqual(['add', 'save']));
             expect(saveCalls(fetchOneSpy)[1].args.layout!.find(item => item.id === 103)).toMatchObject({column: 0, row: 2});
+        });
+
+        it('breaks the end-of-grid row into one active cell per column while a block moves', async() => {
+            mockDashboardApi({getResponses: [buildData()]});
+
+            const {container} = render(<Dashboard />);
+            const moveHandle = await screen.findByRole('button', {name: 'Move First block block'});
+            const wrapper = container.querySelector<HTMLElement>('[data-region="add-block-button"]')!;
+            const columns = Number(wrapper.style.gridTemplateColumns.match(/repeat\((\d+)/)![1]);
+            fireEvent.keyDown(moveHandle, {key: ' '});
+
+            const cells = [...wrapper.querySelectorAll<HTMLElement>('.core-my-grid-cell--active')];
+            expect(cells.map(cell => cell.style.gridColumn))
+                .toEqual(Array.from({length: columns}, (_, column) => `${column + 1} / span 1`));
+            expect(within(wrapper).queryByRole('button')).not.toBeInTheDocument();
+
+            fireEvent.keyDown(moveHandle, {key: 'Escape'});
+            expect(within(wrapper).getByRole('button', {name: 'Add a block'})).toBeInTheDocument();
         });
 
         it('adds a block type with its own form through core_form/modalform, then places it', async() => {
@@ -768,7 +1077,7 @@ describe('core_my Dashboard application', () => {
 
             render(<Dashboard pagehash="abc123" />);
             fireEvent.click(await screen.findByRole('button', {name: 'Add block'}));
-            fireEvent.click(await screen.findByText('Text', {selector: 'a[data-blockname]'}));
+            await chooseBlock('Text');
 
             await waitFor(() => expect(forms).toHaveLength(1));
             expect(forms[0].config).toMatchObject({
@@ -787,7 +1096,7 @@ describe('core_my Dashboard application', () => {
             await waitFor(() => expect(saveCalls(fetchOneSpy)).toHaveLength(1));
             const [saveCall] = saveCalls(fetchOneSpy);
             expect(saveCall.args.action).toBe('save');
-            expect(saveCall.args.layout!.find(item => item.id === 103)).toMatchObject({column: 0, row: 0});
+            expect(saveCall.args.layout!.find(item => item.id === 103)).toMatchObject({column: 2, row: 0});
         });
 
         it('adds a form block unconfigured when the page has no edited-page hash to offer the form', async() => {
@@ -801,7 +1110,7 @@ describe('core_my Dashboard application', () => {
 
             render(<Dashboard />);
             fireEvent.click(await screen.findByRole('button', {name: 'Add block'}));
-            fireEvent.click(await screen.findByText('Text', {selector: 'a[data-blockname]'}));
+            await chooseBlock('Text');
 
             await waitFor(() => expect(saveCalls(fetchOneSpy).length).toBeGreaterThan(0));
             expect(saveCalls(fetchOneSpy)[0].args).toMatchObject({action: 'add', blockname: 'html'});
@@ -839,7 +1148,7 @@ describe('core_my Dashboard application', () => {
             // Trigger a second load (adding a block reloads the dashboard) while the first load's
             // collected-JS promise is still unresolved: a slow first response overtaken by a second.
             fireEvent.click(await screen.findByRole('button', {name: 'Add block'}));
-            fireEvent.click(await screen.findByText('Calendar', {selector: 'a[data-blockname]'}));
+            await chooseBlock('Calendar');
             await screen.findByRole('heading', {name: 'Calendar'});
 
             // Now let the superseded first load's collected-JS resolve.
