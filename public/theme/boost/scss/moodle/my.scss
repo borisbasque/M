@@ -169,29 +169,243 @@
     color: var(--mds-text-muted);
 }
 
-// The edit bar: one floating surface fixed to the bottom of the window while editing, a little
-// above its edge, so its actions stay in reach whatever part of the dashboard is in view. The scope
-// being edited is on the left and the actions on the right, wrapping onto two lines where there is
-// no room for both. It is as wide as the page's content area at most (90rem), like the bar in the
-// design. It sits just under the dropdown layer, so its own scope menu opens above it.
+// The edit bar: one floating surface fixed a little above the bottom of the window while editing,
+// so its actions stay in reach whatever part of the dashboard is in view. It hugs its content and
+// is centred: the scope being edited, then Reset and Undo, then Add block, wrapping onto two lines
+// only where there is no room. It sits just under the dropdown layer, so its own scope
+// menu opens above it.
 .core-my-dashboard-toolbar {
     position: fixed;
     inset-inline: 0;
-    bottom: var(--mds-spacing-md);
+    bottom: var(--mds-scale-800);
     z-index: $zindex-dropdown - 1;
     display: flex;
     flex-wrap: wrap;
-    gap: var(--mds-spacing-sm) var(--mds-spacing-md);
+    gap: var(--mds-spacing-xs);
     align-items: center;
-    justify-content: space-between;
-    width: calc(100% - 2 * var(--mds-spacing-md));
-    max-width: 90rem;
-    padding: var(--mds-spacing-sm) var(--mds-spacing-lg);
+    justify-content: center;
+    width: max-content;
+    max-width: calc(100% - 2 * var(--mds-spacing-md));
+    padding: var(--mds-spacing-xs) var(--mds-spacing-xs) var(--mds-spacing-xs) var(--mds-spacing-md);
     margin-inline: auto;
     background: var(--mds-bg-surface-default);
     border: var(--mds-stroke-weight-sm) solid var(--mds-border-default);
-    border-radius: var(--mds-border-radius-lg);
+    border-radius: var(--mds-border-radius-xl);
     box-shadow: 0 var(--mds-offset-lg) var(--mds-blur-lg) var(--mds-color-lg);
+}
+
+// The add blocks modal: a native <dialog> (see AddBlocksDialog), its panel filling it, so that a click
+// on the dialog itself is a click on its backdrop. The panel keeps its height as a search narrows the
+// list, so the modal does not jump about, and never outgrows the window: the list scrolls.
+.core-my-add-blocks {
+    width: 100%;
+    max-width: min(47.1875rem, calc(100% - 2 * var(--mds-spacing-md)));
+    padding: 0;
+    color: var(--mds-text-default);
+    background: var(--mds-bg-surface-default);
+    border: 0;
+    border-radius: var(--mds-border-radius-xl);
+    outline: 0;
+    box-shadow: 0 var(--mds-offset-lg) var(--mds-blur-lg) var(--mds-color-lg);
+}
+
+.core-my-add-blocks::backdrop {
+    background: rgba(0, 0, 0, .45);
+}
+
+.core-my-add-blocks__panel {
+    display: flex;
+    flex-direction: column;
+    gap: var(--mds-spacing-xs);
+    height: min(44rem, calc(100dvh - 2 * var(--mds-spacing-xl)));
+}
+
+.core-my-add-blocks__header {
+    display: flex;
+    flex: 0 0 auto;
+    gap: var(--mds-spacing-sm);
+    align-items: flex-start;
+    justify-content: space-between;
+    padding: var(--mds-spacing-lg) var(--mds-spacing-md) 0;
+}
+
+.core-my-add-blocks__title {
+    margin: 0;
+    font-size: var(--mds-font-size-headings-5);
+    font-weight: var(--mds-font-weight-medium);
+    line-height: var(--mds-line-height-headings-5);
+}
+
+.core-my-add-blocks__search {
+    flex: 0 0 auto;
+    padding: 0 var(--mds-spacing-md);
+}
+
+// One column of cards on a phone, two from the design system's md breakpoint. Every card is the same
+// height: its padding and border around the name and two lines of description (see below).
+.core-my-add-blocks__list {
+    display: grid;
+    flex: 1 1 auto;
+    grid-template-columns: minmax(0, 1fr);
+    --core-my-card-frame: calc(2 * var(--mds-spacing-sm) + 2 * var(--mds-stroke-weight-sm));
+    --core-my-card-name: calc(var(--mds-line-height-paragraph-xs) + var(--mds-spacing-xxs));
+    --core-my-card-description: calc(2 * var(--mds-line-height-paragraph-small));
+    grid-auto-rows: calc(var(--core-my-card-frame) + var(--core-my-card-name) + var(--core-my-card-description));
+    gap: var(--mds-spacing-xs);
+    min-height: 0;
+    // Room for a card's focus ring, which the scrolling list would otherwise clip: the top padding is
+    // taken back by the margin, and scroll-padding keeps it when the keyboard scrolls to a card.
+    padding: var(--mds-stroke-weight-md) var(--mds-spacing-md) var(--mds-spacing-xs);
+    margin: calc(-1 * var(--mds-stroke-weight-md)) 0 0;
+    overflow-y: auto;
+    scroll-padding-block: var(--mds-spacing-xs);
+    list-style: none;
+}
+
+@media (min-width: $mds-breakpoints-md) {
+    .core-my-add-blocks__list {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+}
+
+.core-my-add-blocks__empty {
+    flex: 0 0 auto;
+    padding: 0 var(--mds-spacing-md);
+    margin: 0;
+    font-size: var(--mds-font-size-paragraph-small);
+    line-height: var(--mds-line-height-paragraph-small);
+    color: var(--mds-text-subtle);
+}
+
+// The Marketplace link is the modal's footer, set apart by a rule across the full width.
+.core-my-add-blocks__marketplace {
+    flex: 0 0 auto;
+    padding: var(--mds-spacing-md);
+    margin-block-start: auto;
+    border-block-start: var(--mds-stroke-weight-sm) solid var(--mds-border-subtle);
+}
+
+// A block in the modal: icon, name and what it does. A button that adds the block, or, for a block
+// already on the dashboard, a plain card saying "Added".
+.core-my-palette-item {
+    display: flex;
+    gap: var(--mds-spacing-sm);
+    align-items: flex-start;
+    width: 100%;
+    height: 100%;
+    padding: var(--mds-spacing-sm) var(--mds-spacing-xs) var(--mds-spacing-sm) var(--mds-spacing-sm);
+    color: var(--mds-text-default);
+    text-align: start;
+    background: var(--mds-bg-surface-default);
+    border: var(--mds-stroke-weight-sm) solid var(--mds-border-subtle);
+    border-radius: var(--mds-border-radius-lg);
+    transition: border-color .15s ease, background-color .15s ease;
+}
+
+button.core-my-palette-item:hover,
+button.core-my-palette-item:focus-visible {
+    background: var(--mds-bg-interactive-primary-default-light);
+    border-color: var(--mds-border-interactive-primary-hover);
+}
+
+button.core-my-palette-item:hover .core-my-palette-item__icon,
+button.core-my-palette-item:focus-visible .core-my-palette-item__icon {
+    background: var(--mds-bg-feedback-primary-subtle);
+}
+
+button.core-my-palette-item:hover .core-my-palette-item__description,
+button.core-my-palette-item:focus-visible .core-my-palette-item__description {
+    color: var(--mds-text-subtle);
+}
+
+// Focus: as hover, with the 2px focus ring.
+button.core-my-palette-item:focus-visible {
+    outline: var(--mds-stroke-weight-md) solid var(--mds-focus-default);
+    outline-offset: 0;
+}
+
+// Already on the dashboard: disabled, with a tick on the name's line. The description keeps the card's
+// full width, and the words "Added" are there for screen readers.
+.core-my-palette-item--added {
+    position: relative;
+    cursor: not-allowed;
+    background: var(--mds-bg-surface-subtle);
+}
+
+.core-my-palette-item--added .core-my-palette-item__name {
+    padding-inline-end: var(--mds-scale-800);
+    color: var(--mds-text-muted);
+}
+
+.core-my-palette-item--added .core-my-palette-item__icon {
+    color: var(--mds-text-muted);
+    background: var(--mds-bg-surface-strong);
+}
+
+.core-my-palette-item__icon {
+    display: grid;
+    flex: 0 0 auto;
+    place-items: center;
+    width: var(--mds-scale-1100);
+    height: var(--mds-scale-1100);
+    font-size: var(--mds-icons-sm);
+    font-weight: var(--mds-font-weight-bold);
+    color: var(--mds-text-feedback-primary);
+    background: var(--mds-bg-feedback-primary-light);
+    border-radius: var(--mds-border-radius-md);
+}
+
+// A block can declare an image rather than a font icon, as its default monologo is. Those have space
+// built in around the glyph, so they are drawn larger to look the same size as the font icons.
+.core-my-palette-item__icon img.icon {
+    width: var(--mds-icons-lg);
+    height: var(--mds-icons-lg);
+    margin: 0;
+}
+
+.core-my-palette-item__text {
+    display: flex;
+    flex: 1 1 auto;
+    flex-direction: column;
+    gap: var(--mds-spacing-xxs);
+    min-width: 0;
+}
+
+.core-my-palette-item__name,
+.core-my-palette-item__description {
+    font-size: var(--mds-font-size-paragraph-small);
+    line-height: var(--mds-line-height-paragraph-small);
+}
+
+// One line of name and at most two of description, so no block can make its card taller. The name's
+// line is tighter than its text, so its clipping box reaches back out to keep the descenders.
+.core-my-palette-item__name {
+    padding-block: calc((var(--mds-line-height-paragraph-small) - var(--mds-line-height-paragraph-xs)) / 2);
+    margin-block: calc((var(--mds-line-height-paragraph-xs) - var(--mds-line-height-paragraph-small)) / 2);
+    overflow: hidden;
+    font-weight: var(--mds-font-weight-medium);
+    line-height: var(--mds-line-height-paragraph-xs);
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.core-my-palette-item__description {
+    display: -webkit-box; /* stylelint-disable-line value-no-vendor-prefix */
+    overflow: hidden;
+    color: var(--mds-text-muted);
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical; /* stylelint-disable-line property-no-vendor-prefix */
+}
+
+.core-my-palette-item__added {
+    position: absolute;
+    inset-block-start: var(--mds-spacing-sm);
+    inset-inline-end: var(--mds-spacing-sm);
+    display: inline-flex;
+    gap: var(--mds-spacing-xxs);
+    align-items: center;
+    font-size: var(--mds-font-size-paragraph-small);
+    color: var(--mds-text-muted);
 }
 
 // Room under the dashboard for the fixed edit bar, so the last row is never hidden behind it.
@@ -212,28 +426,35 @@
 
 .core-my-dashboard-toolbar__scope {
     display: flex;
-    gap: var(--mds-spacing-xs);
+    gap: var(--mds-spacing-xxs);
     align-items: center;
 }
 
 .core-my-dashboard-toolbar__icon {
-    font-size: var(--mds-icons-sm);
-    color: var(--mds-text-default);
+    width: var(--mds-icons-xs);
+    font-size: var(--mds-icons-xs);
+    color: var(--mds-text-feedback-primary);
 }
 
 .core-my-dashboard-toolbar__label,
 .core-my-dashboard-scope {
     margin: 0;
     font-size: var(--mds-font-size-paragraph-default);
-    font-weight: var(--mds-font-weight-bold);
+    font-weight: var(--mds-font-weight-semibold);
     line-height: var(--mds-line-height-paragraph-default);
     color: var(--mds-text-default);
 }
 
+// "Editing" and its icon read as one label, set further from the scope dropdown beside them.
+.core-my-dashboard-toolbar__label {
+    margin-inline-end: var(--mds-spacing-xxs);
+    line-height: var(--mds-line-height-paragraph-xs);
+}
+
 .core-my-dashboard-toolbar__divider {
-    align-self: stretch;
+    flex: 0 0 auto;
     width: var(--mds-stroke-weight-sm);
-    margin-block: var(--mds-spacing-xxs);
+    height: var(--mds-scale-800);
     background: var(--mds-border-default);
 }
 
@@ -256,33 +477,18 @@
 .core-my-dashboard-toolbar__actions {
     display: flex;
     flex-wrap: wrap;
-    gap: var(--mds-spacing-sm);
+    gap: var(--mds-spacing-xs);
     align-items: center;
-    margin-inline-start: auto;
 }
 
-// The end-of-grid "Add a block" control is core's own add-block button (core/add_block_button
-// markup, styled by .btn-add-content in buttons.scss); only its spacing from the grid is set here.
+// The end-of-grid "Add a block" row is a GridCell like the empty space inside the grid, and takes
+// the grid cell styles (.core-my-grid-cell) unchanged. The wrapper is a one-row grid with the
+// board's columns and row height (set inline from layout.ts), so the cell spans the full width; it
+// has the board's gap too, so while a block moves its one cell per column lines up with the grid's.
 .core-my-dashboard-addblock {
+    display: grid;
+    column-gap: var(--mds-spacing-md);
     margin-block-start: var(--mds-spacing-md);
-}
-
-// Drawn as a resting grid cell across the full width, so it reads as the grid's last row. Its label
-// stays visible: unlike the cells inside the grid, it is the one add control people look for.
-.core-my-dashboard-addblock .btn-add-content {
-    font-size: var(--mds-font-size-paragraph-small);
-    font-weight: var(--mds-font-weight-medium);
-    color: var(--mds-text-subtle);
-    background: transparent;
-    border: var(--mds-stroke-weight-sm) dashed var(--mds-border-default);
-    border-radius: var(--mds-border-radius-xl);
-}
-
-.core-my-dashboard-addblock .btn-add-content:hover,
-.core-my-dashboard-addblock .btn-add-content:focus-visible {
-    color: var(--mds-text-feedback-primary);
-    background: var(--mds-bg-feedback-primary-subtle);
-    border-color: var(--mds-border-interactive-primary-hover);
 }
 
 .core-my-dashboard-grid {
@@ -304,13 +510,21 @@
     color: var(--mds-text-default);
     background: var(--mds-bg-surface-default);
     border: var(--mds-stroke-weight-sm) solid var(--mds-border-subtle);
-    border-radius: var(--mds-border-radius-xl);
+    border-radius: var(--mds-border-radius-lg);
     // Flat at rest: the border carries the hover, and only a tile being moved or resized lifts.
-    transition: box-shadow .15s ease, border-color .15s ease;
+    transition: box-shadow .15s ease, border-color .15s ease, outline-color .15s ease;
+}
+
+// Edit: a firmer edge, so every tile reads as something that can be picked up. The clear outline is
+// there for Active's to fade in from.
+.core-my-dashboard-tile--editing {
+    border-color: var(--mds-border-default);
+    outline: var(--mds-stroke-weight-md) solid transparent;
+    outline-offset: calc(-1 * var(--mds-stroke-weight-md));
 }
 
 .core-my-dashboard-tile--editing:hover {
-    border-color: var(--mds-border-interactive-primary-default);
+    border-color: var(--mds-border-interactive-primary-hover);
 }
 
 // The block's standard actions menu drops down inside its tile. Every tile is a positioned layer
@@ -321,30 +535,31 @@
     z-index: 3;
 }
 
-// A block hidden through the standard menu is still shown while editing, muted as the classic
-// block header shows a hidden block, with the menu's Show action to bring it back. Out of Edit
+// A block hidden through the standard menu is still shown while editing, with a dashed edge, a muted
+// title and a badge, and the menu's Show action to bring it back. Out of Edit
 // mode it is not loaded at all, and its place in the grid stays empty.
-.core-my-dashboard-tile--hidden {
-    border-color: var(--mds-border-default);
+.core-my-dashboard-tile--hidden,
+.core-my-dashboard-tile--hidden.core-my-dashboard-tile--editing {
+    border-color: var(--mds-border-interactive-secondary-hover);
     border-style: dashed;
-    box-shadow: none;
 }
 
-.core-my-dashboard-tile--hidden .core-my-dashboard-tile__title,
 .core-my-dashboard-tile--hidden .core-my-dashboard-tile__content {
-    color: var(--mds-text-subtle);
+    opacity: .6;
 }
 
 // Active: picked up by a click, a tap or the keyboard, dragged, or resized - one state for all of
-// them. The border goes to the primary colour at twice the width (the extra width is a ring, so
-// the tile's box does not change size), and the tile lifts. Focus stays on the handle's own ring.
+// them. A 2px primary edge inside the tile (Board tile's inside stroke: an outline, drawn over the
+// tile's own border and contents, so nothing in it moves), and the tile lifts. Focus stays on the
+// handle's own ring.
+// A tile let go of mid-drag keeps the look while it travels into place (--landing).
 .core-my-dashboard-tile--active,
-.core-my-dashboard-tile--active:hover {
+.core-my-dashboard-tile--active:hover,
+.core-my-dashboard-tile--landing {
     z-index: 3;
     border-color: var(--mds-border-interactive-primary-default);
-    box-shadow:
-        0 0 0 var(--mds-stroke-weight-sm) var(--mds-border-interactive-primary-default),
-        0 var(--mds-offset-lg) var(--mds-blur-lg) var(--mds-color-lg);
+    outline-color: var(--mds-border-interactive-primary-default);
+    box-shadow: 0 var(--mds-offset-lg) var(--mds-blur-lg) var(--mds-color-lg);
 }
 
 .core-my-dashboard-tile--pointer-dragging {
@@ -358,19 +573,52 @@
 
 .core-my-dashboard-tile__header {
     display: flex;
-    gap: var(--mds-spacing-xs);
+    flex: 0 0 auto;
+    gap: var(--mds-spacing-xxs);
     align-items: center;
     justify-content: space-between;
-    min-height: calc(var(--mds-scale-1000) + 2 * var(--mds-spacing-xs));
-    padding: var(--mds-spacing-sm) var(--mds-spacing-sm) var(--mds-spacing-xs) var(--mds-spacing-md);
+    min-height: calc(var(--mds-scale-900) + 2 * var(--mds-spacing-xs));
+    padding: var(--mds-spacing-xxs) var(--mds-spacing-xs) var(--mds-spacing-xxs) var(--mds-spacing-md);
 }
 
 // While editing, the move handle leads the header, so it sits closer to the edge, and the whole
-// header can be grabbed to move the block.
+// header can be grabbed to move the block. The header is tinted as the part you hold, with a
+// border/subtle rule under it. A hidden block keeps a plain header with no rule.
 .core-my-dashboard-tile--editing .core-my-dashboard-tile__header {
-    padding-inline-start: var(--mds-spacing-sm);
-    cursor: move;
+    padding-inline-start: var(--mds-spacing-xs);
+    cursor: grab;
     user-select: none;
+    background: var(--mds-bg-surface-subtle);
+    border-block-end: var(--mds-stroke-weight-sm) solid var(--mds-border-subtle);
+    border-start-start-radius: calc(var(--mds-border-radius-lg) - var(--mds-stroke-weight-sm));
+    border-start-end-radius: calc(var(--mds-border-radius-lg) - var(--mds-stroke-weight-sm));
+}
+
+.core-my-dashboard-tile--hidden .core-my-dashboard-tile__header {
+    background: none;
+    border-block-end: 0;
+}
+
+// The design system Badge lays its icon and label out with a gap, which only applies once it is a
+// flex box; Bootstrap's .badge makes it a plain box, and a flex item in the header becomes a block.
+// It also aligns itself to the top of a flex row, so it is centred here with the rest of the header.
+// Figma draws its 1px border inside its padding (20px tall); here the border adds to it, so the
+// padding gives that pixel back.
+.core-my-dashboard-tile__badge.mds-badge {
+    display: inline-flex;
+    flex: 0 0 auto;
+    align-self: center;
+    gap: var(--mds-spacing-xxs);
+    align-items: center;
+    padding:
+        calc(var(--mds-spacing-xxs) - var(--mds-stroke-weight-sm))
+        calc(var(--mds-spacing-xs) - var(--mds-stroke-weight-sm));
+}
+
+// Its icon takes the glyph's own width (the eye-slash is wider than it is tall), not a square.
+.core-my-dashboard-tile__badge.mds-badge .core-my-dashboard-icon {
+    width: auto;
+    inline-size: auto;
 }
 
 // Titles are small (the design system's small paragraph size, medium weight) so that long block
@@ -394,35 +642,17 @@
     align-items: center;
 }
 
-// Delete: the design system Button, icon-only, sitting over the tile's start corner while editing,
-// round and ringed in the surface colour so it reads against both the tile and the page. It makes
-// way while the tile is being moved or resized.
-.core-my-dashboard-tile .core-my-dashboard-tile__delete.core-my-dashboard-tile__delete {
-    position: absolute;
-    inset-block-start: calc(-1 * var(--mds-spacing-xs));
-    inset-inline-start: calc(-1 * var(--mds-spacing-xs));
-    z-index: 4;
-    justify-content: center;
-    width: var(--mds-scale-900);
-    min-width: var(--mds-scale-900);
-    height: var(--mds-scale-900);
-    min-height: var(--mds-scale-900);
-    padding: 0;
-    border-radius: var(--mds-border-radius-pill);
-    box-shadow: 0 0 0 var(--mds-stroke-weight-md) var(--mds-bg-surface-default);
-}
-
-.core-my-dashboard-tile--active .core-my-dashboard-tile__delete {
-    display: none;
-}
+// Delete is the design system Button as the Figma instance sets it (secondary, lg, icon-only),
+// which MDS already draws 28px square (xs padding around an xs icon) with the md radius, matching
+// the actions menu's trigger beside it, so it needs no size overrides here.
 
 .core-my-dashboard-handle-wrapper {
     position: relative;
     display: grid;
-    flex: 0 0 var(--mds-scale-1000);
+    flex: 0 0 var(--mds-scale-800);
     place-items: center;
-    width: var(--mds-scale-1000);
-    height: var(--mds-scale-1000);
+    width: var(--mds-scale-800);
+    height: var(--mds-scale-800);
 }
 
 .core-my-dashboard-handle-wrapper.active {
@@ -446,29 +676,51 @@
     line-height: 1;
 }
 
-// The move handle is a 32px square icon-only button and the resize handle a 24px one in the tile's
-// corner, both at least the 24px target size WCAG 2.5.8 asks for. They use the design system
-// Button's ghost icon-only style; only the fixed box size is set here, since the Button sizes itself
-// from its icon and padding and has no square touch-target variant (MDL-89740 tracks that gap). The
-// repeated class is specificity, so that the box size wins over the Button's own size styles
-// without naming their internal modifier classes.
-.core-my-dashboard-tile .core-my-dashboard-handle.core-my-dashboard-handle {
-    flex: 0 0 var(--mds-scale-1000);
+// The move handle and the resize handle are 24px squares, the target size WCAG 2.5.8 asks for. They
+// keep the design system Button for its focus handling and tooltip, but are drawn as bare handles:
+// no background, no hover fill and no pressed look (the tile going Active shows it is held). The
+// icon is muted at rest and default on hover; keyboard focus keeps the 2px focus ring. The
+// repeated class is specificity over the Button's own size and colour styles.
+// $core-my-handle repeats the class four times: MDS sizes an lg icon-only Button with
+// .mds-btn.btn.mds-btn--icon-only.mds-btn--size-lg, and these rules must outrank that.
+$core-my-handle: '.core-my-dashboard-handle.core-my-dashboard-handle.core-my-dashboard-handle.core-my-dashboard-handle';
+.core-my-dashboard-tile #{$core-my-handle} {
+    flex: 0 0 var(--mds-scale-800);
     justify-content: center;
-    width: var(--mds-scale-1000);
-    min-width: var(--mds-scale-1000);
-    height: var(--mds-scale-1000);
-    min-height: var(--mds-scale-1000);
-    padding: 0;
-}
-
-.core-my-dashboard-tile .core-my-dashboard-handle--resize.core-my-dashboard-handle {
-    flex-basis: var(--mds-scale-800);
     width: var(--mds-scale-800);
     min-width: var(--mds-scale-800);
     height: var(--mds-scale-800);
     min-height: var(--mds-scale-800);
-    color: var(--mds-text-subtle);
+    padding: 0;
+    color: var(--mds-text-muted);
+    background: transparent;
+    border-color: transparent;
+    border-radius: var(--mds-border-radius-sm);
+}
+
+// Hover (Board handle, State=Hover, in Figma): the icon goes from text/muted to text/default, with
+// the grab or nwse-resize cursor, and no fill, border or shadow (the handle is deliberately not drawn
+// as a hovered MDS Button). Pointer hover only, through (hover: hover), so a tap does not leave it
+// stuck on touch screens; keyboard focus is the separate :focus-visible ring below. The handle
+// being held keeps the default colour (aria-pressed below). Only the handle under the
+// pointer goes to Hover: hovering elsewhere on the tile leaves both handles at rest (Boris's call,
+// over the Figma Edit hover variant). Same four-class specificity as the rest rule above (and after
+// it), so it wins over it and over MDS's own hover.
+@media (hover: hover) {
+    .core-my-dashboard-tile #{$core-my-handle}:hover {
+        color: var(--mds-text-default);
+        background: transparent;
+        border-color: transparent;
+        box-shadow: none;
+    }
+}
+
+.core-my-dashboard-tile #{$core-my-handle}.core-my-dashboard-handle--move {
+    cursor: grab;
+}
+
+.core-my-dashboard-tile #{$core-my-handle}.core-my-dashboard-handle--resize {
+    cursor: nwse-resize;
 }
 
 .core-my-dashboard-resize-grip {
@@ -477,16 +729,20 @@
 }
 
 .core-my-dashboard-grid .core-my-dashboard-tile .core-my-dashboard-handle.core-my-dashboard-handle i {
-    inline-size: var(--mds-icons-sm);
-    block-size: var(--mds-icons-sm);
-    width: var(--mds-icons-sm);
-    height: var(--mds-icons-sm);
-    font-size: var(--mds-icons-sm);
+    inline-size: var(--mds-icons-xs);
+    block-size: var(--mds-icons-xs);
+    width: var(--mds-icons-xs);
+    height: var(--mds-icons-xs);
+    font-size: var(--mds-icons-xs);
 }
 
+// Touch and pen pick a tile up with a long press (awaitTouchHold in index.tsx), so the handles
+// let the page pan until then; the script cancels the gesture's touchmoves once the hold completes.
+// No callout or text selection on that long press.
 .core-my-dashboard-handle {
-    touch-action: none;
+    touch-action: manipulation;
     user-select: none;
+    -webkit-touch-callout: none;
 }
 
 .core-my-dashboard-handle--move {
@@ -497,11 +753,31 @@
     cursor: nwse-resize;
 }
 
-.core-my-dashboard-tile .core-my-dashboard-handle.core-my-dashboard-handle[aria-pressed="true"] {
+// Focus ring for keyboard focus only (:focus-visible, from the design system Button). A handle
+// focused by a pointer press, for a drag or a resize, never shows it, even where the browser would
+// still match :focus-visible after the scripted focus (see DashboardHandle).
+.core-my-dashboard-tile .core-my-dashboard-handle.core-my-dashboard-handle:focus:not(:focus-visible),
+.core-my-dashboard-tile .core-my-dashboard-handle.core-my-dashboard-handle[data-pointer-focus]:focus-visible {
+    outline: 0;
+    box-shadow: none;
+}
+
+.core-my-dashboard-tile .core-my-dashboard-handle.core-my-dashboard-handle:focus-visible:not([data-pointer-focus]) {
+    color: var(--mds-text-default);
+    outline: var(--mds-stroke-weight-md) solid var(--mds-focus-default);
+    outline-offset: 0;
+}
+
+.core-my-dashboard-tile #{$core-my-handle}[aria-pressed="true"] {
     cursor: grabbing;
-    color: var(--mds-text-link-primary-default);
-    background: var(--mds-bg-surface-default);
-    border: var(--mds-stroke-weight-md) solid var(--mds-border-interactive-primary-default);
+    color: var(--mds-text-default);
+    background: transparent;
+}
+
+// A held handle's tooltip would sit over its Up arrow. The design system Tooltip has no way to turn
+// it off, and it renders its bubble in the body, so it is hidden from there.
+body:has(.core-my-dashboard-handle[aria-pressed="true"]) .mds-tooltip__bubble {
+    display: none;
 }
 
 .core-my-grid-controls {
@@ -511,45 +787,13 @@
     pointer-events: none;
 }
 
-// The directional controls sit around the active handle as round 32px arrows. They use the design
-// system Button's small icon-only size; as with the handles above, only the fixed, circular box is
-// set here, on the dashboard's own class names (MDL-89740 tracks the missing touch-target variant).
-.core-my-grid-controls .core-my-grid-controls__direction.core-my-grid-controls__direction {
+// The directional controls sit around the active handle. They are the design system Button as it
+// comes, secondary, large and icon-only (28px, radius md, like the tile's Delete button), so its
+// fill, hover, pressed and :focus-visible ring are the design system's own; only their place round
+// the handle is set here, and they take the pointer although the layer they sit in does not.
+.core-my-grid-controls .core-my-grid-controls__direction {
     position: absolute;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    width: var(--mds-scale-800);
-    min-width: var(--mds-scale-800);
-    height: var(--mds-scale-800);
-    min-height: var(--mds-scale-800);
-    padding: 0;
-    color: var(--mds-bg-feedback-secondary-dark);
     pointer-events: auto;
-    background: var(--mds-bg-surface-default);
-    border: var(--mds-stroke-weight-sm) solid var(--mds-border-interactive-secondary-default);
-    border-radius: var(--mds-border-radius-pill);
-}
-
-.core-my-grid-controls .core-my-grid-controls__direction.core-my-grid-controls__direction:hover {
-    color: var(--mds-text-default);
-    background: var(--mds-bg-interactive-secondary-hover);
-}
-
-.core-my-grid-controls .core-my-grid-controls__direction.core-my-grid-controls__direction:active {
-    color: var(--mds-text-default);
-    background: var(--mds-bg-interactive-secondary-default);
-}
-
-.core-my-dashboard-grid .core-my-dashboard-tile .core-my-grid-controls
-.core-my-grid-controls__direction.core-my-grid-controls__direction i {
-    display: block;
-    inline-size: var(--mds-icons-md);
-    block-size: var(--mds-icons-md);
-    width: var(--mds-icons-md);
-    height: var(--mds-icons-md);
-    font-size: var(--mds-icons-md);
-    line-height: 1;
 }
 
 .core-my-grid-controls__direction--up {
@@ -583,8 +827,13 @@
 .core-my-dashboard-tile__content {
     flex: 1 1 auto;
     min-height: 0;
-    padding: var(--mds-spacing-sm) var(--mds-spacing-md) var(--mds-spacing-md);
+    padding: var(--mds-spacing-xxs) var(--mds-spacing-md) var(--mds-spacing-md);
     overflow: auto;
+}
+
+// Below the editing header's rule the content starts a little lower (spacing xs, not xxs).
+.core-my-dashboard-tile--editing .core-my-dashboard-tile__content {
+    padding-block-start: var(--mds-spacing-xs);
 }
 
 // Boost's full calendar page sets a fixed, tall day-cell height through a rule scoped to
@@ -601,8 +850,8 @@
 // row of its own, so it takes no height from the block.
 .core-my-dashboard-tile__dashboard-footer {
     position: absolute;
-    inset-block-end: var(--mds-spacing-xxs);
-    inset-inline-end: var(--mds-spacing-xxs);
+    inset-block-end: calc(var(--mds-stroke-weight-md) + var(--mds-stroke-weight-sm));
+    inset-inline-end: calc(var(--mds-stroke-weight-md) + var(--mds-stroke-weight-sm));
     z-index: 2;
     display: flex;
     padding: 0;
@@ -612,7 +861,7 @@
     z-index: 1;
     width: 100%;
     height: 100%;
-    border-radius: var(--mds-border-radius-xl);
+    border-radius: var(--mds-border-radius-lg);
 }
 
 // Rest: a merged run of empty cells in edit mode. Only a dashed outline until hover or keyboard
@@ -624,37 +873,38 @@
     padding: var(--mds-spacing-xs);
     cursor: pointer;
     background: transparent;
-    border: var(--mds-stroke-weight-sm) dashed var(--mds-border-default);
+    border: var(--mds-stroke-weight-sm) dashed var(--mds-border-interactive-secondary-hover);
     transition: background-color .15s ease, border-color .15s ease;
 }
 
+// "Add a block here" is a white pill on the tinted cell, so it reads as a control, not a label.
 .core-my-grid-cell__label {
     display: inline-flex;
     gap: var(--mds-spacing-xs);
     align-items: center;
     max-width: 100%;
+    padding: var(--mds-spacing-xs) var(--mds-spacing-sm);
     overflow: hidden;
     font-size: var(--mds-font-size-paragraph-small);
     font-weight: var(--mds-font-weight-medium);
+    line-height: var(--mds-line-height-paragraph-xs);
     color: var(--mds-text-feedback-primary);
     white-space: nowrap;
+    background: var(--mds-bg-surface-default);
+    border-radius: var(--mds-border-radius-pill);
     opacity: 0;
     transition: opacity .15s ease;
 }
 
 .core-my-grid-cell__icon {
-    font-size: var(--mds-icons-sm);
+    font-size: var(--mds-icons-xs);
 }
 
+// Hover: tinted, with the dashed edge turning primary.
 .core-my-grid-cell--available:hover,
 .core-my-grid-cell--available:focus-visible {
-    background: var(--mds-bg-feedback-primary-subtle);
+    background: var(--mds-bg-feedback-primary-light);
     border-color: var(--mds-border-interactive-primary-hover);
-}
-
-// A solid edge on hover; keyboard focus keeps the dashed edge and adds the focus ring.
-.core-my-grid-cell--available:hover {
-    border-style: solid;
 }
 
 .core-my-grid-cell--available:hover .core-my-grid-cell__label,
@@ -662,14 +912,32 @@
     opacity: 1;
 }
 
+// Keyboard focus: as hover, with a solid 2px focus ring as the cell's own edge.
 .core-my-grid-cell--available:focus-visible {
-    outline: var(--mds-stroke-weight-md) solid var(--mds-focus-default);
-    outline-offset: var(--mds-spacing-offset);
+    outline: 0;
+    border: var(--mds-stroke-weight-md) solid var(--mds-focus-default);
 }
 
-// Active: every grid unit while a block is moving or resizing, so all the snap points show.
+// Active: every grid unit while a block is moving or resizing, so all the snap points show. Neutral,
+// so the drop preview is the one thing on the grid that stands out. The grey is Board cell v2's own,
+// a touch lighter than bg-surface-strong; there is no MDS token for it.
+//
+// While the drop preview shows, every active cell that is not under it shrinks back by the xs
+// spacing on every side (a clip, so its corners stay round and nothing else on the grid moves), and
+// the cells under it stay full size. Each cell changes a step after the ones nearer the preview
+// (--core-my-preview-distance, 40ms a cell, at most 240ms), so the change ripples outwards from it.
 .core-my-grid-cell--active {
-    background: var(--mds-bg-interactive-primary-default-light);
+    background: #eff2f5;
+    clip-path: inset(0 round var(--mds-border-radius-lg));
+    transition:
+        clip-path .3s cubic-bezier(.25, .8, .25, 1),
+        background-color .2s ease-out;
+    // 40ms a cell, written as a sixth of the 240ms cap.
+    transition-delay: min(calc(var(--core-my-preview-distance, 0) * 240ms / 6), 240ms);
+}
+
+.core-my-grid-cell--receded {
+    clip-path: inset(var(--mds-spacing-xs) round var(--mds-border-radius-lg));
 }
 
 // After a click or tap on a handle the cells are where the block goes.
@@ -678,23 +946,167 @@
 }
 
 .core-my-grid-cell--placing:hover {
-    background: var(--mds-bg-feedback-primary-subtle);
+    background: var(--mds-bg-interactive-secondary-default);
 }
 
-// Drop preview: where the block will land. Hatched and outlined as well as tinted, so it never
-// relies on colour alone.
+// Drop preview: where the block will land, one cell per grid unit it covers, at full size (Board cell
+// v2's drop preview): bg-feedback-primary-subtle with a soft checker of 8px squares in
+// border-feedback-primary at 35%, with no outline. They are the active cells themselves, which
+// index.tsx marks, so as the block moves the cells it reaches grow back to full size and take the
+// checker.
 .core-my-grid-cell--prospective {
-    pointer-events: none;
+    --core-my-checker: color-mix(in srgb, var(--mds-border-feedback-primary) 35%, transparent);
     background-color: var(--mds-bg-feedback-primary-subtle);
     background-image:
-        repeating-linear-gradient(
-            135deg,
-            transparent 0,
-            transparent var(--mds-spacing-xs),
-            var(--mds-border-feedback-primary) var(--mds-spacing-xs),
-            var(--mds-border-feedback-primary) calc(var(--mds-spacing-xs) + var(--mds-stroke-weight-sm))
+        conic-gradient(
+            var(--core-my-checker) 25%,
+            transparent 0 50%,
+            var(--core-my-checker) 0 75%,
+            transparent 0
         );
-    border: var(--mds-stroke-weight-md) solid var(--mds-border-interactive-primary-default);
+    background-size: calc(2 * var(--mds-spacing-xs)) calc(2 * var(--mds-spacing-xs));
+}
+
+// A preview cell drawn on its own (not one of the active cells) lets the pointer through.
+.core-my-grid-cell--prospective:not(.core-my-grid-cell--active) {
+    pointer-events: none;
+}
+
+// Drop feedback, on the tile that has just landed after a move (pointer, click or keyboard) or an
+// add: the 2px primary outline the tile had while it was held breaks into two pieces, which slide
+// a short way round the tile, clockwise, each at its own unhurried speed, so they drift gently apart,
+// shrinking as they go and fading away well before the end of their run.
+// There is no lasting "just moved" look; the outline is removed when the slower piece is done.
+//
+// The pieces are two SVG paths over the tile's border box, each the whole outline drawn clockwise
+// from the middle of the top-left corner's arc (see DashboardTile's outlinePath), at pathLength 1.
+// Each shows one dash, half the outline at first, so together, with their round caps meeting,
+// the first frame is exactly the active border: the 2px stroke is centred 1px inside the tile's outer
+// edge (on the inner edge of its 1px border), where the active tile's 2px inside edge is (see
+// --active), in the same colour token and at the same radius. The dash pattern repeats every lap (dash plus gap
+// is 1), so a piece runs on past the start point seamlessly. Only stroke-dasharray,
+// stroke-dashoffset and opacity animate: no layout, nothing but the outline repaints. It is
+// absolutely positioned and ignores the pointer, so nothing shifts and nothing under it stops working.
+//
+// Each piece's run is sampled into keyframes (every 5%, run linearly) by core-my-drop-spin below,
+// so its head can follow a gentle ease-in-out curve (smoothstep) while its tail shrinks on a curve
+// of its own: the gaps open straight away, as the pieces shrink fast at first, then widen as they
+// part (the second, slower piece drifts behind the first, so they never meet). To keep it quiet,
+// a piece runs only part of the way round, and fades as it goes.
+// index.tsx clears the drop state as a fallback after 1100ms, so keep the slower piece under that.
+$core-my-drop-spin-1: .7s;
+$core-my-drop-spin-2: .85s;
+// A piece's length, as a share of the outline: half at the start, a short stub by the end.
+$core-my-drop-piece: .5;
+$core-my-drop-piece-end: .03;
+// How far round a piece's head travels, as a share of the outline.
+$core-my-drop-travel: .3;
+
+// The keyframes for one piece, starting at $start (a share of the outline, clockwise from the
+// top-left corner). Its head travels $core-my-drop-travel on smoothstep (3t^2 - 2t^3), so it eases in and out;
+// its length falls with (1 - t)^3, so fastest at first. A dash of length L whose head is at h sits
+// at stroke-dashoffset L - h.
+@mixin core-my-drop-spin($name, $start) {
+    @keyframes #{$name} {
+        @for $i from 0 through 20 {
+            $t: $i * .05;
+            $u: 1 - $t;
+            $travel: $core-my-drop-travel * $t * $t * (3 - 2 * $t);
+            $length: $core-my-drop-piece-end + ($core-my-drop-piece - $core-my-drop-piece-end) * $u * $u * $u;
+            $head: $start + $core-my-drop-piece + $travel;
+
+            #{$i * 5%} {
+                stroke-dasharray: $length (1 - $length);
+                stroke-dashoffset: $length - $head;
+            }
+        }
+    }
+}
+
+@include core-my-drop-spin(core-my-dashboard-drop-spin-1, 0);
+@include core-my-drop-spin(core-my-dashboard-drop-spin-2, .5);
+
+// The tile settles at once under the outline, rather than easing its border and lift out beside it,
+// and locks into place with a little bounce (core-my-dashboard-drop-settle below). The bounce moves
+// it with translate, not transform, so it adds to a keyboard move's own easing (DashboardTile's
+// FLIP animates transform) instead of replacing it; the outline is inside the tile, so goes with it.
+.core-my-dashboard-tile:has(> .core-my-dashboard-tile__drop-outline) {
+    transition: none;
+    animation: core-my-dashboard-drop-settle .42s both;
+}
+
+// Up by the xxs spacing (4px) easing out, then a fast fall into place, and a 1px rebound, so it
+// clicks home rather than just landing. Over before the slower piece of the spin.
+@keyframes core-my-dashboard-drop-settle {
+    0% {
+        translate: 0 0;
+        animation-timing-function: cubic-bezier(.2, .8, .4, 1);
+    }
+
+    40% {
+        translate: 0 calc(-1 * var(--mds-spacing-xxs));
+        animation-timing-function: cubic-bezier(.6, 0, .9, .5);
+    }
+
+    70% {
+        translate: 0 0;
+        animation-timing-function: cubic-bezier(.2, .8, .4, 1);
+    }
+
+    85% {
+        translate: 0 calc(var(--mds-spacing-xxs) / -4);
+        animation-timing-function: ease-in;
+    }
+
+    100% {
+        translate: 0 0;
+    }
+}
+
+.core-my-dashboard-tile__drop-outline {
+    position: absolute;
+    inset: 0;
+    z-index: 6;
+    width: 100%;
+    height: 100%;
+    overflow: visible;
+    pointer-events: none;
+}
+
+.core-my-dashboard-tile__drop-outline-path {
+    fill: none;
+    stroke: var(--mds-border-interactive-primary-default);
+    stroke-width: var(--mds-stroke-weight-md);
+    stroke-linecap: round;
+    stroke-dasharray: $core-my-drop-piece 1 - $core-my-drop-piece;
+    // The top-left piece; the other starts halfway round.
+    stroke-dashoffset: 0;
+    animation:
+        core-my-dashboard-drop-spin-1 $core-my-drop-spin-1 linear both,
+        core-my-dashboard-drop-fade $core-my-drop-spin-1 ease-in-out both;
+}
+
+.core-my-dashboard-tile__drop-outline-path:nth-child(2) {
+    stroke-dashoffset: -$core-my-drop-piece;
+    animation:
+        core-my-dashboard-drop-spin-2 $core-my-drop-spin-2 linear both,
+        core-my-dashboard-drop-fade $core-my-drop-spin-2 ease-in-out both;
+}
+
+// Full strength only for the first 10% of a piece's run, so it starts as the active border, then
+// fading until it is gone at 65%, well before the run ends, so no piece is seen arriving anywhere
+// (nor its round cap left as a dot). A separate animation, on the piece's own clock, so its keyframes
+// do not bend the spin.
+@keyframes core-my-dashboard-drop-fade {
+    0%,
+    10% {
+        opacity: 1;
+    }
+
+    65%,
+    100% {
+        opacity: 0;
+    }
 }
 
 .core-my-dashboard-confirm {
@@ -734,4 +1146,27 @@
     .core-my-dashboard-loading__line::after {
         animation: none;
     }
+
+    // No spin: the held tile's border simply goes when it is dropped (the outline is never
+    // shown, and the tile's drop state is cleared by index.tsx's fallback timer).
+    .core-my-dashboard-tile__drop-outline {
+        display: none;
+    }
+
+    .core-my-dashboard-tile:has(> .core-my-dashboard-tile__drop-outline) {
+        animation: none;
+    }
+}
+
+// During a pointer move or resize, useInteractionCursor (index.tsx) sets data-core-my-pointer on
+// <html>, so the cursor holds wherever the pointer travels: grabbing for a move, nwse-resize for a
+// resize. It has to beat every element's own cursor (links, buttons, the handles), hence !important.
+html[data-core-my-pointer="move"],
+html[data-core-my-pointer="move"] * {
+    cursor: grabbing !important; // stylelint-disable-line declaration-no-important
+}
+
+html[data-core-my-pointer="resize"],
+html[data-core-my-pointer="resize"] * {
+    cursor: nwse-resize !important; // stylelint-disable-line declaration-no-important
 }
