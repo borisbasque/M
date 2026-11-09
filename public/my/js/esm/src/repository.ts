@@ -56,7 +56,7 @@ export interface AvailableBlock {
     description?: string;
     /** The block's icon, rendered, or empty. */
     icon?: string;
-    /** Whether it allows one instance and is already on the dashboard. */
+    /** Whether a block of this type is already on the dashboard, which has one of each. */
     added?: boolean;
 }
 

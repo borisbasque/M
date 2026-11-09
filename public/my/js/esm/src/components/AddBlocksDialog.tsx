@@ -10,9 +10,9 @@
  *
  * Each block is a Choicebox with its icon, name and what it does, all in one radio group: picking one
  * and then Add block (or Enter) adds it, to the space that opened the modal or the first free space,
- * and closes the modal. Blocks that allow only one and are already on the dashboard are listed too,
- * last, ticked and disabled, so nobody is left looking for them. Search narrows the list by name and
- * description. Escape, the close button or a click outside closes the modal.
+ * and closes the modal. A dashboard has one block of each type, so the types already on it are listed
+ * too, last, ticked and disabled, so nobody is left looking for them. Search narrows the list by name
+ * and description. Escape, the close button or a click outside closes the modal.
  *
  * @module     core_my/components/AddBlocksDialog
  * @copyright  2026 Boris Basque <borisbasque@icloud.com>

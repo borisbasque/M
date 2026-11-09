@@ -120,7 +120,7 @@ final class get_dashboard extends external_api {
                 ),
                 'description' => new external_value(PARAM_TEXT, 'What the block does, in a sentence, or empty.'),
                 'icon' => new external_value(PARAM_RAW, 'The block\'s icon, rendered, or empty.'),
-                'added' => new external_value(PARAM_BOOL, 'Whether it allows one instance and is already on the dashboard.'),
+                'added' => new external_value(PARAM_BOOL, 'Whether a block of this type is already on the dashboard, which has one of each.'),
             ]), 'Block types the user may add, as core/add_block_body takes them.'),
             'canedit' => new external_value(PARAM_BOOL, 'Whether the user may edit.'),
             'caneditdefault' => new external_value(PARAM_BOOL, 'Whether the user may edit the default dashboard.'),

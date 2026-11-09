@@ -17,6 +17,7 @@
 namespace core_my\external;
 
 use core_external\external_api;
+use core_my\local\dashboard;
 
 /**
  * Tests for the responsive dashboard read external function.
@@ -255,6 +256,32 @@ final class get_dashboard_test extends \advanced_testcase {
         $this->assertSame('block_html_edit_form', $byname['html']['blockform']);
         $this->assertArrayHasKey('online_users', $byname);
         $this->assertNull($byname['online_users']['blockform']);
+    }
+
+    /**
+     * A block type already on the dashboard is listed as added, even one that allows several
+     * instances on other pages: the dashboard has one block of each type.
+     */
+    public function test_execute_lists_a_block_type_already_on_the_dashboard_as_added(): void {
+        global $PAGE, $USER;
+
+        $this->resetAfterTest();
+        $this->setAdminUser();
+        $USER->editing = 1;
+
+        $PAGE = new \moodle_page();
+        $result = external_api::clean_returnvalue(get_dashboard::execute_returns(), get_dashboard::execute(false));
+        $byname = array_column($result['availableblocks'], null, 'name');
+        $this->assertFalse($byname['tags']['added']);
+
+        $PAGE = new \moodle_page();
+        dashboard::add(false, 'tags');
+
+        $PAGE = new \moodle_page();
+        $result = external_api::clean_returnvalue(get_dashboard::execute_returns(), get_dashboard::execute(false));
+        $byname = array_column($result['availableblocks'], null, 'name');
+        $this->assertTrue($byname['tags']['added']);
+        $this->assertNull($byname['tags']['blockform']);
     }
 
     /**

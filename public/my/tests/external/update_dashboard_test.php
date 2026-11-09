@@ -317,6 +317,27 @@ final class update_dashboard_test extends \advanced_testcase {
     }
 
     /**
+     * A dashboard has one block of each type, even of a type that allows several on other pages:
+     * a second one is rejected.
+     */
+    public function test_execute_rejects_a_second_block_of_the_same_type(): void {
+        global $PAGE, $USER;
+
+        $this->resetAfterTest();
+        $this->setAdminUser();
+        $USER->editing = 1;
+        $_POST['sesskey'] = sesskey();
+        $this->assertTrue(block_instance('tags')->instance_allow_multiple());
+
+        $result = update_dashboard::execute('add', false, [], 'tags');
+        $this->assertGreaterThan(0, $result['blockid']);
+
+        $PAGE = new \moodle_page();
+        $this->expectException(\moodle_exception::class);
+        update_dashboard::execute('add', false, [], 'tags');
+    }
+
+    /**
      * Removing a block id that does not exist on the dashboard - or at all - is rejected the
      * same way removing a block the user has no permission over would be.
      */

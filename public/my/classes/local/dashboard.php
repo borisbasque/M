@@ -228,17 +228,17 @@ final class dashboard {
         // which shows its configuration form when added (block_html, for one) is added through that
         // form here too, exactly as it is on every other page.
         // Each comes with its description and icon (block_base::get_description() and get_icon()),
-        // for the add blocks modal. Blocks that allow only one instance and are already on the
-        // dashboard are listed too, flagged as added, so the modal can say why they can't be added
-        // rather than leave people looking for them.
+        // for the add blocks modal. A dashboard has one block of each type, even of those that allow
+        // several elsewhere, so the types already on it are listed too, flagged as added, so the
+        // modal can say why they can't be added rather than leave people looking for them.
         $available = [];
         if ($editing) {
             $addable = $PAGE->blocks->get_addable_blocks();
             foreach (blocks_get_record() as $record) {
-                $added = !isset($addable[$record->name]);
-                if ($added && !self::is_added_single_instance($record)) {
+                if (!isset($addable[$record->name]) && !self::is_added_single_instance($record)) {
                     continue;
                 }
+                $added = !isset($addable[$record->name]) || $PAGE->blocks->is_block_present($record->name);
                 $instance = block_instance($record->name);
                 if (!$instance) {
                     continue;
@@ -873,7 +873,8 @@ final class dashboard {
         [$mypage, $context] = self::initialise_page($sitedefault, true);
         self::require_edit_capability($sitedefault, $context);
         $addable = $PAGE->blocks->get_addable_blocks();
-        if (!isset($addable[$blockname])) {
+        // One block of each type: the add blocks modal lists a type already here as added.
+        if (!isset($addable[$blockname]) || $PAGE->blocks->is_block_present($blockname)) {
             throw new \moodle_exception('cannotaddthisblocktype');
         }
         $instances = [];
