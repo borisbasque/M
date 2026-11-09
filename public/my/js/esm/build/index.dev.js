@@ -11,7 +11,8 @@ import { Fragment, jsxDEV } from "react/jsx-dev-runtime";
 import React, { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { Alert } from "@moodlehq/design-system";
 import { getString } from "@moodle/lms/core/stringUtils";
-import { isMoodleAjaxError } from "@moodle/lms/core/ajax";
+import { fetchOne, isMoodleAjaxError } from "@moodle/lms/core/ajax";
+import config from "@moodle/lms/core/config";
 import { requireManyAsync } from "@moodle/lms/core/amd";
 import Pending from "@moodle/lms/core/pending";
 import DashboardTile, { LANDING_ANIMATION_MS } from "./components/DashboardTile";
@@ -21,6 +22,7 @@ import ConfirmationDialog from "./components/ConfirmationDialog";
 import Icon from "./components/Icon";
 import GridCell from "./components/GridCell";
 import DashboardLoading from "./components/DashboardLoading";
+import DashboardEmpty from "./components/DashboardEmpty";
 import {
   DEFAULT_LIMITS,
   GRID_GAP,
@@ -72,7 +74,7 @@ class DashboardErrorBoundary extends React.Component {
       false,
       {
         fileName: "public/my/js/esm/src/index.tsx",
-        lineNumber: 85,
+        lineNumber: 87,
         columnNumber: 16
       },
       this
@@ -108,12 +110,12 @@ const BoardCells = /* @__PURE__ */ __name(({
       false,
       {
         fileName: "public/my/js/esm/src/index.tsx",
-        lineNumber: 146,
+        lineNumber: 148,
         columnNumber: 68
       }
     )) }, void 0, false, {
       fileName: "public/my/js/esm/src/index.tsx",
-      lineNumber: 145,
+      lineNumber: 147,
       columnNumber: 16
     });
   }
@@ -140,12 +142,12 @@ const BoardCells = /* @__PURE__ */ __name(({
     false,
     {
       fileName: "public/my/js/esm/src/index.tsx",
-      lineNumber: 175,
+      lineNumber: 177,
       columnNumber: 99
     }
   ))) }, void 0, false, {
     fileName: "public/my/js/esm/src/index.tsx",
-    lineNumber: 174,
+    lineNumber: 176,
     columnNumber: 12
   });
 }, "BoardCells");
@@ -182,7 +184,7 @@ const EndOfGridCell = /* @__PURE__ */ __name(({ columnCount, moving, gridRows: g
         false,
         {
           fileName: "public/my/js/esm/src/index.tsx",
-          lineNumber: 225,
+          lineNumber: 227,
           columnNumber: 64
         }
       )) : /* @__PURE__ */ jsxDEV(
@@ -201,7 +203,7 @@ const EndOfGridCell = /* @__PURE__ */ __name(({ columnCount, moving, gridRows: g
         false,
         {
           fileName: "public/my/js/esm/src/index.tsx",
-          lineNumber: 232,
+          lineNumber: 234,
           columnNumber: 15
         }
       )
@@ -210,7 +212,7 @@ const EndOfGridCell = /* @__PURE__ */ __name(({ columnCount, moving, gridRows: g
     false,
     {
       fileName: "public/my/js/esm/src/index.tsx",
-      lineNumber: 216,
+      lineNumber: 218,
       columnNumber: 12
     }
   );
@@ -302,11 +304,11 @@ const resolveSiteDefault = /* @__PURE__ */ __name((prop) => prop ?? window.locat
 const resolveLimits = /* @__PURE__ */ __name((data) => data?.limits ?? DEFAULT_LIMITS, "resolveLimits");
 const DashboardPlaceholder = /* @__PURE__ */ __name(({ error, loadingLabel, initialLayout }) => error ? /* @__PURE__ */ jsxDEV(Alert, { type: "danger", className: "core-my-dashboard-status", isDismissible: false, message: error }, void 0, false, {
   fileName: "public/my/js/esm/src/index.tsx",
-  lineNumber: 404,
+  lineNumber: 406,
   columnNumber: 7
 }) : /* @__PURE__ */ jsxDEV(DashboardLoading, { label: loadingLabel, layout: initialLayout }, void 0, false, {
   fileName: "public/my/js/esm/src/index.tsx",
-  lineNumber: 405,
+  lineNumber: 407,
   columnNumber: 7
 }), "DashboardPlaceholder");
 const describeError = /* @__PURE__ */ __name((caught) => {
@@ -885,7 +887,7 @@ const Dashboard = /* @__PURE__ */ __name(({
   if (!data || !labels) {
     return /* @__PURE__ */ jsxDEV(DashboardPlaceholder, { error, loadingLabel, initialLayout }, void 0, false, {
       fileName: "public/my/js/esm/src/index.tsx",
-      lineNumber: 1276,
+      lineNumber: 1278,
       columnNumber: 16
     });
   }
@@ -893,6 +895,10 @@ const Dashboard = /* @__PURE__ */ __name(({
   const prospective = prospectiveFor(interaction);
   const moving = Boolean(interaction);
   const requestReset = /* @__PURE__ */ __name(() => setConfirmAction({ type: "reset" }), "requestReset");
+  const empty = !data.editing && previewLayout.length === 0;
+  const customise = /* @__PURE__ */ __name(() => {
+    fetchOne({ methodname: "core_change_editmode", args: { setmode: true, context: Number(config.contextid) } }).then(() => window.location.reload()).catch((caught) => setError(describeError(caught)));
+  }, "customise");
   return /* @__PURE__ */ jsxDEV(
     "div",
     {
@@ -901,24 +907,24 @@ const Dashboard = /* @__PURE__ */ __name(({
       children: [
         error && /* @__PURE__ */ jsxDEV(Alert, { type: "danger", isDismissible: false, message: error }, void 0, false, {
           fileName: "public/my/js/esm/src/index.tsx",
-          lineNumber: 1289,
+          lineNumber: 1298,
           columnNumber: 19
         }),
         /* @__PURE__ */ jsxDEV("div", { className: "visually-hidden", "aria-live": "polite", "aria-atomic": "true", children: announcement }, void 0, false, {
           fileName: "public/my/js/esm/src/index.tsx",
-          lineNumber: 1290,
+          lineNumber: 1299,
           columnNumber: 9
         }),
         data.editing && /* @__PURE__ */ jsxDEV("p", { className: "core-my-dashboard-hint", children: [
           /* @__PURE__ */ jsxDEV(Icon, { markup: data.icons.move, className: "core-my-dashboard-hint__icon" }, void 0, false, {
             fileName: "public/my/js/esm/src/index.tsx",
-            lineNumber: 1292,
+            lineNumber: 1301,
             columnNumber: 13
           }),
           labels.edithint
         ] }, void 0, true, {
           fileName: "public/my/js/esm/src/index.tsx",
-          lineNumber: 1291,
+          lineNumber: 1300,
           columnNumber: 26
         }),
         /* @__PURE__ */ jsxDEV(
@@ -926,88 +932,108 @@ const Dashboard = /* @__PURE__ */ __name(({
           {
             resetLabel: labels.reset,
             onReset: !siteDefault && data.canedit ? requestReset : void 0,
-            children: /* @__PURE__ */ jsxDEV(
-              "div",
-              {
-                ref: gridRef,
-                className: "core-my-dashboard-grid",
-                style: {
-                  gridTemplateColumns: `repeat(${columnCount}, minmax(0, 1fr))`,
-                  gridTemplateRows: `repeat(${rows}, ${ROW_HEIGHT}px)`
+            children: [
+              empty && /* @__PURE__ */ jsxDEV(
+                DashboardEmpty,
+                {
+                  labels,
+                  icons: data.icons,
+                  canEdit: data.canedit,
+                  onCustomise: customise,
+                  onReset: siteDefault ? void 0 : requestReset
                 },
-                "data-columns": columnCount,
-                children: [
-                  data.editing && /* @__PURE__ */ jsxDEV(
-                    BoardCells,
-                    {
-                      rows,
-                      columnCount,
-                      layout: previewLayout,
-                      active: moving,
-                      interaction,
-                      prospective,
-                      labels,
-                      addIcon: data.icons.add,
-                      onActivate: (targetColumn, targetRow) => openAddBlock({ column: targetColumn, row: targetRow }),
-                      onPlace: place
-                    },
-                    void 0,
-                    false,
-                    {
-                      fileName: "public/my/js/esm/src/index.tsx",
-                      lineNumber: 1308,
-                      columnNumber: 34
-                    }
-                  ),
-                  previewLayout.map((item) => {
-                    const block = blocksById.get(item.id);
-                    if (!block) {
-                      return null;
-                    }
-                    return /* @__PURE__ */ jsxDEV(
-                      DashboardTile,
+                void 0,
+                false,
+                {
+                  fileName: "public/my/js/esm/src/index.tsx",
+                  lineNumber: 1308,
+                  columnNumber: 23
+                }
+              ),
+              /* @__PURE__ */ jsxDEV(
+                "div",
+                {
+                  ref: gridRef,
+                  hidden: empty || void 0,
+                  className: "core-my-dashboard-grid",
+                  style: {
+                    gridTemplateColumns: `repeat(${columnCount}, minmax(0, 1fr))`,
+                    gridTemplateRows: `repeat(${rows}, ${ROW_HEIGHT}px)`
+                  },
+                  "data-columns": columnCount,
+                  children: [
+                    data.editing && /* @__PURE__ */ jsxDEV(
+                      BoardCells,
                       {
-                        block,
-                        item,
+                        rows,
+                        columnCount,
+                        layout: previewLayout,
+                        active: moving,
+                        interaction,
+                        prospective,
                         labels,
-                        icons: data.icons,
-                        editing: data.editing,
-                        ...tileInteraction(interaction, item.id),
-                        isBumped: bumpedBlockIds.has(item.id),
-                        justDropped: justDropped?.id === item.id ? justDropped.key : void 0,
-                        onDropEnd: clearDropped,
-                        onStart: start,
-                        onKeyDown: keyDown,
-                        onPointerDown: pointerDown,
-                        onDirection: shift,
-                        onCommit: () => void commit(),
-                        onDelete: (id, title) => void deleteBlock(id, title)
+                        addIcon: data.icons.add,
+                        onActivate: (targetColumn, targetRow) => openAddBlock({ column: targetColumn, row: targetRow }),
+                        onPlace: place
                       },
-                      item.id,
+                      void 0,
                       false,
                       {
                         fileName: "public/my/js/esm/src/index.tsx",
                         lineNumber: 1325,
-                        columnNumber: 28
+                        columnNumber: 34
                       }
-                    );
-                  })
-                ]
-              },
-              void 0,
-              true,
-              {
-                fileName: "public/my/js/esm/src/index.tsx",
-                lineNumber: 1299,
-                columnNumber: 13
-              }
-            )
+                    ),
+                    previewLayout.map((item) => {
+                      const block = blocksById.get(item.id);
+                      if (!block) {
+                        return null;
+                      }
+                      return /* @__PURE__ */ jsxDEV(
+                        DashboardTile,
+                        {
+                          block,
+                          item,
+                          labels,
+                          icons: data.icons,
+                          editing: data.editing,
+                          ...tileInteraction(interaction, item.id),
+                          isBumped: bumpedBlockIds.has(item.id),
+                          justDropped: justDropped?.id === item.id ? justDropped.key : void 0,
+                          onDropEnd: clearDropped,
+                          onStart: start,
+                          onKeyDown: keyDown,
+                          onPointerDown: pointerDown,
+                          onDirection: shift,
+                          onCommit: () => void commit(),
+                          onDelete: (id, title) => void deleteBlock(id, title)
+                        },
+                        item.id,
+                        false,
+                        {
+                          fileName: "public/my/js/esm/src/index.tsx",
+                          lineNumber: 1342,
+                          columnNumber: 28
+                        }
+                      );
+                    })
+                  ]
+                },
+                void 0,
+                true,
+                {
+                  fileName: "public/my/js/esm/src/index.tsx",
+                  lineNumber: 1315,
+                  columnNumber: 13
+                }
+              )
+            ]
           },
           void 0,
-          false,
+          true,
           {
             fileName: "public/my/js/esm/src/index.tsx",
-            lineNumber: 1295,
+            lineNumber: 1304,
             columnNumber: 9
           }
         ),
@@ -1026,7 +1052,7 @@ const Dashboard = /* @__PURE__ */ __name(({
           false,
           {
             fileName: "public/my/js/esm/src/index.tsx",
-            lineNumber: 1352,
+            lineNumber: 1369,
             columnNumber: 26
           }
         ),
@@ -1046,7 +1072,7 @@ const Dashboard = /* @__PURE__ */ __name(({
           false,
           {
             fileName: "public/my/js/esm/src/index.tsx",
-            lineNumber: 1361,
+            lineNumber: 1378,
             columnNumber: 26
           }
         ),
@@ -1063,7 +1089,7 @@ const Dashboard = /* @__PURE__ */ __name(({
           false,
           {
             fileName: "public/my/js/esm/src/index.tsx",
-            lineNumber: 1371,
+            lineNumber: 1388,
             columnNumber: 39
           }
         ),
@@ -1084,7 +1110,7 @@ const Dashboard = /* @__PURE__ */ __name(({
           false,
           {
             fileName: "public/my/js/esm/src/index.tsx",
-            lineNumber: 1378,
+            lineNumber: 1395,
             columnNumber: 27
           }
         )
@@ -1094,7 +1120,7 @@ const Dashboard = /* @__PURE__ */ __name(({
     true,
     {
       fileName: "public/my/js/esm/src/index.tsx",
-      lineNumber: 1285,
+      lineNumber: 1294,
       columnNumber: 12
     }
   );

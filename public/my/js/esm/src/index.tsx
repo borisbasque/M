@@ -16,7 +16,8 @@
 import React, {useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState} from 'react';
 import {Alert} from '@moodlehq/design-system';
 import {getString} from '@moodle/lms/core/stringUtils';
-import {isMoodleAjaxError} from '@moodle/lms/core/ajax';
+import {fetchOne, isMoodleAjaxError} from '@moodle/lms/core/ajax';
+import config from '@moodle/lms/core/config';
 import {requireManyAsync} from '@moodle/lms/core/amd';
 import Pending from '@moodle/lms/core/pending';
 import DashboardTile, {LANDING_ANIMATION_MS} from './components/DashboardTile';
@@ -26,6 +27,7 @@ import ConfirmationDialog from './components/ConfirmationDialog';
 import Icon, {renderIcon} from './components/Icon';
 import GridCell from './components/GridCell';
 import DashboardLoading from './components/DashboardLoading';
+import DashboardEmpty from './components/DashboardEmpty';
 import {
     DEFAULT_LIMITS,
     GRID_GAP,
@@ -1282,6 +1284,13 @@ const Dashboard = ({
     // A block is being moved: every grid unit shows as an active cell.
     const moving = Boolean(interaction);
     const requestReset = () => setConfirmAction({type: 'reset'});
+    const empty = !data.editing && previewLayout.length === 0;
+    // Edit mode is where blocks are added, so the empty dashboard's way in is to turn it on.
+    const customise = () => {
+        fetchOne({methodname: 'core_change_editmode', args: {setmode: true, context: Number(config.contextid)}})
+            .then(() => window.location.reload())
+            .catch(caught => setError(describeError(caught)));
+    };
     return <div
         className={['core-my-dashboard-app', data.editing && 'core-my-dashboard-app--editing'].filter(Boolean).join(' ')}
         aria-busy={saving}
@@ -1296,8 +1305,16 @@ const Dashboard = ({
             resetLabel={labels.reset}
             onReset={!siteDefault && data.canedit ? requestReset : undefined}
         >
+            {empty && <DashboardEmpty
+                labels={labels}
+                icons={data.icons}
+                canEdit={data.canedit}
+                onCustomise={customise}
+                onReset={siteDefault ? undefined : requestReset}
+            />}
             <div
                 ref={gridRef}
+                hidden={empty || undefined}
                 className="core-my-dashboard-grid"
                 style={{
                     gridTemplateColumns: `repeat(${columnCount}, minmax(0, 1fr))`,

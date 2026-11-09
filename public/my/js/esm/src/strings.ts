@@ -52,6 +52,10 @@ export interface DashboardLabels {
     moveinstructions: string;
     marketplace: string;
     noblocksfound: string;
+    emptytitle: string;
+    emptydescription: string;
+    emptyreadonly: string;
+    customise: string;
     onpage: string;
     reset: string;
     resetheading: string;
@@ -89,6 +93,10 @@ const LABEL_STRINGS: Record<keyof DashboardLabels, {key: string; component: stri
     moveinstructions: {key: 'dashboardmovehandleinstructions', component: 'my'},
     marketplace: {key: 'dashboardmarketplace', component: 'my'},
     noblocksfound: {key: 'dashboardnoblocksfound', component: 'my'},
+    emptytitle: {key: 'dashboardemptytitle', component: 'my'},
+    emptydescription: {key: 'dashboardemptydescription', component: 'my'},
+    emptyreadonly: {key: 'dashboardemptyreadonly', component: 'my'},
+    customise: {key: 'dashboardcustomise', component: 'my'},
     onpage: {key: 'dashboardblockonpage', component: 'my'},
     reset: {key: 'resetpage', component: 'my'},
     resetheading: {key: 'resetdashboardheading', component: 'my'},

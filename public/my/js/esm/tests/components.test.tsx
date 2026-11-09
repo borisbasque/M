@@ -23,6 +23,7 @@ import DashboardHandle from '../src/components/DashboardHandle';
 import DashboardLoading from '../src/components/DashboardLoading';
 import {renderIcon} from '../src/components/Icon';
 import DashboardEditBar from '../src/components/DashboardEditBar';
+import DashboardEmpty from '../src/components/DashboardEmpty';
 import type {DashboardIcons} from '../src/repository';
 import type {DashboardLabels} from '../src/strings';
 import {htmlToText} from '../src/utils';
@@ -159,6 +160,10 @@ const labels: DashboardLabels = {
     addblocks: 'Add blocks',
     marketplace: 'Discover more blocks on Moodle Marketplace',
     noblocksfound: 'No blocks match your search.',
+    emptytitle: 'Your dashboard is empty',
+    emptydescription: 'Add blocks to see your courses, deadlines and calendar in one place.',
+    emptyreadonly: 'There is nothing on your dashboard yet.',
+    customise: 'Customise this dashboard',
     searchblocks: 'Search blocks',
     clearsearch: 'Clear search input',
     addblockshort: 'Add block',
@@ -920,5 +925,29 @@ describe('core_my grid components', () => {
         expect(htmlToText('Plain title')).toBe('Plain title');
         expect(htmlToText('Tom &amp; Jerry')).toBe('Tom & Jerry');
         expect(htmlToText('<b>Bold</b> &lt;not a tag&gt;')).toBe('Bold <not a tag>');
+    });
+});
+
+describe('DashboardEmpty', () => {
+    it('offers ways to start to people who can edit their own dashboard', () => {
+        const onCustomise = jest.fn();
+        const onReset = jest.fn();
+        render(<DashboardEmpty labels={labels} icons={icons} canEdit onCustomise={onCustomise} onReset={onReset} />);
+        expect(screen.getByRole('heading', {name: 'Your dashboard is empty'})).toBeInTheDocument();
+        fireEvent.click(screen.getByRole('button', {name: 'Customise this dashboard'}));
+        fireEvent.click(screen.getByRole('button', {name: labels.resettodefault}));
+        expect(onCustomise).toHaveBeenCalled();
+        expect(onReset).toHaveBeenCalled();
+    });
+
+    it('leaves out reset when the dashboard is the site default', () => {
+        render(<DashboardEmpty labels={labels} icons={icons} canEdit onCustomise={jest.fn()} />);
+        expect(screen.queryByRole('button', {name: labels.resettodefault})).not.toBeInTheDocument();
+    });
+
+    it('only explains, with no actions, to people who cannot edit', () => {
+        render(<DashboardEmpty labels={labels} icons={icons} canEdit={false} />);
+        expect(screen.getByText('There is nothing on your dashboard yet.')).toBeInTheDocument();
+        expect(screen.queryByRole('button')).not.toBeInTheDocument();
     });
 });

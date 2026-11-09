@@ -11,6 +11,10 @@
     "eject": "safe",
     "wrap": "safe"
   },
+  "components/DashboardEmpty": {
+    "eject": "risky",
+    "wrap": "risky"
+  },
   "components/DashboardHandle": {
     "eject": "safe",
     "wrap": "safe"
