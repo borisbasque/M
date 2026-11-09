@@ -38173,6 +38173,11 @@ button.core-my-palette-item:focus-visible {
   line-height: var(--mds-line-height-paragraph-xs);
 }
 
+.core-my-dashboard-toolbar .mds-dropdown-trigger.mds-btn {
+  padding: var(--mds-spacing-sm) var(--mds-spacing-md);
+  font-size: var(--mds-font-size-paragraph-default);
+}
+
 .core-my-dashboard-toolbar__divider {
   flex: 0 0 auto;
   width: var(--mds-stroke-weight-sm);
