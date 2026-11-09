@@ -40,6 +40,24 @@ jest.mock('@moodlehq/design-system', () => {
             data-variant={variant}
             {...props}
         >{startIcon}{label}</button>),
+        // As the real one: a radio input, then a label holding the icon, name and supporting text.
+        Choicebox: ({label, supportingText, icon, className, 'aria-describedby': describedBy, ...props}:
+        React.InputHTMLAttributes<HTMLInputElement> & {label: string; supportingText?: string; icon?: React.ReactElement}) => {
+            const id = ReactActual.useId();
+            return <div className={className}>
+                <input
+                    {...props}
+                    type="radio"
+                    id={id}
+                    aria-describedby={[supportingText ? `${id}-text` : '', describedBy ?? ''].join(' ').trim() || undefined}
+                />
+                <label htmlFor={id}>
+                    {icon}
+                    <span>{label}</span>
+                    {supportingText && <span id={`${id}-text`}>{supportingText}</span>}
+                </label>
+            </div>;
+        },
         SearchInput: ReactActual.forwardRef((
             {label, clearLabel: _clearLabel, hideLabel: _hideLabel, ...props}:
             React.InputHTMLAttributes<HTMLInputElement> & {label: string; clearLabel: string; hideLabel?: boolean},
@@ -802,10 +820,11 @@ describe('core_my Dashboard application', () => {
     });
 
     describe('adding a block from the add blocks modal', () => {
-        /** Add a block by clicking its card in the open modal. */
+        /** Add a block by choosing it in the open modal, then Add block. */
         const chooseBlock = async(title: string) => {
             const modal = await screen.findByRole('dialog', {name: 'Add blocks'});
-            fireEvent.click(within(modal).getByRole('button', {name: new RegExp(`^${title}`)}));
+            fireEvent.click(within(modal).getByRole('radio', {name: title}));
+            fireEvent.click(within(modal).getByRole('button', {name: 'Add block'}));
         };
 
         interface FakeModalForm {
@@ -943,10 +962,13 @@ describe('core_my Dashboard application', () => {
 
             const modal = await screen.findByRole('dialog', {name: 'Add blocks'});
             expect(modal).toHaveFocus();
-            const card = within(modal).getByRole('button', {name: /^Calendar/});
-            // There is nothing to confirm: clicking the card adds the block.
-            expect(within(modal).queryByRole('button', {name: 'Add block'})).not.toBeInTheDocument();
-            fireEvent.click(card);
+            const add = within(modal).getByRole('button', {name: 'Add block'});
+            // Add block waits for a choice.
+            expect(add).toBeDisabled();
+            fireEvent.click(within(modal).getByRole('radio', {name: 'Calendar'}));
+            expect(within(modal).getByRole('radio', {name: 'Calendar'})).toBeChecked();
+            expect(add).toBeEnabled();
+            fireEvent.click(add);
 
             // The modal closes at once, with focus back on what opened it.
             expect(screen.queryByRole('dialog', {name: 'Add blocks'})).not.toBeInTheDocument();
@@ -1003,12 +1025,16 @@ describe('core_my Dashboard application', () => {
             render(<Dashboard />);
             fireEvent.click(await screen.findByRole('button', {name: 'Add block'}));
             const modal = await screen.findByRole('dialog', {name: 'Add blocks'});
-            expect(within(modal).getByText('Added')).toBeInTheDocument();
-            // Added blocks go last, whatever order they arrive in.
-            expect(within(modal).getAllByRole('listitem').map(item => item.getAttribute('data-blockname')))
+            // Added blocks go last, whatever order they arrive in, ticked and disabled, and say so.
+            expect(within(modal).getAllByRole('radio').map(item => item.getAttribute('data-blockname')))
                 .toEqual(['calendar_month', 'timeline']);
-            expect(within(modal).queryByRole('button', {name: /^Timeline/})).not.toBeInTheDocument();
-            expect(within(modal).getByRole('button', {name: /^Calendar/})).toBeInTheDocument();
+            // The Choicebox's label holds the description too, so the name starts with the block's.
+            const timeline = within(modal).getByRole('radio', {name: /^Timeline/});
+            expect(timeline).toBeDisabled();
+            expect(timeline).toBeChecked();
+            expect(timeline).toHaveAccessibleDescription(expect.stringContaining('Added'));
+            expect(within(modal).getByRole('radio', {name: /^Calendar/})).toBeEnabled();
+            expect(within(modal).getByRole('radio', {name: /^Calendar/})).not.toBeChecked();
             expect(within(modal).getByRole('link', {name: 'Discover more blocks on Moodle Marketplace'}))
                 .toHaveAttribute('href', 'https://moodle.org/plugins/?q=type:block');
 

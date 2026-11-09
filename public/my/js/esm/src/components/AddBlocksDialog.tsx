@@ -6,13 +6,13 @@
 // (at your option) any later version.
 
 /**
- * The add blocks modal, listing the blocks that can be added as a grid of cards.
+ * The add blocks modal, listing the blocks that can be added as a grid of design system Choiceboxes.
  *
- * Each block is a button with its icon, name and what it does. Clicking one adds it (to the space that
- * opened the modal, or the first free space) and closes the modal. Blocks that allow only one and are
- * already on the dashboard are listed too, last, with a tick and disabled, so nobody is left looking
- * for them. Search narrows the list by name and description. Escape, the close button or a click outside
- * closes the modal.
+ * Each block is a Choicebox with its icon, name and what it does, all in one radio group: picking one
+ * and then Add block (or Enter) adds it, to the space that opened the modal or the first free space,
+ * and closes the modal. Blocks that allow only one and are already on the dashboard are listed too,
+ * last, ticked and disabled, so nobody is left looking for them. Search narrows the list by name and
+ * description. Escape, the close button or a click outside closes the modal.
  *
  * @module     core_my/components/AddBlocksDialog
  * @copyright  2026 Boris Basque <borisbasque@icloud.com>
@@ -20,44 +20,26 @@
  */
 
 import React, {useEffect, useId, useMemo, useRef, useState} from 'react';
-import {CloseButton, Link, SearchInput} from '@moodlehq/design-system';
+import {Button, Choicebox, CloseButton, Link, SearchInput} from '@moodlehq/design-system';
 import type {AvailableBlock, DashboardIcons} from '../repository';
 import type {DashboardLabels} from '../strings';
-import Icon, {renderIcon} from './Icon';
+import {renderIcon} from './Icon';
 
 /** Where the modal's Marketplace link goes: the plugins directory, filtered to blocks. */
 const MARKETPLACE_URL = 'https://moodle.org/plugins/?q=type:block';
 
-interface PaletteItemProps {
-    block: AvailableBlock;
-    labels: DashboardLabels;
-    icons: DashboardIcons;
-    onAdd: (block: AvailableBlock) => void;
-}
-
-/** One block in the modal: a card that adds it, or one saying it is already on the dashboard. */
-const PaletteItem = ({block, labels, icons, onAdd}: PaletteItemProps) => {
+/**
+ * The block's icon, as the <i> element the Choicebox accepts. A block without one gets its initials.
+ *
+ * @param block The block.
+ * @returns The icon element.
+ */
+const blockIcon = (block: AvailableBlock): React.ReactElement<React.HTMLAttributes<HTMLElement>, 'i'> => {
+    if (block.icon) {
+        return renderIcon(block.icon);
+    }
     const initials = block.title.split(/\s+/).slice(0, 2).map(word => word.charAt(0)).join('').toUpperCase();
-    const content = <>
-        <span className="core-my-palette-item__icon" aria-hidden="true">
-            {block.icon ? <Icon markup={block.icon} /> : initials}
-        </span>
-        <span className="core-my-palette-item__text">
-            <span className="core-my-palette-item__name">{block.title}</span>
-            {block.description && <span className="core-my-palette-item__description">{block.description}</span>}
-        </span>
-    </>;
-    return <li data-blockname={block.name}>
-        {block.added
-            ? <div className="core-my-palette-item core-my-palette-item--added">
-                {content}
-                <span className="core-my-palette-item__added">
-                    <Icon markup={icons.added} />
-                    <span className="visually-hidden">{labels.onpage}</span>
-                </span>
-            </div>
-            : <button type="button" className="core-my-palette-item" onClick={() => onAdd(block)}>{content}</button>}
-    </li>;
+    return <i className="core-my-add-blocks__initials" aria-hidden="true">{initials}</i>;
 };
 
 interface AddBlocksDialogProps {
@@ -73,7 +55,10 @@ interface AddBlocksDialogProps {
 const AddBlocksDialog = ({blocks, labels, icons, onAdd, onClose}: AddBlocksDialogProps) => {
     const dialogRef = useRef<HTMLDialogElement>(null);
     const headingId = useId();
+    const groupName = useId();
+    const addedId = useId();
     const [query, setQuery] = useState('');
+    const [chosen, setChosen] = useState<string | null>(null);
 
     // Focus goes to the modal itself, which names it for screen readers, rather than to its first
     // control, so nothing looks selected until someone moves on from it.
@@ -90,6 +75,9 @@ const AddBlocksDialog = ({blocks, labels, icons, onAdd, onClose}: AddBlocksDialo
         return [...matching.filter(block => !block.added), ...matching.filter(block => block.added)];
     }, [blocks, query]);
 
+    // A choice that search has hidden is no longer one: Add block waits for a visible one.
+    const choice = shown.find(block => !block.added && block.name === chosen) ?? null;
+
     return <dialog
         ref={dialogRef}
         className="core-my-add-blocks"
@@ -103,40 +91,72 @@ const AddBlocksDialog = ({blocks, labels, icons, onAdd, onClose}: AddBlocksDialo
             }
         }}
     >
-        <div className="core-my-add-blocks__panel">
+        <form
+            className="core-my-add-blocks__panel"
+            onSubmit={event => {
+                event.preventDefault();
+                if (choice) {
+                    onAdd(choice);
+                }
+            }}
+        >
             <div className="core-my-add-blocks__header">
                 <h2 id={headingId} className="core-my-add-blocks__title">{labels.addblocks}</h2>
                 <CloseButton aria-label={labels.close} onClick={onClose} />
             </div>
-            <SearchInput
-                className="core-my-add-blocks__search"
-                label={labels.searchblocks}
-                hideLabel
-                clearLabel={labels.clearsearch}
-                placeholder={labels.searchblocks}
-                value={query}
-                onChange={event => setQuery(event.target.value)}
-            />
-            {shown.length
-                ? <ul className="core-my-add-blocks__list">
-                    {shown.map(block => <PaletteItem
-                        key={block.name}
-                        block={block}
-                        labels={labels}
-                        icons={icons}
-                        onAdd={onAdd}
-                    />)}
-                </ul>
-                : <p className="core-my-add-blocks__empty" role="status">{labels.noblocksfound}</p>}
-            <Link
-                className="core-my-add-blocks__marketplace"
-                href={MARKETPLACE_URL}
-                target="_blank"
-                rel="noopener"
-                label={labels.marketplace}
-                endIcon={renderIcon(icons.external)}
-            />
-        </div>
+            <div className="core-my-add-blocks__content">
+                <SearchInput
+                    className="core-my-add-blocks__search"
+                    label={labels.searchblocks}
+                    hideLabel
+                    clearLabel={labels.clearsearch}
+                    placeholder={labels.searchblocks}
+                    value={query}
+                    onChange={event => setQuery(event.target.value)}
+                />
+                {shown.length
+                    ? <div className="core-my-add-blocks__list" role="radiogroup" aria-labelledby={headingId}>
+                        {shown.map(block => block.added
+                            ? <Choicebox
+                                key={block.name}
+                                className="core-my-add-blocks__block"
+                                data-blockname={block.name}
+                                label={block.title}
+                                supportingText={block.description ?? undefined}
+                                icon={blockIcon(block)}
+                                checked
+                                readOnly
+                                disabled
+                                aria-describedby={addedId}
+                            />
+                            : <Choicebox
+                                key={block.name}
+                                className="core-my-add-blocks__block"
+                                data-blockname={block.name}
+                                name={groupName}
+                                value={block.name}
+                                label={block.title}
+                                supportingText={block.description ?? undefined}
+                                icon={blockIcon(block)}
+                                checked={chosen === block.name}
+                                onChange={() => setChosen(block.name)}
+                            />)}
+                    </div>
+                    : <p className="core-my-add-blocks__empty" role="status">{labels.noblocksfound}</p>}
+                <span id={addedId} className="visually-hidden">{labels.onpage}</span>
+            </div>
+            <div className="core-my-add-blocks__footer">
+                <Link
+                    className="core-my-add-blocks__marketplace"
+                    href={MARKETPLACE_URL}
+                    target="_blank"
+                    rel="noopener"
+                    label={labels.marketplace}
+                    endIcon={renderIcon(icons.external)}
+                />
+                <Button type="submit" variant="primary" size="lg" label={labels.addblockshort} disabled={!choice} />
+            </div>
+        </form>
     </dialog>;
 };
 

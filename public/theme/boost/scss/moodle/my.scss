@@ -207,6 +207,8 @@
     border-radius: var(--mds-border-radius-xl);
     outline: 0;
     box-shadow: 0 var(--mds-offset-lg) var(--mds-blur-lg) var(--mds-color-lg);
+    // Only the list of blocks scrolls, never the modal around it.
+    overflow: hidden;
 }
 
 .core-my-add-blocks::backdrop {
@@ -216,8 +218,9 @@
 .core-my-add-blocks__panel {
     display: flex;
     flex-direction: column;
-    gap: var(--mds-spacing-xs);
+    gap: var(--mds-spacing-xxs);
     height: min(44rem, calc(100dvh - 2 * var(--mds-spacing-xl)));
+    margin: 0;
 }
 
 .core-my-add-blocks__header {
@@ -226,7 +229,7 @@
     gap: var(--mds-spacing-sm);
     align-items: flex-start;
     justify-content: space-between;
-    padding: var(--mds-spacing-lg) var(--mds-spacing-md) 0;
+    padding: var(--mds-spacing-lg) var(--mds-spacing-md) var(--mds-spacing-xs);
 }
 
 .core-my-add-blocks__title {
@@ -236,30 +239,35 @@
     line-height: var(--mds-line-height-headings-5);
 }
 
-.core-my-add-blocks__search {
-    flex: 0 0 auto;
-    padding: 0 var(--mds-spacing-md);
+// The search and the blocks, in line with the title and the footer.
+.core-my-add-blocks__content {
+    display: flex;
+    flex: 1 1 auto;
+    flex-direction: column;
+    gap: var(--mds-spacing-xxs);
+    min-height: 0;
+    padding: calc(var(--mds-spacing-xs) + var(--mds-spacing-xxs)) var(--mds-spacing-md);
 }
 
-// One column of cards on a phone, two from the design system's md breakpoint. Every card is the same
-// height: its padding and border around the name and two lines of description (see below).
+.core-my-add-blocks__search {
+    flex: 0 0 auto;
+}
+
+// One column of blocks on a phone, two from the design system's md breakpoint, every row as tall as
+// its tallest block. It positions the Choiceboxes' hidden radios, which would otherwise be placed
+// against the dialog and stretch it beyond the list.
 .core-my-add-blocks__list {
+    position: relative;
     display: grid;
     flex: 1 1 auto;
     grid-template-columns: minmax(0, 1fr);
-    --core-my-card-frame: calc(2 * var(--mds-spacing-sm) + 2 * var(--mds-stroke-weight-sm));
-    --core-my-card-name: calc(var(--mds-line-height-paragraph-xs) + var(--mds-spacing-xxs));
-    --core-my-card-description: calc(2 * var(--mds-line-height-paragraph-small));
-    grid-auto-rows: calc(var(--core-my-card-frame) + var(--core-my-card-name) + var(--core-my-card-description));
+    grid-auto-rows: 1fr;
     gap: var(--mds-spacing-xs);
+    align-content: start;
     min-height: 0;
-    // Room for a card's focus ring, which the scrolling list would otherwise clip: the top padding is
-    // taken back by the margin, and scroll-padding keeps it when the keyboard scrolls to a card.
-    padding: var(--mds-stroke-weight-md) var(--mds-spacing-md) var(--mds-spacing-xs);
-    margin: calc(-1 * var(--mds-stroke-weight-md)) 0 0;
+    padding: var(--mds-spacing-xs) 0;
     overflow-y: auto;
     scroll-padding-block: var(--mds-spacing-xs);
-    list-style: none;
 }
 
 @media (min-width: $mds-breakpoints-md) {
@@ -268,144 +276,93 @@
     }
 }
 
-.core-my-add-blocks__empty {
-    flex: 0 0 auto;
-    padding: 0 var(--mds-spacing-md);
-    margin: 0;
-    font-size: var(--mds-font-size-paragraph-small);
-    line-height: var(--mds-line-height-paragraph-small);
-    color: var(--mds-text-subtle);
-}
-
-// The Marketplace link is the modal's footer, set apart by a rule across the full width.
-.core-my-add-blocks__marketplace {
-    flex: 0 0 auto;
-    padding: var(--mds-spacing-md);
-    margin-block-start: auto;
-    border-block-start: var(--mds-stroke-weight-sm) solid var(--mds-border-subtle);
-}
-
-// A block in the modal: icon, name and what it does. A button that adds the block, or, for a block
-// already on the dashboard, a plain card saying "Added".
-.core-my-palette-item {
-    display: flex;
-    gap: var(--mds-spacing-sm);
-    align-items: flex-start;
-    width: 100%;
-    height: 100%;
-    padding: var(--mds-spacing-sm) var(--mds-spacing-xs) var(--mds-spacing-sm) var(--mds-spacing-sm);
-    color: var(--mds-text-default);
-    text-align: start;
-    background: var(--mds-bg-surface-default);
-    border: var(--mds-stroke-weight-sm) solid var(--mds-border-subtle);
-    border-radius: var(--mds-border-radius-lg);
-    transition: border-color .15s ease, background-color .15s ease;
-}
-
-button.core-my-palette-item:hover,
-button.core-my-palette-item:focus-visible {
-    background: var(--mds-bg-interactive-primary-default-light);
-    border-color: var(--mds-border-interactive-primary-hover);
-}
-
-button.core-my-palette-item:hover .core-my-palette-item__icon,
-button.core-my-palette-item:focus-visible .core-my-palette-item__icon {
-    background: var(--mds-bg-feedback-primary-subtle);
-}
-
-button.core-my-palette-item:hover .core-my-palette-item__description,
-button.core-my-palette-item:focus-visible .core-my-palette-item__description {
-    color: var(--mds-text-subtle);
-}
-
-// Focus: as hover, with the 2px focus ring.
-button.core-my-palette-item:focus-visible {
-    outline: var(--mds-stroke-weight-md) solid var(--mds-focus-default);
-    outline-offset: 0;
-}
-
-// Already on the dashboard: disabled, with a tick on the name's line. The description keeps the card's
-// full width, and the words "Added" are there for screen readers.
-.core-my-palette-item--added {
-    position: relative;
-    cursor: not-allowed;
-    background: var(--mds-bg-surface-subtle);
-}
-
-.core-my-palette-item--added .core-my-palette-item__name {
-    padding-inline-end: var(--mds-scale-800);
-    color: var(--mds-text-muted);
-}
-
-.core-my-palette-item--added .core-my-palette-item__icon {
-    color: var(--mds-text-muted);
-    background: var(--mds-bg-surface-strong);
-}
-
-.core-my-palette-item__icon {
-    display: grid;
-    flex: 0 0 auto;
-    place-items: center;
-    width: var(--mds-scale-1100);
-    height: var(--mds-scale-1100);
-    font-size: var(--mds-icons-sm);
-    font-weight: var(--mds-font-weight-bold);
-    color: var(--mds-text-feedback-primary);
-    background: var(--mds-bg-feedback-primary-light);
-    border-radius: var(--mds-border-radius-md);
-}
-
-// A block can declare an image rather than a font icon, as its default monologo is. Those have space
-// built in around the glyph, so they are drawn larger to look the same size as the font icons.
-.core-my-palette-item__icon img.icon {
-    width: var(--mds-icons-lg);
-    height: var(--mds-icons-lg);
-    margin: 0;
-}
-
-.core-my-palette-item__text {
-    display: flex;
-    flex: 1 1 auto;
-    flex-direction: column;
-    gap: var(--mds-spacing-xxs);
+// Each block is a design system Choicebox, filling its cell. Its own minimum width would overflow
+// the columns, and its description stops at two lines.
+.core-my-add-blocks__block {
+    align-self: stretch;
     min-width: 0;
 }
 
-.core-my-palette-item__name,
-.core-my-palette-item__description {
-    font-size: var(--mds-font-size-paragraph-small);
-    line-height: var(--mds-line-height-paragraph-small);
+.core-my-add-blocks__block .mds-choicebox {
+    height: 100%;
 }
 
-// One line of name and at most two of description, so no block can make its card taller. The name's
-// line is tighter than its text, so its clipping box reaches back out to keep the descenders.
-.core-my-palette-item__name {
-    padding-block: calc((var(--mds-line-height-paragraph-small) - var(--mds-line-height-paragraph-xs)) / 2);
-    margin-block: calc((var(--mds-line-height-paragraph-xs) - var(--mds-line-height-paragraph-small)) / 2);
-    overflow: hidden;
-    font-weight: var(--mds-font-weight-medium);
-    line-height: var(--mds-line-height-paragraph-xs);
-    text-overflow: ellipsis;
-    white-space: nowrap;
-}
-
-.core-my-palette-item__description {
+.core-my-add-blocks__block .mds-choicebox-supporting-text {
     display: -webkit-box; /* stylelint-disable-line value-no-vendor-prefix */
     overflow: hidden;
-    color: var(--mds-text-muted);
     -webkit-line-clamp: 2;
     -webkit-box-orient: vertical; /* stylelint-disable-line property-no-vendor-prefix */
 }
 
-.core-my-palette-item__added {
-    position: absolute;
-    inset-block-start: var(--mds-spacing-sm);
-    inset-inline-end: var(--mds-spacing-sm);
-    display: inline-flex;
-    gap: var(--mds-spacing-xxs);
-    align-items: center;
+// A block already on the dashboard is a disabled, ticked Choicebox. Its own selected tint would read
+// as chosen, so it is plain and muted, keeping the component's dimmed tick.
+.core-my-add-blocks__block .mds-choicebox-input:disabled + .mds-choicebox {
+    background-color: transparent;
+    border-color: var(--mds-border-subtle);
+}
+
+.core-my-add-blocks__block .mds-choicebox-input:disabled + .mds-choicebox {
+    .mds-choicebox-icon,
+    .mds-choicebox-label,
+    .mds-choicebox-supporting-text {
+        color: var(--mds-text-muted);
+    }
+}
+
+// The block's icon sits in a tinted circle, as in the design, muted for a block already added.
+.core-my-add-blocks__block .mds-choicebox-icon {
+    width: var(--mds-scale-1100);
+    height: var(--mds-scale-1100);
+    padding: 0;
+    color: var(--mds-text-feedback-primary);
+    background: var(--mds-bg-feedback-primary-subtle);
+    border-radius: var(--mds-border-radius-pill);
+}
+
+.core-my-add-blocks__block .mds-choicebox-input:disabled + .mds-choicebox .mds-choicebox-icon {
+    background: var(--mds-bg-surface-strong);
+}
+
+// A block can declare an image rather than a font icon, as its default monologo is. Those have space
+// built in around the glyph, so they are drawn larger to look the same size as the font icons.
+.core-my-add-blocks__block .mds-choicebox-icon img.icon {
+    width: var(--mds-icons-md);
+    height: var(--mds-icons-md);
+    margin: 0;
+}
+
+// A block without an icon shows its initials in the icon's place.
+.core-my-add-blocks__initials {
     font-size: var(--mds-font-size-paragraph-small);
-    color: var(--mds-text-muted);
+    font-style: normal;
+    font-weight: var(--mds-font-weight-bold);
+    line-height: var(--mds-icons-sm);
+}
+
+.core-my-add-blocks__empty {
+    flex: 0 0 auto;
+    padding: var(--mds-spacing-xs) var(--mds-spacing-md);
+    margin: 0;
+    font-size: var(--mds-font-size-paragraph-small);
+    line-height: var(--mds-line-height-paragraph-small);
+    color: var(--mds-text-subtle);
+}
+
+// The footer: the Marketplace link, then Add block at the end, under a rule in line with the content.
+.core-my-add-blocks__footer {
+    display: flex;
+    flex: 0 0 auto;
+    flex-wrap: wrap;
+    gap: var(--mds-spacing-md);
+    align-items: center;
+    justify-content: flex-end;
+    padding: var(--mds-spacing-sm) 0 var(--mds-spacing-md);
+    margin-inline: var(--mds-spacing-md);
+    border-block-start: var(--mds-stroke-weight-sm) solid var(--mds-border-default);
+}
+
+.core-my-add-blocks__marketplace {
+    margin-inline-end: auto;
 }
 
 // Room under the dashboard for the fixed edit bar, so the last row is never hidden behind it.
